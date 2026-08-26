@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+/* CoEldery 85 家庭樹 — Design Tokens */
+:root {
+  /* 主色 森林綠 */
+  --color-primary: #228B22;
+  /* 強調色 法拉利紅 */
+  --color-accent: #FF2800;
+  /* 背景 米白 */
+  --color-bg: #faf7f0;
+  /* 卡片白 */
+  --color-card: #ffffff;
+  /* 主文字 */
+  --color-text: #2b2b2b;
+  /* 次要文字 */
+  --color-text-secondary: #6b6b6b;
+  /* 分隔線 */
+  --color-divider: #e2ddd2;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: 'Noto Sans TC', 'Montserrat', sans-serif;
+  font-size: 18px;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  min-height: 100svh;
+}

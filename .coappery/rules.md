@@ -1,0 +1,90 @@
+# CoEldery 85 家庭樹 — 專案憲章 (rules.md)
+
+> 本檔為家庭樹專案嘅靜態規則，跨開發階段通用、精簡穩定。
+> 每次交俾代碼工人前必須前置本檔。代碼工人只可遵守，不可自行放寬。
+> 任何修改須經產品負責人批准。
+
+---
+
+## 0. 專案定位
+- 本專案係「家庭樹」——CoEldery 85（老有卡）生態內嘅一個 sub-app。
+- 目標用戶:香港 60 歲以上長者及其家人。
+- 用 CoAppery 方法論開發，但唔用 CoAppery 平台本身（未成熟）。
+- 開發階段:登入與儲存一律先 mock，接口預留將來接真 SSO / R2。
+
+---
+
+## 1. 設計語言（品牌 Design Token — 不可走色）
+- 主色 森林綠 `#228B22`:關係線、聚焦邊框、tab highlight、主要按鈕、配偶愛心。
+- 強調色 法拉利紅 `#FF2800`:只用於通知紅點、重要提示。禁止大面積使用。
+- 背景 米白 `#faf7f0`;卡片 `#ffffff`（圓角 16px + 柔和陰影）。
+- 主文字 `#2b2b2b`;次要文字 `#6b6b6b`;分隔線 `#e2ddd2`。
+- 字體:英文 Montserrat Bold;中文 思源黑體 Bold（Noto Sans TC Bold）。
+- ⚠️ 嚴禁使用 CoAppery 工具嘅橙色 `#F97316`。橙色屬開發工具，綠紅屬本產品，兩套 token 完全獨立、不可混。
+- 禁止粉紅色（包括配偶愛心）。
+
+## 2. 長者友善原則（憲法級）
+- 正文字級 ≥ 18px;關係標籤 ≥ 16px;鼓勵文案 ≥ 22px。
+- 所有可點擊熱區 ≥ 44×44px;主 CTA 按鈕高 ≥ 56px。
+- 留白充足，逐步揭露，唔好一屏塞太多選項。
+- Icon 必須配文字，禁止 icon-only 按鈕。
+- 情緒基調溫暖，唔可以冷漠;空狀態要有引導。
+
+## 3. 語言與 i18n（憲法級，源自 CoAppery 規範五）
+- 所有面向用戶嘅文字（按鈕、標題、錯誤訊息、提示、placeholder、日期/數字格式）一律唔准 hardcode。
+- 全部文字放入語言檔 `locales/`（`zh-Hant.json` 為主），透過 i18n key 引用。
+- 一律用書面/廣東話語感嘅繁體中文（香港用語:大新抱、阿仔、阿女、孫仔等），嚴禁簡體字。
+- 就算今次淨做繁中，都必須用 i18n 結構建立（將來加簡中/英文只係加語言檔，唔使重寫）。
+- 核實代碼時必須專門檢查有冇 hardcode 文字——AI 最易喺呢度偷懶。
+
+## 4. 文案紅線（源自 CoAppery 1.3）
+- 任何文字都唔可以暗示「系統全自動、無需人手」。
+- 涉及行動嘅文案要強調「用戶主導」。例:券系統寫「一鍵發送預訂訊息俾商家，由你同商家確認」，唔可以寫「自動幫你搞掂預訂」。
+
+## 5. 業務規則數字一律可調（不可 hardcode）
+以下數值全部存於「參數/設定」，可由後台或商家調整，禁止寫死喺 code:
+- 券領取後確認時限、券限量數量、券折扣、券有效期
+- 成員相簿配額（5 相 + 2 片）、成長相簿起始配額（5 相 + 2 片）、影片長度上限（90 秒）
+- 推薦獎勵門檻（成功推薦 5 位）、推薦 bonus 有效期（6 個月）、重要日子提前提醒時間（提前 1 個月）
+- 「成功推薦」定義:被推薦者開新家庭樹 + 加入第一位成員。
+
+## 6. 模組化與慳 token（源自 CoAppery 規範二）
+- 家庭樹係獨立 repo（`coeldery-family-tree`），同其他 sub-app 分開，AI 一次只讀一個 repo。
+- repo 內部核心功能拆成獨立微模組，放 `/packages`。禁止大型單體檔案。
+- 共用嘢（design token、i18n、layout 殼、上傳 component、券引擎）做成獨立模組，各處引用，唔重複。
+- 每個模組跟 CoAppery manifest 習慣，寫 `module.json`（name / label / category / version / dependencies / derivedFrom / docs），方便將來搬入 CoAppery。
+- 資料夾結構跟 CoAppery:`src/components`、`src/pages`、`src/utils`、`packages/`、`.coappery/`（放 rules.md + memory_vault.md）。
+
+## 7. GitHub 防呆（憲法級，源自 CoAppery 第 8 部分血淚）
+- GitHub 係唯一事實來源，唔係 sandbox。一開波就開 repo。
+- 每完成一個可驗證細步就 commit + push 一次，唔好儲一大堆。
+- push 完必須畀客觀證據:commit hash、時間、改動檔案清單，並由產品負責人去 GitHub 親自核實。唔收「push 咗」口頭話。
+- 每個開發 session 開始前，先確認 GitHub 有最新版本先郁手。
+
+## 8. API Key 安全（憲法級，源自 CoAppery 規範三）
+- Key 永不入 code、永不入 git。
+- 本地用 `.env` 且必須加入 `.gitignore`;上線用 Cloudflare Secret / 環境變數。
+
+## 9. 上傳狀態機（源自 CoAppery 規範一，接口先預留）
+- 相片/影片必須先成功上傳（攞到 200 + 有效 URL/key）先寫入資料庫。
+- 狀態流轉:pending_upload → uploading → verified(200) → db_write → completed。
+- 存 URL 嘅欄位 NOT NULL。今次先 mock，但接口/資料結構要預留呢個流程。
+
+## 10. 技術堆棧
+- 前端:React + Tailwind CSS（跟 CoAppery 方向）。
+- PWA:支援離線快取、加到主畫面。
+- 將來部署:Cloudflare Pages（push + verify 模式）。
+- SPA 必須加 `_redirects`（`/* /index.html 200`），避免直開子路由 404。
+- 登入:將來用 JWT SSO 接 CoEldery 85 會員系統。今次 mock。
+
+## 11. 開發紀律（源自「一次全給會中伏」教訓）
+- 一次只做一個可驗證嘅細步，禁止一次過掟多個階段。
+- 每細步做完停低，由產品負責人核實先做下一步。
+- 若執行工具「修好 A 壞咗 B」，退返上一個 GitHub 好版本，重新畀更清嘅 prompt，唔好死纏。
+- NBP 出圖:文字多嘅頁面禁止用「局部編輯」，一律完整 prompt 重新生成整張圖。
+
+## 12. Out-of-Scope（第一版唔做）
+- 任何付款 / 金流 / 交易 / 抽佣 / 退款 / 發票。
+- 平台通用券 / 預售券（涉及金流，backlog，待法律財務評估）。
+- 完整電商落單流程、複雜權限、貼文轉發、AI 短劇、智能稱謂、自動深度家族探索。
+- 家庭聚會平台只做廣告/引流:用戶睇商家 → 領券 → WhatsApp 聯絡商家。app 唔掂金流。
