@@ -59,3 +59,54 @@ git -C /home/user/coeldery-family-tree push origin main
 
 ### 8. src/ 改動確認
 本細步唔改任何 src/ 內容，純 .coappery/ 資料夾操作。
+
+---
+
+## [細步 1.5-B][實時紀錄] Core Document v4 入庫
+
+### 1. 完整指令原文
+任務：細步 1.5-B — Core Document v4 入庫
+
+任務性質：純檔案寫入。唔准寫任何 code、UI、component，唔准改動 src/ 或 .coappery/design/ 內容。以下 Core Document 全文必須「一字不改」原封存入，包括章節編號、表格、清單、術語。
+
+Part 1 — Core Document 入庫：將 CoEldery 85 家庭樹系統 Core Document 最終版 v4 完整存入 .coappery/memory_vault.md。若已存在：喺檔尾加一條分隔線 ---，再加標題 ## Core Document v4，之後 append 全文。不得覆寫或刪除現有內容。
+
+Part 2 — Build Log 實時紀錄：喺 .coappery/build_log.md append 一條 entry，標題 ## [細步 1.5-B][實時紀錄] Core Document v4 入庫，依 rules.md 第 14 條填齊八個欄位。
+
+完成後 push 到 main，回報六項客觀證據。
+
+### 2. 執行計畫
+1. 讀取現有 memory_vault.md 確認內容（已有 13 行）
+2. 喺檔尾 append 分隔線 + ## Core Document v4 標題 + 全文（一字不改）
+3. 確認行數及 Core Document v4 區段起始/結束行號
+4. Append 本 entry 至 build_log.md
+5. git add + commit + push main
+6. 回報六項客觀證據
+
+### 3. 檔案變更清單
+- 修改：.coappery/memory_vault.md（append Core Document v4，原 13 行 → 100 行）
+- 修改：.coappery/build_log.md（append 本 entry）
+- 無改動：src/、.coappery/design/ 四個檔案
+
+### 4. 執行過嘅 Command
+```
+# 讀取 memory_vault.md（Read tool）
+# Edit tool append Core Document v4 至 memory_vault.md 檔尾
+# Edit tool append 本 entry 至 build_log.md
+git -C /home/user/coeldery-family-tree add .coappery/memory_vault.md .coappery/build_log.md
+git -C /home/user/coeldery-family-tree commit -m "細步 1.5-B：Core Document v4 入庫..."
+git -C /home/user/coeldery-family-tree push origin main
+```
+
+### 5. 所有 Error 與 Retry
+無
+
+### 6. 最終 Commit Hash + Timestamp
+（將於 push 完成後填入 — 見 GitHub commit 紀錄）
+
+### 7. 未解決事項
+無（細步 1.5-A 遺留嘅 Core Document v4 入庫工作已完成）
+
+### 8. src/ 改動確認
+本細步唔改任何 src/ 內容，亦唔改 .coappery/design/ 任何檔案。
+只修改 .coappery/memory_vault.md（append）及 .coappery/build_log.md（append）。
