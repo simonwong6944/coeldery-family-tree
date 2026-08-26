@@ -110,7 +110,7 @@ function Avatar({
               borderRadius: '50%',
               objectFit: 'cover',
               display: 'block',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+              boxShadow: 'var(--shadow-soft)',
             }}
           />
         ) : (
@@ -128,7 +128,7 @@ function Avatar({
               fontSize: Math.round(size * 0.38) + 'px',
               fontWeight: 'bold',
               color: 'var(--color-text)',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+              boxShadow: 'var(--shadow-soft)',
             }}
           >
             {initial}
@@ -217,7 +217,7 @@ function PetAvatar({ pet, size = 48 }: { pet: PetInfo; size?: number }) {
               height: size,
               borderRadius: '50%',
               objectFit: 'cover',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+              boxShadow: 'var(--shadow-soft)',
             }}
           />
         ) : (
@@ -231,7 +231,7 @@ function PetAvatar({ pet, size = 48 }: { pet: PetInfo; size?: number }) {
               alignItems: 'center',
               justifyContent: 'center',
               fontSize: '24px',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+              boxShadow: 'var(--shadow-soft)',
             }}
             aria-label={pet.name}
           >
@@ -276,7 +276,7 @@ function PetAvatar({ pet, size = 48 }: { pet: PetInfo; size?: number }) {
         }}
         aria-label={petLabel}
       >
-        {pet.ownerRelation}嘅{pet.petType}
+        {petLabel}
       </span>
     </div>
   )
@@ -296,8 +296,8 @@ export default function HouseholdCard({
 }: HouseholdCardProps) {
   /* 根據 focused / peek 狀態計算樣式 */
   const cardBoxShadow = isFocused
-    ? '0 4px 20px rgba(34,139,34,0.18), 0 0 0 4px rgba(34,139,34,0.10)'
-    : '0 2px 8px rgba(0,0,0,0.08)'
+    ? 'var(--shadow-focus-card), var(--ring-focus)'
+    : 'var(--shadow-soft)'
 
   const cardBorder = isFocused
     ? '2px solid var(--color-primary)'

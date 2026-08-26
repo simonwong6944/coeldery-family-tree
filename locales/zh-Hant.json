@@ -4,7 +4,7 @@
   "top_bar": {
     "back": "← 老有卡 App",
     "title": "家庭樹",
-    "add_member": "＋加人",
+    "add_member": "新增家人",
     "share": "分享",
     "notifications": "通知"
   },
@@ -24,7 +24,7 @@
     "option_gallery": "從相簿選取",
     "cancel": "取消",
     "state_pending": "等待上傳",
-    "state_uploading": "上傳中…",
+    "state_uploading": "上傳中⋯",
     "state_verified": "驗證成功",
     "state_db_write": "儲存紀錄",
     "state_completed": "完成"
@@ -32,55 +32,60 @@
 
   "household_card": {
     "couple_connector_label": "配偶",
-    "pet_label": "{petName} · {ownerRelation}嘅{petType}",
+    "pet_label": "{{petName}} · {{ownerRelation}}的{{petType}}",
     "notification_dot_label": "有新動態"
   },
 
   "gen1": {
     "layer_label": "第一代",
     "member_self": "本人",
-    "member_self_relation": "我",
-    "member_spouse": "太太",
+    "member_self_relation": "本人",
+    "member_spouse": "妻子",
     "member_spouse_relation": "妻子"
   },
 
   "gen2": {
     "layer_label": "第二代",
-    "family_label": "{headName}一家",
+    "family_label": "{{headName}}一家",
+    "household_of": "{{name}}一家",
     "peek_left_hint": "‹",
     "peek_right_hint": "›",
-    "dots_label": "第 {current} 個，共 {total} 個家庭",
-    "member_eldest_son": "大仔",
-    "member_eldest_son_relation": "大仔",
-    "member_eldest_daughter_in_law": "大新抱",
-    "member_eldest_daughter_in_law_relation": "新抱",
-    "member_daughter": "阿女",
-    "member_daughter_relation": "阿女",
-    "member_youngest_son": "細仔",
-    "member_youngest_son_relation": "細仔",
+    "dots_label": "第 {{current}} 個，共 {{total}} 個家庭",
+    "member_eldest_son": "長子",
+    "member_eldest_son_relation": "長子",
+    "member_eldest_daughter_in_law": "長媳",
+    "member_eldest_daughter_in_law_relation": "長媳",
+    "member_daughter": "女兒",
+    "member_daughter_relation": "女兒",
+    "member_youngest_son": "幼子",
+    "member_youngest_son_relation": "幼子",
     "pet_name": "Lucky",
-    "pet_type": "狗",
-    "pet_owner_relation": "大新抱"
+    "pet_type": "寵物犬",
+    "pet_owner_relation": "長媳"
   },
 
   "gen3": {
     "layer_label": "第三代",
-    "member_grandson": "孫仔",
-    "member_grandson_relation": "孫",
+    "member_grandson": "孫兒",
+    "member_grandson_relation": "孫兒",
     "member_granddaughter": "孫女",
-    "member_granddaughter_relation": "孫",
-    "dots_label": "第 {current} 個，共 {total} 個成員"
+    "member_granddaughter_relation": "孫女",
+    "dots_label": "第 {{current}} 個，共 {{total}} 個成員"
+  },
+
+  "common": {
+    "indicator_position": "第 {{active}} 個，共 {{total}} 個"
   },
 
   "empty_state": {
-    "heading": "開始建立你嘅家庭樹啦！",
-    "subtext": "加入你嘅屋企人，一齊記錄成長。",
-    "cta": "＋ 加入第一位家人",
+    "heading": "開始建立您的家庭樹吧！",
+    "subtext": "新增您的家人，一同記錄成長。",
+    "cta": "＋ 新增第一位家人",
     "self_label": "本人"
   },
 
   "a11y": {
-    "avatar_alt": "{name}的頭像",
+    "avatar_alt": "{{name}}的頭像",
     "couple_heart_alt": "配偶關係心形",
     "pet_paw_alt": "寵物標記",
     "connection_line_alt": "家庭連接線",

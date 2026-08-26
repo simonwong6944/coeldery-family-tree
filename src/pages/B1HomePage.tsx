@@ -41,7 +41,6 @@ function TopBarRightSlot() {
     border: 'none',
     cursor: 'pointer',
     color: 'var(--color-text)',
-    fontSize: '12px',
     fontFamily: 'inherit',
     gap: '2px',
     outline: 'none',
@@ -53,8 +52,9 @@ function TopBarRightSlot() {
     lineHeight: 1,
   }
 
+  /* B1.md §2.3：頂部 icon 旁文字 16px Bold */
   const labelStyle: React.CSSProperties = {
-    fontSize: '12px',
+    fontSize: '16px',
     fontWeight: 'bold',
     color: 'var(--color-text-secondary)',
     lineHeight: 1,
@@ -157,9 +157,10 @@ function GenLabel({ labelKey }: { labelKey: string }) {
 /* ── Indicator Dots ─── */
 
 function IndicatorDots({ total, active }: { total: number; active: number }) {
+  const { t } = useTranslation()
   return (
     <div
-      aria-label={`第 ${active + 1} 個，共 ${total} 個`}
+      aria-label={t('common.indicator_position', { active: active + 1, total })}
       style={{
         display: 'flex',
         gap: '8px',
@@ -212,7 +213,7 @@ function PeekCard({ labelText, side }: { labelText: string; side: 'left' | 'righ
           height: '160px',
           backgroundColor: 'var(--color-card)',
           borderRadius: side === 'left' ? '0 16px 16px 0' : '16px 0 0 16px',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+          boxShadow: 'var(--shadow-soft)',
           border: '1.5px solid var(--color-divider)',
           display: 'flex',
           alignItems: 'center',
@@ -270,7 +271,7 @@ function Gen3Member({ member, size = 64 }: { member: MemberInfo; size?: number }
             fontSize: Math.round(size * 0.38) + 'px',
             fontWeight: 'bold',
             color: 'var(--color-text)',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+            boxShadow: 'var(--shadow-soft)',
             border: '2px solid var(--color-primary)',
           }}
         >
@@ -413,8 +414,8 @@ export default function B1HomePage() {
               overflow: 'hidden',
             }}
           >
-            {/* 左 peek：阿女一家 */}
-            <PeekCard labelText={t('gen2.member_daughter') + '一家'} side="left" />
+            {/* 左 peek：女兒一家 */}
+            <PeekCard labelText={t('gen2.household_of', { name: t('gen2.member_daughter') })} side="left" />
 
             {/* Focused 卡：大仔一家（大仔 + 大新抱 + Lucky） */}
             <div style={{ flex: '0 0 auto', width: 'calc(100% - 64px - 32px)', maxWidth: '320px' }}>
@@ -433,8 +434,8 @@ export default function B1HomePage() {
               />
             </div>
 
-            {/* 右 peek：細仔一家 */}
-            <PeekCard labelText={t('gen2.member_youngest_son') + '一家'} side="right" />
+            {/* 右 peek：幼子一家 */}
+            <PeekCard labelText={t('gen2.household_of', { name: t('gen2.member_youngest_son') })} side="right" />
           </div>
 
           {/* Gen2 指示點（● ○ ○，active = index 0 即 大仔一家） */}
@@ -468,7 +469,7 @@ export default function B1HomePage() {
               backgroundColor: 'var(--color-card)',
               borderRadius: '16px',
               border: '2px solid var(--color-primary)',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+              boxShadow: 'var(--shadow-soft)',
               padding: '20px',
               display: 'flex',
               alignItems: 'flex-start',

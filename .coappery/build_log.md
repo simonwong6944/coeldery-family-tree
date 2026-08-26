@@ -190,3 +190,79 @@ git -C /home/user/coeldery-family-tree push origin main
 - locales/zh-Hant.json（大幅擴充 i18n keys）
 - packages/ 新增四個 module（唔改其他現有 src/ 檔案）
 - npm run build 結果：✅ exit code 0，零 TypeScript error，零 build error。
+
+---
+
+## [細步 3a-fix][實時紀錄] 規範修正 + 全面轉正式書面繁中
+
+### 1. 完整指令原文
+任務：細步 3a-fix — 規範修正 + 全面轉正式書面繁中
+
+任務性質：只修正與文案轉換，不加新功能、不改頁面結構、不改組件 props interface（保持向下相容）。
+
+Part 1：新增 rules.md 第 15 條（語體規範）
+Part 2：稱謂對照表寫入 memory_vault.md
+Part 3：全 app 文案轉正式書面繁中（更新 locales/zh-Hant.json）
+Part 4：消除硬編中文（改用 i18n）— household-card PetAvatar、B1HomePage PeekCard + IndicatorDots aria-label、bottom-tab-bar dead code 清除
+Part 5：消除全部 hardcode rgba（新增 CSS shadow 變數，全 repo 替換）
+Part 6：TopBarRightSlot icon label 12px → 16px Bold；建立 Pending Changes Log（關係標籤字級矛盾待決）
+Part 7：Build Log 實時紀錄
+
+### 2. 執行計畫
+1. 讀取 rules.md、B1.md、zh-Hant.json、index.css、所有 packages、B1HomePage
+2. Append 第 15 條至 rules.md
+3. Append 稱謂對照表至 memory_vault.md
+4. 全面改寫 locales/zh-Hant.json（書面繁中，稱謂表，新增 household_of / common.indicator_position keys）
+5. household-card PetAvatar：顯示文字改用 t('household_card.pet_label', {...})
+6. bottom-tab-bar：刪走 TabConfig.icon 及 TabConfig.ariaLabel 兩個 dead code 欄位
+7. B1HomePage：PeekCard 改用 t('gen2.household_of')，IndicatorDots aria-label 改用 t('common.indicator_position')
+8. index.css 新增 6 個 shadow/overlay CSS 變數
+9. 全 repo 替換 hardcode rgba → var(...)（household-card 3 處，B1HomePage 3 處，upload-panel 3 處）
+10. TopBarRightSlot icon label fontSize 12px → 16px Bold
+11. 建立 .coappery/pending_changes.md，登記關係標籤字級 16px vs 18px 矛盾待決項
+12. npm run build → 確認零 error
+13. Append 本 entry 至 build_log.md
+14. git add + commit + push main
+15. 回報七項客觀證據
+
+### 3. 檔案變更清單
+- 修改：.coappery/rules.md（append 第 15 條語體規範）
+- 修改：.coappery/memory_vault.md（append 書面稱謂對照表）
+- 新增：.coappery/pending_changes.md（關係標籤字級矛盾待決）
+- 修改：locales/zh-Hant.json（全面正式書面繁中，新增 household_of / common.indicator_position）
+- 修改：packages/household-card/index.tsx（PetAvatar 顯示改 t()，3 處 rgba → var）
+- 修改：packages/bottom-tab-bar/index.tsx（刪 TabConfig.icon + ariaLabel dead code）
+- 修改：packages/upload-panel/index.tsx（3 處 rgba → var）
+- 修改：src/index.css（新增 6 個 shadow/overlay CSS 變數）
+- 修改：src/pages/B1HomePage.tsx（PeekCard i18n，IndicatorDots aria-label i18n，3 處 rgba → var，icon label 12px→16px）
+- 修改：.coappery/build_log.md（append 本 entry）
+
+### 4. 執行過嘅 Command
+```
+# 全部為 Read / Edit / Write / MultiEdit tool 操作
+cd /home/user/coeldery-family-tree && npm run build
+git -C /home/user/coeldery-family-tree add .
+git -C /home/user/coeldery-family-tree commit -m "細步 3a-fix：規範修正 + 全面轉正式書面繁中"
+git -C /home/user/coeldery-family-tree push origin main
+```
+
+### 5. 所有 Error 與 Retry
+- Part 4 第一次 MultiEdit 嘗試同時修改 IndicatorDots + PeekCard，IndicatorDots 部分因 old_string 不匹配失敗；改用獨立 Edit tool 重做，成功。
+- 右側 PeekCard 第一次 edit 因 old_string 含錯誤字元失敗；確認實際行內容後重做，成功。
+
+### 6. 最終 Commit Hash + Timestamp
+（push 完成後見 git log 輸出）
+
+### 7. 未解決事項
+- 關係標籤字級 16px vs 18px 矛盾：已登記 .coappery/pending_changes.md，待產品負責人決策。
+
+### 8. src/ 改動確認
+本細步修改：
+- src/index.css（新增 6 個 shadow/overlay CSS 變數，無其他變動）
+- src/pages/B1HomePage.tsx（PeekCard i18n / IndicatorDots aria-label i18n / rgba 替換 / icon label 16px）
+- locales/zh-Hant.json（全面書面繁中 + 新 key）
+- packages/household-card/index.tsx（PetAvatar t() / rgba 替換）
+- packages/bottom-tab-bar/index.tsx（dead code 清除）
+- packages/upload-panel/index.tsx（rgba 替換）
+- 不改：src/App.tsx、src/utils/i18n.ts、src/pages/HomePage.tsx、packages/top-bar/
+- npm run build 結果：待確認（見下方 build log）

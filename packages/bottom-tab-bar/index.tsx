@@ -8,7 +8,7 @@
  *   - 每個 tab：上方 icon（28px）+ 下方文字標籤（18px Bold）
  *   - Active tab：文字 & icon 用 var(--color-primary)，頂部 3px 綠條
  *   - Inactive tab：灰色（var(--color-text-secondary)）
- *   - 熱區：每個 tab ≥ 80px 高（整個 tab 可撳）
+ *   - 熱區：每個 tab ≥ 80px 高（整個 tab 均可點擊）
  *   - current prop（'family_tree' | 'family_circle' | 'family_gathering' | 'my_recommendations'）
  * 顏色：只用 CSS var，禁止 hardcode hex
  * 文字：全部 via i18n t('key')
@@ -28,9 +28,6 @@ export interface BottomTabBarProps {
 interface TabConfig {
   id: TabId
   labelKey: string
-  /** SVG path data for the icon */
-  icon: React.ReactNode
-  ariaLabel: string
 }
 
 /* ── SVG Icons（純 SVG，唔依賴外部 icon lib）─── */
@@ -88,30 +85,10 @@ function IconMyRecommendations({ active }: { active: boolean }) {
 /* ── Tab 配置 ─── */
 
 const TABS: TabConfig[] = [
-  {
-    id: 'family_tree',
-    labelKey: 'bottom_tab_bar.family_tree',
-    icon: <IconFamilyTree active={false} />,
-    ariaLabel: '家庭樹',
-  },
-  {
-    id: 'family_circle',
-    labelKey: 'bottom_tab_bar.family_circle',
-    icon: <IconFamilyCircle active={false} />,
-    ariaLabel: '家庭圈',
-  },
-  {
-    id: 'family_gathering',
-    labelKey: 'bottom_tab_bar.family_gathering',
-    icon: <IconFamilyGathering active={false} />,
-    ariaLabel: '家庭聚會',
-  },
-  {
-    id: 'my_recommendations',
-    labelKey: 'bottom_tab_bar.my_recommendations',
-    icon: <IconMyRecommendations active={false} />,
-    ariaLabel: '我的推薦',
-  },
+  { id: 'family_tree',        labelKey: 'bottom_tab_bar.family_tree' },
+  { id: 'family_circle',      labelKey: 'bottom_tab_bar.family_circle' },
+  { id: 'family_gathering',   labelKey: 'bottom_tab_bar.family_gathering' },
+  { id: 'my_recommendations', labelKey: 'bottom_tab_bar.my_recommendations' },
 ]
 
 /* ── Main Component ─── */

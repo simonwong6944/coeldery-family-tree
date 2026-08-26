@@ -69,7 +69,7 @@ function OptionButton({ label, onClick, isCancel = false }: OptionButtonProps) {
         fontFamily: 'inherit',
         cursor: 'pointer',
         textAlign: 'center',
-        boxShadow: isCancel ? 'none' : '0 1px 4px rgba(0,0,0,0.06)',
+        boxShadow: isCancel ? 'none' : 'var(--shadow-subtle)',
         transition: 'background 0.15s ease',
         outline: 'none',
       }}
@@ -115,7 +115,7 @@ export default function UploadPanel({
             fontWeight: 'bold',
             fontFamily: 'inherit',
             cursor: 'pointer',
-            boxShadow: '0 4px 12px rgba(34,139,34,0.25)',
+            boxShadow: 'var(--shadow-cta)',
             whiteSpace: 'nowrap',
             outline: 'none',
           }}
@@ -136,7 +136,7 @@ export default function UploadPanel({
             style={{
               position: 'fixed',
               inset: 0,
-              backgroundColor: 'rgba(0,0,0,0.4)',
+              backgroundColor: 'var(--overlay-scrim)',
               zIndex: 200,
             }}
           />

@@ -16,6 +16,14 @@
   --color-text-secondary: #6b6b6b;
   /* 分隔線 */
   --color-divider: #e2ddd2;
+
+  /* ── Shadow tokens（消除 hardcode rgba）── */
+  --shadow-soft: 0 2px 8px rgba(0,0,0,0.08);
+  --shadow-subtle: 0 1px 4px rgba(0,0,0,0.06);
+  --shadow-cta: 0 4px 12px rgba(34,139,34,0.25);
+  --shadow-focus-card: 0 4px 20px rgba(34,139,34,0.18);
+  --ring-focus: 0 0 0 4px rgba(34,139,34,0.10);
+  --overlay-scrim: rgba(0,0,0,0.4);
 }
 
 body {

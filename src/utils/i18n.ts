@@ -1,6 +1,6 @@
 /**
  * i18n 初始化模組
- * 所有面向用戶嘅文字必須經呢個模組引用，唔准 hardcode
+ * 所有面向用戶的文字必須經此模組引用，不得 hardcode
  */
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
