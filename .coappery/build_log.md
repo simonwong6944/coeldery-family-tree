@@ -393,10 +393,14 @@ npx wrangler pages deploy dist --project-name coeldery-family-tree
 ```
 
 ### 5. 所有 Error 與 Retry
-（build 完成後填入）
+- App.tsx boxShadow 首次使用 rgba(0,0,0,0.08) hardcode，grep 發現後改為 var(--shadow-soft)，再次 build 確認通過。
+- 其餘首次 build 即成功（exit code 0，48 modules transformed，414ms）。
 
 ### 6. 最終 Commit Hash + Timestamp
-（push 完成後填入）
+- commit hash: b31b52abdd9171fea9ab1495944b6f9c91541d35
+- timestamp: 2026-08-26 16:10:35 +0000
+- branch: main
+- Preview URL: https://a061bd02.coeldery-family-tree.pages.dev
 
 ### 7. 未解決事項
 - 關係標籤字級 16px vs 18px 矛盾：持續登記 .coappery/pending_changes.md，待產品負責人決策。
@@ -410,4 +414,9 @@ npx wrangler pages deploy dist --project-name coeldery-family-tree
 - packages/household-card/index.tsx（Avatar + PetAvatar onError fallback）
 - locales/zh-Hant.json（top_bar.title 改「老有樹」，底部 tab 名稱未變）
 - 不改：src/index.css、src/utils/i18n.ts、packages/top-bar/、packages/bottom-tab-bar/、packages/upload-panel/
-- npm run build 結果：（待填入）
+- npm run build 結果：✅ exit code 0，零 TypeScript error，零 build error，48 modules，414ms。
+- rgba() grep：只命中 src/index.css（CSS 變數定義）✅
+- 粵語 grep：零命中 ✅
+- Tab 名稱：家庭樹 / 家庭圈 / 家庭聚會 / 我的推薦（未變）✅
+- 頂欄標題：「老有樹」✅
+- props interface：MemberInfo / PetInfo / HouseholdCardProps / TopBarProps / BottomTabBarProps / UploadPanelProps 全部未變 ✅
