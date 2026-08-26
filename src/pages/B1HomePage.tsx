@@ -1,3 +1,5 @@
+// mockup placeholder 外部圖 URL，正式版須替換為使用者實際上載圖片
+
 /**
  * B1HomePage — 家庭樹主頁（靜態 UI，狀態 A 有成員）
  *
@@ -16,6 +18,7 @@
  *
  * TopBar rightSlot：三欄 flex，三個純 icon（rules.md 第16條）每個 ≥ 44×44px，各有 aria-label。
  * 顏色：全部 CSS var。文字：全部 i18n t('key')。
+ * avatarUrl：全部為外部 placeholder URL（randomuser.me / dog.ceo），正式版須替換為使用者實際上載圖片。
  */
 
 import { useTranslation } from 'react-i18next'
@@ -335,6 +338,23 @@ function Gen3Member({ member, size = 64 }: { member: MemberInfo; size?: number }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
       <div style={{ position: 'relative', width: size, height: size }}>
+        {member.avatarUrl ? (
+          <img
+            src={member.avatarUrl}
+            alt={member.name}
+            onError={(e) => { e.currentTarget.style.display = 'none'; (e.currentTarget.nextElementSibling as HTMLElement | null)?.style.setProperty('display', 'flex') }}
+            style={{
+              width: size,
+              height: size,
+              borderRadius: '50%',
+              objectFit: 'cover',
+              display: 'block',
+              boxShadow: 'var(--shadow-soft)',
+              border: '2px solid var(--color-primary)',
+            }}
+          />
+        ) : null}
+        {/* fallback 首字母（avatarUrl 載入失敗時顯示） */}
         <div
           aria-label={member.name}
           style={{
@@ -342,7 +362,7 @@ function Gen3Member({ member, size = 64 }: { member: MemberInfo; size?: number }
             height: size,
             borderRadius: '50%',
             backgroundColor: 'var(--color-divider)',
-            display: 'flex',
+            display: member.avatarUrl ? 'none' : 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             fontSize: Math.round(size * 0.38) + 'px',
@@ -372,26 +392,40 @@ export default function B1HomePage() {
 
   /* ── 靜態資料（全部來自 i18n，不 hardcode 文字）── */
 
+  /* ── Placeholder 頭像 URL（外部服務，正式版須替換為使用者實際上載圖片）── */
+  // mockup placeholder 外部圖 URL，正式版須替換為使用者實際上載圖片
+  const AVATAR_SELF      = 'https://randomuser.me/api/portraits/men/72.jpg'   // 本人（年長男性）
+  const AVATAR_SPOUSE    = 'https://randomuser.me/api/portraits/women/68.jpg' // 妻子（年長女性）
+  const AVATAR_SON       = 'https://randomuser.me/api/portraits/men/32.jpg'   // 長子（中年男性）
+  const AVATAR_DIL       = 'https://randomuser.me/api/portraits/women/44.jpg' // 長媳（中年女性）
+  const AVATAR_GRANDSON  = 'https://randomuser.me/api/portraits/men/85.jpg'   // 孫兒（青年男性）
+  const AVATAR_GRANDDAUGHTER = 'https://randomuser.me/api/portraits/women/90.jpg' // 孫女（青年女性）
+  const AVATAR_DOG       = 'https://images.dog.ceo/breeds/retriever-golden/n02099601_3004.jpg' // Lucky（黃金獵犬）
+
   const gen1Primary: MemberInfo = {
     name: t('gen1.member_self'),
     relation: t('gen1.member_self_relation'),
+    avatarUrl: AVATAR_SELF,
   }
 
   const gen1Secondary: MemberInfo = {
     name: t('gen1.member_spouse'),
     relation: t('gen1.member_spouse_relation'),
+    avatarUrl: AVATAR_SPOUSE,
   }
 
   /* Gen 2 focused 卡：長子 + 長媳 + Lucky */
   const gen2FocusedPrimary: MemberInfo = {
     name: t('gen2.member_eldest_son'),
     relation: t('gen2.member_eldest_son_relation'),
+    avatarUrl: AVATAR_SON,
   }
 
   const gen2FocusedSecondary: MemberInfo = {
     name: t('gen2.member_eldest_daughter_in_law'),
     relation: t('gen2.member_eldest_daughter_in_law_relation'),
     showNotificationDot: true, /* 長媳頭像有新動態紅點 */
+    avatarUrl: AVATAR_DIL,
   }
 
   /* Gen 2 左 peek：女兒一家 */
@@ -410,11 +444,13 @@ export default function B1HomePage() {
   const gen3Grandson: MemberInfo = {
     name: t('gen3.member_grandson'),
     relation: t('gen3.member_grandson_relation'),
+    avatarUrl: AVATAR_GRANDSON,
   }
 
   const gen3Granddaughter: MemberInfo = {
     name: t('gen3.member_granddaughter'),
     relation: t('gen3.member_granddaughter_relation'),
+    avatarUrl: AVATAR_GRANDDAUGHTER,
   }
 
   return (
@@ -489,39 +525,31 @@ export default function B1HomePage() {
 
           {/*
            * Carousel Band（靜態）
-           * 佈局：左 peek（56px） | focused 卡（min-width 自適應，max 320px） | 右 peek（56px）
-           * 3c：focused 卡改用 min-width + 內容撐開，避免固定闊度導致 overflow。
-           * 3d：左右 peek 改為露出真卡片的一部分，移除直排文字條。
+           * 佈局（3e fix）：position relative 容器 + focus 卡居中 + peek 卡 position absolute 疊加。
+           * peek 卡不再作為 flex sibling，不佔用 focus 卡的闊度。
+           * focus 卡 width = calc(100% - 32px)，與 Gen1/Gen3 的 padding: 0 16px 保持一致內容基準。
+           * maxWidth: 320px 與 B1.md 約束對齊。
            */}
           <div
             role="group"
             aria-label={t('gen2.layer_label')}
             style={{
               width: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              paddingLeft: '0',
-              paddingRight: '0',
+              position: 'relative',
               boxSizing: 'border-box',
               overflow: 'hidden',
+              /* 最小高度由 focus 卡內容撐開，peek 卡絕對定位不影響容器高度 */
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'stretch',
             }}
           >
-            {/* 左 peek：女兒一家（露右半邊） */}
-            <PeekCard
-              side="left"
-              primaryMember={gen2PeekLeftPrimary}
-            />
-
-            {/* Focused 卡：長子一家（長子 + 長媳 + Lucky） */}
-            {/* 3c：min-width 取代固定寬度，讓內容決定實際寬度，max-width 仍受 B1.md 約束 */}
+            {/* Focused 卡：長子一家（長子 + 長媳 + Lucky）— 與 Gen1/Gen3 相同內容闊度基準 */}
             <div
               style={{
-                flex: '1 1 auto',
-                minWidth: '0',
+                width: 'calc(100% - 32px)',
                 maxWidth: '320px',
-                display: 'flex',
-                justifyContent: 'center',
+                flexShrink: 0,
               }}
             >
               <HouseholdCard
@@ -532,6 +560,7 @@ export default function B1HomePage() {
                   name: t('gen2.pet_name'),
                   petType: t('gen2.pet_type'),
                   ownerRelation: t('gen2.pet_owner_relation'),
+                  avatarUrl: AVATAR_DOG,
                 }}
                 avatarSize={64}
                 isFocused
@@ -539,11 +568,43 @@ export default function B1HomePage() {
               />
             </div>
 
-            {/* 右 peek：幼子一家（露左半邊） */}
-            <PeekCard
-              side="right"
-              primaryMember={gen2PeekRightPrimary}
-            />
+            {/* 左 peek：女兒一家（position absolute，疊加在 focus 卡左側，不佔 flex 空間）*/}
+            <div
+              aria-hidden="true"
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '56px',
+                height: '100%',
+                overflow: 'hidden',
+                pointerEvents: 'none',
+              }}
+            >
+              <PeekCard
+                side="left"
+                primaryMember={gen2PeekLeftPrimary}
+              />
+            </div>
+
+            {/* 右 peek：幼子一家（position absolute，疊加在 focus 卡右側，不佔 flex 空間）*/}
+            <div
+              aria-hidden="true"
+              style={{
+                position: 'absolute',
+                top: 0,
+                right: 0,
+                width: '56px',
+                height: '100%',
+                overflow: 'hidden',
+                pointerEvents: 'none',
+              }}
+            >
+              <PeekCard
+                side="right"
+                primaryMember={gen2PeekRightPrimary}
+              />
+            </div>
           </div>
 
           {/* Gen2 指示點（● ○ ○，active = index 0 即長子一家） */}

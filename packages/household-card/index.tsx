@@ -104,6 +104,11 @@ function Avatar({
           <img
             src={member.avatarUrl}
             alt={member.name}
+            onError={(e) => {
+              /* 圖片載入失敗時隱藏 img，顯示首字母 fallback */
+              e.currentTarget.style.display = 'none';
+              (e.currentTarget.nextElementSibling as HTMLElement | null)?.style.setProperty('display', 'flex')
+            }}
             style={{
               width: size,
               height: size,
@@ -113,27 +118,26 @@ function Avatar({
               boxShadow: 'var(--shadow-soft)',
             }}
           />
-        ) : (
-          /* 無頭像 fallback：首字母 */
-          <div
-            aria-label={member.name}
-            style={{
-              width: size,
-              height: size,
-              borderRadius: '50%',
-              backgroundColor: 'var(--color-divider)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: Math.round(size * 0.38) + 'px',
-              fontWeight: 'bold',
-              color: 'var(--color-text)',
-              boxShadow: 'var(--shadow-soft)',
-            }}
-          >
-            {initial}
-          </div>
-        )}
+        ) : null}
+        {/* 無頭像 fallback：首字母（avatarUrl 載入失敗時亦顯示） */}
+        <div
+          aria-label={member.name}
+          style={{
+            width: size,
+            height: size,
+            borderRadius: '50%',
+            backgroundColor: 'var(--color-divider)',
+            display: member.avatarUrl ? 'none' : 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: Math.round(size * 0.38) + 'px',
+            fontWeight: 'bold',
+            color: 'var(--color-text)',
+            boxShadow: 'var(--shadow-soft)',
+          }}
+        >
+          {initial}
+        </div>
 
         {/* 通知紅點（8×8px，白色 2px 外圈） */}
         {showDot && (
@@ -212,6 +216,11 @@ function PetAvatar({ pet, size = 48 }: { pet: PetInfo; size?: number }) {
           <img
             src={pet.avatarUrl}
             alt={pet.name}
+            onError={(e) => {
+              /* 圖片載入失敗時隱藏 img，顯示 🐾 fallback */
+              e.currentTarget.style.display = 'none';
+              (e.currentTarget.nextElementSibling as HTMLElement | null)?.style.setProperty('display', 'flex')
+            }}
             style={{
               width: size,
               height: size,
@@ -220,24 +229,24 @@ function PetAvatar({ pet, size = 48 }: { pet: PetInfo; size?: number }) {
               boxShadow: 'var(--shadow-soft)',
             }}
           />
-        ) : (
-          <div
-            style={{
-              width: size,
-              height: size,
-              borderRadius: '50%',
-              backgroundColor: 'var(--color-divider)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '24px',
-              boxShadow: 'var(--shadow-soft)',
-            }}
-            aria-label={pet.name}
-          >
-            🐾
-          </div>
-        )}
+        ) : null}
+        {/* 無頭像 fallback：🐾（avatarUrl 載入失敗時亦顯示） */}
+        <div
+          style={{
+            width: size,
+            height: size,
+            borderRadius: '50%',
+            backgroundColor: 'var(--color-divider)',
+            display: pet.avatarUrl ? 'none' : 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '24px',
+            boxShadow: 'var(--shadow-soft)',
+          }}
+          aria-label={pet.name}
+        >
+          🐾
+        </div>
         {/* Paw badge 右上角 */}
         <span
           aria-hidden="true"

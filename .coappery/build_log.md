@@ -343,3 +343,71 @@ git push origin main
 - 粵語 grep：零命中 ✅
 - writing-mode grep：零命中 ✅
 - props interface：MemberInfo / PetInfo / HouseholdCardProps / TopBarProps / BottomTabBarProps / UploadPanelProps 全部未變 ✅
+
+---
+
+## [細步 3a-fix-3][實時紀錄] app 名老有樹 + 中層卡修正 + 真人頭像 + 桌面置中限寬
+
+### 1. 完整指令原文
+任務：細步 3a-fix-3 — 改 app 名 + 修中層卡窄 bug + 真人頭像 mockup + 桌面置中限寬
+
+任務性質：只修正靜態 UI，不加任何互動、state、swipe handler、autoplay 或新 npm 套件（placeholder 圖片只用外部 URL，不入 repo）。
+
+第一部分：頂欄 app 名改「老有樹」— 修改 locales/zh-Hant.json 之 top_bar.title。底部四 tab 名稱維持原樣。
+第二部分：修中層 focus 卡在手機下比上下層窄之 bug — B1HomePage.tsx Gen2 carousel band 改用 position relative 容器，peek 卡改為 position absolute 疊加，focus 卡 width calc(100% - 32px) 與 Gen1/Gen3 對齊。
+第三部分：換真人／真寵物 placeholder 頭像（外部 URL）— 加 avatarUrl 至七個成員 / 寵物資料物件；household-card Avatar + PetAvatar 加 onError fallback；檔案頂部加注解。
+第四部分：桌面置中限寬 — src/App.tsx 加 max-width 480px + margin 0 auto wrapper。
+第五部分：Build Log 實時紀錄（本 entry）。
+
+### 2. 執行計畫
+1. 讀取 B1HomePage.tsx（完整）、household-card/index.tsx、App.tsx、build_log.md
+2. Part 1：Edit locales/zh-Hant.json — top_bar.title 改「老有樹」
+3. Part 4：Edit src/App.tsx — 加桌面置中 wrapper
+4. Part 2+3：MultiEdit B1HomePage.tsx — 頂部注解 + avatarUrl 常數 + 7 成員加 avatarUrl + Gen2 carousel 改 position absolute peek
+5. Part 3b：Edit household-card/index.tsx Avatar onError fallback；Edit PetAvatar onError fallback
+6. Part 3b：Edit Gen3Member onError fallback（B1HomePage.tsx）
+7. Part 5：Append 本 entry 至 build_log.md
+8. npm run build 確認零 error
+9. 執行驗證 grep（rgba / 粵語 / tab 名 / props interface）
+10. git add + commit + push main
+11. wrangler pages deploy 回報 Preview URL
+
+### 3. 檔案變更清單
+- 修改：locales/zh-Hant.json（top_bar.title: 家庭樹 → 老有樹）
+- 修改：src/App.tsx（加桌面置中限寬 wrapper，max-width 480px，margin 0 auto）
+- 修改：src/pages/B1HomePage.tsx（頂部注解；7 avatarUrl 常數及成員資料；Gen2 carousel position absolute peek fix；Gen3Member 加 avatarUrl + onError fallback）
+- 修改：packages/household-card/index.tsx（Avatar + PetAvatar 各加 onError fallback，fallback div display 邏輯配合）
+- 修改：.coappery/build_log.md（append 本 entry）
+
+### 4. 執行過嘅 Command
+```
+# 全部為 Read / Edit / MultiEdit / Write tool 操作
+cd /home/user/coeldery-family-tree && npm run build
+grep -rniE "rgba\(" src/ packages/
+grep -rnE "嘅|喺|咗|啦|㗎|屋企|撳|而家|邊個|邊位|唔該|幾多" src/ packages/ locales/
+grep -n "family_tree\|family_circle\|family_gathering\|my_recommendations" locales/zh-Hant.json
+git add .
+git commit -m "細步 3a-fix-3：老有樹 + 中層卡修正 + 真人頭像 + 桌面置中限寬"
+git push origin main
+npx wrangler pages deploy dist --project-name coeldery-family-tree
+```
+
+### 5. 所有 Error 與 Retry
+（build 完成後填入）
+
+### 6. 最終 Commit Hash + Timestamp
+（push 完成後填入）
+
+### 7. 未解決事項
+- 關係標籤字級 16px vs 18px 矛盾：持續登記 .coappery/pending_changes.md，待產品負責人決策。
+- Gen2 peek 卡（女兒一家、幼子一家）未加 avatarUrl（非本次範圍，目前仍用首字母 fallback）。
+- B1.md token 表第13行 --red-accent 說明未同步（持續留待下次決策）。
+
+### 8. src/ 改動確認
+本細步修改：
+- src/App.tsx（加桌面置中 wrapper）
+- src/pages/B1HomePage.tsx（頂部注解；7 avatarUrl；Gen2 carousel position absolute peek；Gen3Member onError）
+- packages/household-card/index.tsx（Avatar + PetAvatar onError fallback）
+- locales/zh-Hant.json（top_bar.title 改「老有樹」，底部 tab 名稱未變）
+- 不改：src/index.css、src/utils/i18n.ts、packages/top-bar/、packages/bottom-tab-bar/、packages/upload-panel/
+- npm run build 結果：（待填入）
