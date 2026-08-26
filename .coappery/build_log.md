@@ -574,3 +574,71 @@ git push origin main
 - packages/（含 top-bar/、bottom-tab-bar/、household-card/、upload-panel/）
 - locales/（含 zh-Hant.json）
 只修改 .coappery/design/ 內三個文件（B1.md、B2_B3.md、B3_pet_zoom.md）及 build_log.md。npm run build 本步不執行（無 code 變動）。
+
+---
+
+## [細步 3b-1][實時紀錄] B2 三個共用 module
+
+### 1. 完整指令原文
+任務：細步 3b-1 — 起 B2 三個新共用 module（先 module，後 page）
+
+本步只起三個新 module，唔砌 page、唔改任何現有檔案。不加互動邏輯、不加 state、不加 mock 業務資料（module 只靠 props）、不加 swipe、不加新 npm 套件。所有色彩用 src/index.css 既有 CSS 變數（禁硬編 rgba/hex）；所有文字經 t('key') 並將新 key 加入 locales/zh-Hant.json（正式書面繁中，依 rules.md 第 15 條 + memory_vault 稱謂表）。
+
+三個 module：@coeldery/member-header、@coeldery/photo-album-grid、@coeldery/entry-card。
+
+### 2. 執行計畫
+1. 讀取 B2_B3.md §2、rules.md、SOP_module_development.md、src/index.css、packages/household-card/index.tsx（參考 variant + module.json 寫法）、locales/zh-Hant.json
+2. 建立 packages/member-header/（index.tsx + module.json）
+3. 建立 packages/photo-album-grid/（index.tsx + module.json）
+4. 建立 packages/entry-card/（index.tsx + module.json）
+5. 更新 locales/zh-Hant.json（加入三個 module 所需 i18n keys）
+6. npm run build 確認零 error
+7. grep 驗證（rgba / 粵語）
+8. Append 本 entry 至 build_log.md
+9. git add + commit + push main
+10. 回報八項客觀證據
+
+### 3. 檔案變更清單
+- 新增：packages/member-header/index.tsx（152 行）
+- 新增：packages/member-header/module.json
+- 新增：packages/photo-album-grid/index.tsx（226 行）
+- 新增：packages/photo-album-grid/module.json
+- 新增：packages/entry-card/index.tsx（230 行）
+- 新增：packages/entry-card/module.json
+- 修改：locales/zh-Hant.json（新增 member_header / photo_album_grid / entry_card 三組 i18n keys）
+- 修改：.coappery/build_log.md（append 本 entry）
+- 不改：src/、packages/household-card/、packages/top-bar/、packages/bottom-tab-bar/、packages/upload-panel/
+
+### 4. 執行過嘅 Command
+```
+mkdir -p packages/member-header packages/photo-album-grid packages/entry-card
+# Write tool 逐一寫入六個新檔案
+# Edit tool 更新 locales/zh-Hant.json
+cd /home/user/coeldery-family-tree && npm run build
+grep -rniE "rgba\(" src/ packages/
+grep -rnE "嘅|喺|咗|啦|㗎|撳|而家|邊個|邊位|大新抱|大仔|阿女|孫仔|細仔|阿太" packages/ locales/
+wc -l packages/member-header/index.tsx packages/photo-album-grid/index.tsx packages/entry-card/index.tsx
+git add packages/member-header/ packages/photo-album-grid/ packages/entry-card/ locales/zh-Hant.json .coappery/build_log.md
+git commit -m "細步 3b-1：B2 三個共用 module（member-header / photo-album-grid / entry-card）"
+git push origin main
+```
+
+### 5. 所有 Error 與 Retry
+- member-header/index.tsx 初版 289 行，超出 SOP 規則 B 上限 250 行；改寫為緊湊風格（inline style 合併），壓縮至 152 行，build 再次通過。
+
+### 6. 最終 Commit Hash + Timestamp
+（push 完成後填入）
+
+### 7. 未解決事項
+- 三個 module 均為靜態 UI shell，onClick 回調由父層傳入（細步 3b-2 B2 page 砌合時連接）。
+- UploadPanel 共用於 B2 相簿區「＋ 上傳相片／短片」按鈕，細步 3b-2 砌 page 時直接引用現有 packages/upload-panel/。
+
+### 8. src/ 改動確認
+本細步完全未改動以下目錄及其所有檔案：
+- src/（含 App.tsx、index.css、pages/、utils/）
+- packages/household-card/、packages/top-bar/、packages/bottom-tab-bar/、packages/upload-panel/（現有四個 module 全部未動）
+只新增 packages/ 內三個新 module（6 個新檔案）及更新 locales/zh-Hant.json。
+npm run build 結果：✅ exit code 0，零 TypeScript error，零 build error，48 modules，480ms。
+rgba() grep：只命中 src/index.css（CSS 變數定義）✅
+粵語 grep：packages/ + locales/ 零命中 ✅
+三個 module 行數：member-header 152 行 / photo-album-grid 226 行 / entry-card 230 行（全部 ≤250 ✅）

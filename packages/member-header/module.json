@@ -1,0 +1,13 @@
+{
+  "name": "@coeldery/member-header",
+  "label": "成員身份區",
+  "category": "ui",
+  "version": "1.0.0",
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-i18next": "^15.0.0",
+    "i18next": "^24.0.0"
+  },
+  "derivedFrom": ".coappery/design/B2_B3.md §2.1–2.2 身份區",
+  "docs": "B2 成員詳情頁頂部身份區。variant='person'：大圓頭像 96px（綠色 1px ring）+ 姓名 20px Bold + 關係 pill（18px 綠底白字 圓角 28px）。variant='pet'：頭像右上 🐾 badge + 主人列（姓名綠色 underline 可點擊跳至該成員 B2 頁）+ 🐾 出生日期列。頭像載入失敗顯示姓名首字母 fallback。全部資料由 props 傳入，不內置 mock。禁止 hardcode hex，顏色只用 CSS var。文字全部 via i18n t('key')，正式書面繁中。觸控區 ≥44×44px（主人按鈕）。"
+}

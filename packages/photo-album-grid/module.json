@@ -1,0 +1,13 @@
+{
+  "name": "@coeldery/photo-album-grid",
+  "label": "相簿區",
+  "category": "ui",
+  "version": "1.0.0",
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-i18next": "^15.0.0",
+    "i18next": "^24.0.0"
+  },
+  "derivedFrom": ".coappery/design/B2_B3.md §2.1 相簿區",
+  "docs": "B2 成員詳情頁相簿區。結構：區段標題（18px Bold）+ 配額文字（16px muted，可點擊觸發配額說明）+ 3 欄正方形縮圖 grid（100px，gap 4px）。新內容紅點：isNew=true → 右上角 8px var(--color-accent) 圓點，2px var(--color-card) 白色外圈。縮圖圖片載入失敗隱藏 img 顯示灰色背景。空狀態顯示提示文字。全部資料由 props 傳入，不內置 mock。配額文字由父層格式化後直接傳入 quotaText 字串。觸控區：可點擊縮圖及配額 ≥44×44px。"
+}

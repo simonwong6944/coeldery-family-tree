@@ -1,0 +1,13 @@
+{
+  "name": "@coeldery/entry-card",
+  "label": "通用入口卡",
+  "category": "ui",
+  "version": "1.0.0",
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-i18next": "^15.0.0",
+    "i18next": "^24.0.0"
+  },
+  "derivedFrom": ".coappery/design/B2_B3.md §2.1「查閱動態」入口卡 + §2.1「成長相簿」卡",
+  "docs": "B2 成員詳情頁通用入口卡。白底卡，16px 圓角，var(--shadow-soft)，1px divider 邊框。左側可選 icon（line-style SVG）：iconType='activity'（對話泡，代表家庭圈動態）/ iconType='growth'（嫩芽 sprout，代表成長相簿）/ iconType='none'（不顯示）。中間：主標題 18px Bold + 可選副提示 16px muted。右側：chevron › 指示可進入。整卡可點擊（onClick 回調）。觸控區 minHeight ≥56px。全部文字 via i18n t(titleKey) / t(subtitleKey)，正式書面繁中。禁止 hardcode hex，顏色只用 CSS var。"
+}

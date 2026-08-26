@@ -81,6 +81,31 @@
     "self_label": "本人"
   },
 
+  "member_header": {
+    "section_label": "{{name}}的成員資料",
+    "owners_prefix": "主人：",
+    "owner_link_label": "前往{{name}}的成員詳情",
+    "birthday_prefix": "🐾 出生：",
+    "birthday_label": "寵物生日：{{date}}"
+  },
+
+  "photo_album_grid": {
+    "default_title": "相簿",
+    "quota_label": "配額：{{quota}}",
+    "photo_alt": "相片 {{index}}",
+    "new_dot_label": "有新相片",
+    "grid_label": "相片縮圖列表",
+    "empty_text": "尚未上傳相片或短片。"
+  },
+
+  "entry_card": {
+    "activity_title": "查閱動態",
+    "activity_subtitle": "前往家庭圈，可 like／留言",
+    "growth_title": "成長相簿",
+    "growth_subtitle_person": "{{name}}的成長相簿",
+    "growth_subtitle_pet": "{{name}}的成長相簿"
+  },
+
   "a11y": {
     "avatar_alt": "{{name}}的頭像",
     "couple_heart_alt": "配偶關係心形",
