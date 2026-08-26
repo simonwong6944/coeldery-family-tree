@@ -60,7 +60,7 @@ Padding：上下 12px，左右 16px
 3.2 內容結構
 頂部列（緊湊）
 
-大標題（置中 26px Bold）：「你想加邊位家人？」
+大標題（置中 26px Bold）：「您想加入哪位家人？」
 
 24px 空隙
 
@@ -71,8 +71,8 @@ Padding：上下 12px，左右 16px
 整卡 tap area 巨大
 卡間距 16px
 卡	Icon	標題 20px Bold	副標 16px muted
-A	👨‍👩‍👧 48px	家庭成員（人）	仔、女、孫仔、大新抱、配偶⋯⋯
-B	🐾 48px	寵物	貓、狗、雀仔、魚⋯⋯
+A	👨‍👩‍👧 48px	家庭成員（人）	子、女、孫兒、長媳、配偶⋯⋯
+B	🐾 48px	寵物	貓、狗、小鳥、魚⋯⋯
 底部 pill「下一步」（#228B22 + 白字 18px Bold、≥ 56px 高、28px 圓角、green glow shadow）
 
 4. FRAME 2 — 放大 B：第 2 步「填寫寵物資料」（重點 hero frame）
@@ -90,7 +90,7 @@ B	🐾 48px	寵物	貓、狗、雀仔、魚⋯⋯
 輸入 2「寵物生日」：
 左內側 📅 calendar icon 或 paw‑birthday icon（綠色）
 已填值：「2025年3月10日」（20px Bold #2b2b2b）
-Helper text（輸入 2 下方 16px muted）： 用嚟自動提你寵物生日 🐾
+Helper text（輸入 2 下方 16px muted）： 用於自動提醒您的寵物生日 🐾
 24px 空隙
 主人多選區：
 Label（18px Bold）：「👤 主人（可多選）」
@@ -99,7 +99,7 @@ Wrap chip pills（每個 ≥ 52px 高、28px pill 圓角、間距 12px）：
 陳大文 ✓
 陳太 ✓
 未選 chips：白底 + 2px #228B22 邊框 + #228B22 18px Bold 文字
-孫仔
+孫兒
 孫女
 底部 row（間距 16px）：
 左：次要文字掣 ← 上一步（純文字、muted gray、無 fill）
@@ -123,7 +123,7 @@ Tap chip → 即時 toggle 選中狀態（綠底 ↔ 白底綠邊）
 32px 空隙
 慶祝 headline（24px Bold #228B22）：「成功加入！🎉」
 16px 空隙
-溫暖字幕（18px regular #6b6b6b）：「Lucky 而家喺你嘅家庭樹啦 🌳」
+溫暖字幕（18px regular #6b6b6b）：「Lucky 現已加入您的家庭樹 🌳」
 48px 空隙
 主 pill「返回家庭樹」：
 背景 #228B22、白字 18px Bold、≥ 56px 高、28px 圓角、水平 padding ≥ 32px
@@ -133,7 +133,7 @@ green glow shadow 0 4px 12px rgba(34,139,34,0.25)
 剔號入場動畫：scale 0.6 → 1.0 spring（duration ~480ms）
 headline 字幕 fade-in（200ms delay 後 320ms ease-out）
 底部 pill 喺 headline 入場完成後 100ms 內 fade-in
-用戶撳「返回家庭樹」→ 路由回首頁 B1（新加入嘅 household 卡會有 1.5s 淡綠光暈 highlight）
+用戶點擊「返回家庭樹」→ 路由回首頁 B1（新加入的 household 卡會有 1.5s 淡綠光暈 highlight）
 6. 無障礙 / 長者規範（全圖通用）
 Body 文字 ≥ 18px；helper 16px 最細
 點擊區 ≥ 44×44px；輸入框 ≥ 64px；chip ≥ 52px；CTA ≥ 56px
@@ -141,7 +141,7 @@ Body 文字 ≥ 18px；helper 16px 最細
 紅點永遠帶 2px 白外圈（唔可以純靠顏色區分）
 全部 icon 旁配文字
 觸控以單軸捲動為主（精靈步之間切換用整頁轉場，唔可以多軸同時）
-內容語言：繁體中文（香港用語）；用 大新抱、大仔、阿女、孫仔、孫女、細仔、本人、太太、阿太 等本地稱謂
+內容語言：繁體中文（正式書面繁中）；用 長媳、長子、女兒、孫兒、孫女、幼子、本人、妻子 等正式書面稱謂
 7. 嚴格不做（全圖）
 ❌ 付款 / 交易 / 金流 UI
 ❌ 簡體中文字

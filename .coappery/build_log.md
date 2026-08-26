@@ -479,3 +479,98 @@ git push origin main
 - packages/（含 top-bar/、bottom-tab-bar/、household-card/、upload-panel/）
 - locales/（含 zh-Hant.json）
 只新增 / 修改 .coappery/ 目錄內三個文件檔案。npm run build 本步不執行（無 code 變動）。
+
+---
+
+## [細步 design-sync][實時紀錄] 設計規範語體對齊書面繁中
+
+### 1. 完整指令原文
+任務：細步 design-sync — 將 .coappery/design/ 內四份設計規範（B1.md、B2_B3.md、B3_pet_zoom.md、mockups.md）的語體，對齊 rules.md 第 15 條（正式書面繁中）及 memory_vault.md 書面稱謂對照表。
+
+任務性質：純文件修訂。不得改動 src/、packages/、locales/ 任何檔案，不寫 code、不改 UI。
+
+改動範圍以兩類分類為準：
+- 第一類（改）：會原樣出現於 app 使用者畫面的 UI 文字例子（按鈕、標題、提示語、稱謂標籤、精靈步文案等）
+- 第二類（保留）：純設計意圖描述、技術規格說明（如「柔和陰影」「杜絕大面積紅」等）
+
+完成後 push 到 main，回報客觀證據並確認 grep 零命中。
+
+### 2. 執行計畫
+1. 讀取 rules.md（第 15 條 grep 模式）、memory_vault.md（書面稱謂對照表）
+2. 讀取四份 design 文件全文，逐行分類並標記待改處
+3. 對 B1.md 應用修改（分批執行：先 10 處 + 後 2 處補充）
+4. 對 B2_B3.md 應用修改（Python 腳本一次替換 18 處，補充 7 處）
+5. 對 B3_pet_zoom.md 應用修改（Python 腳本一次替換 6 處，補充 1 處）
+6. mockups.md 確認無需修改（純 URL）
+7. 執行 grep 驗證，確認殘留命中均為第二類（設計意圖）
+8. Append 本 entry 至 build_log.md
+9. git add + commit + push main
+10. 回報八項客觀證據
+
+### 3. 檔案變更清單
+- 修改：.coappery/design/B1.md — 13 處第一類修改
+  - §4.3 indicator 例子：「大仔一家」→「長子一家」
+  - §5 空狀態鼓勵文案：「你嘅」→「您的」、「屋企人」→「家人」
+  - §6 稱謂例子：大仔/大新抱/阿女/孫仔 → 長子/長媳/女兒/孫兒
+  - §6 Gen3 標籤：孫仔/孫女 → 孫兒/孫女
+  - §6 狀態表：大仔+大新抱/阿女一家/細仔一家/孫仔+孫女 → 長子+長媳/女兒一家/幼子一家/孫兒+孫女
+  - §6 Lucky 標籤：「大新抱嘅狗」→「長媳的狗」
+  - §6 紅點描述：大新抱 → 長媳
+  - §7 互動行為：撳 → 點擊（×7）；嗰對應房嘅仔女 → 對應一家的子女；切房 → 切換家庭
+  - §8 稱謂清單：大新抱/阿仔/阿女/孫仔 → 長媳/長子/女兒/孫兒
+  - §9 Placeholder 說明：「喺 UI 入面」→「在 UI 畫面中」
+  - Gen1 卡描述：「我」「太太」→「本人」「妻子」
+- 修改：.coappery/design/B2_B3.md — 25 處第一類修改
+  - 成員姓名例子：陳大文/大仔 → 陳大文/長子
+  - 「睇佢嘅動態」→「查閱動態」；「去家庭圈，可以」→「前往家庭圈，可」
+  - 「大仔嘅成長相簿」→「長子的成長相簿」
+  - 關係標籤：「大仔一家嘅狗仔」→「長子一家的狗」
+  - 「Lucky 嘅成長相簿」→「Lucky 的成長相簿」
+  - 精靈大標題（×2）：「你想加邊位家人？」→「您想加入哪位家人？」
+  - chip 副標（×2）：孫仔 → 孫兒；雀仔 → 小鳥
+  - 生日 helper（×1）：「用嚟自動提你生日」→「用於自動提醒您的生日」
+  - 精靈步 3 標題：「邀請佢加入家庭樹」→「邀請對方加入家庭樹」
+  - 精靈步 3 helper：「用WhatsApp掃碼傳送邀請俾佢」→「以WhatsApp掃碼發送邀請」
+  - 精靈步 3 footnote：「寵物成員會跳過呢步」→「寵物成員將跳過此步驟」
+  - 精靈完成文案（×2）：「大仔而家喺你嘅家庭樹啦」→「長子現已加入您的家庭樹」；「Lucky而家喺你嘅家庭樹啦」→「Lucky現已加入您的家庭樹」
+  - §5 稱謂清單：大新抱/大仔/阿女/孫仔/細仔/太太/阿太 → 長媳/長子/女兒/孫兒/幼子/妻子（移除阿太）
+  - §2.4 互動規範：撳 → 點擊（×6）
+  - 下一步按鈕說明：「點咗先 enable」→「點選後 enable」
+- 修改：.coappery/design/B3_pet_zoom.md — 7 處第一類修改
+  - 精靈大標題：「你想加邊位家人？」→「您想加入哪位家人？」
+  - 卡片副標：孫仔/大新抱/雀仔 → 孫兒/長媳/小鳥
+  - 寵物生日 helper：「用嚟自動提你寵物生日」→「用於自動提醒您的寵物生日」
+  - 未選 chip：孫仔 → 孫兒
+  - 完成文案：「Lucky而家喺你嘅家庭樹啦」→「Lucky現已加入您的家庭樹」
+  - §6 稱謂清單：大新抱/大仔/阿女/孫仔/細仔/太太/阿太 → 長媳/長子/女兒/孫兒/幼子/妻子（移除阿太）
+  - §5.3 返回互動：「用戶撳」→「用戶點擊」；「新加入嘅」→「新加入的」
+- 無改動：.coappery/design/mockups.md（純 URL 記錄，無粵語 UI 文字）
+- 修改：.coappery/build_log.md（append 本 entry）
+
+### 4. 執行過嘅 Command
+```
+# 全部為 Read / Edit / MultiEdit / Python script tool 操作
+grep -rnE "嘅|喺|咗|啦|㗎|屋企|撳|而家|邊個|邊位|唔該|幾多|大新抱|大仔|阿女|孫仔|細仔|阿太" .coappery/design/
+git add .coappery/design/B1.md .coappery/design/B2_B3.md .coappery/design/B3_pet_zoom.md .coappery/build_log.md
+git status
+git commit -m "細步 design-sync：設計規範語體對齊書面繁中（Rule 15 + 稱謂表）"
+git push origin main
+```
+
+### 5. 所有 Error 與 Retry
+- B1.md 第二批 MultiEdit（§7 互動行為 + Placeholder）首次失敗（old_string 不匹配）；讀取 B1.md 行 155–183 確認當前確切內容後重試，成功。
+- B2_B3.md 第一批 MultiEdit 首個 edit（文件標頭第2行）找不到字串（因含特殊字元 `餵俾`），改用 Python 腳本繞過；其餘 18 處全部成功。
+- 第二輪 grep 仍命中 B2_B3.md §2.4 撳（互動規範行），判定需改，補充替換成功。
+
+### 6. 最終 Commit Hash + Timestamp
+（push 完成後填入）
+
+### 7. 未解決事項
+- 各設計文件文件標頭（header）行及純設計意圖描述行仍含粵語詞（如「嘅」「喺」「咗」等），均已確認為第二類（設計意圖描述，不出現於使用者畫面），依規則保留，非遺漏。
+
+### 8. src/ 改動確認
+本細步完全未改動以下目錄及其所有檔案：
+- src/（含 App.tsx、index.css、pages/、utils/）
+- packages/（含 top-bar/、bottom-tab-bar/、household-card/、upload-panel/）
+- locales/（含 zh-Hant.json）
+只修改 .coappery/design/ 內三個文件（B1.md、B2_B3.md、B3_pet_zoom.md）及 build_log.md。npm run build 本步不執行（無 code 變動）。
