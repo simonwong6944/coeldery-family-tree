@@ -1,0 +1,13 @@
+{
+  "name": "@coeldery/bottom-tab-bar",
+  "label": "底部 Tab 導航欄",
+  "category": "layout",
+  "version": "1.0.0",
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-i18next": "^15.0.0",
+    "i18next": "^24.0.0"
+  },
+  "derivedFrom": ".coappery/design/B1.md §3.2",
+  "docs": "固定 80px 底部 Tab 欄（含 safe-area-inset-bottom）。props：current（TabId: 'family_tree' | 'family_circle' | 'family_gathering' | 'my_recommendations'）、onTabChange（handler，靜態 UI 可不傳）。4 個等寬 tab，各有 SVG icon（28px）+ 文字標籤（18px Bold）。Active tab：var(--color-primary) 色 + 頂 3px 指示條。Inactive：var(--color-text-secondary)。熱區每 tab ≥ 80px 高。Icons 為 inline SVG，唔依賴外部 icon library。禁止 hardcode hex、禁止橙色粉紅。"
+}

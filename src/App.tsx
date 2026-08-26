@@ -1,9 +1,9 @@
 import './utils/i18n'
 import './index.css'
-import HomePage from './pages/HomePage'
+import B1HomePage from './pages/B1HomePage'
 
 function App() {
-  return <HomePage />
+  return <B1HomePage />
 }
 
 export default App

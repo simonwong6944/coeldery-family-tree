@@ -1,0 +1,13 @@
+{
+  "name": "@coeldery/household-card",
+  "label": "家庭卡片",
+  "category": "ui",
+  "version": "1.0.0",
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-i18next": "^15.0.0",
+    "i18next": "^24.0.0"
+  },
+  "derivedFrom": ".coappery/design/B1.md §4.2–4.4",
+  "docs": "白底、16px 圓角、柔和陰影卡片。三種 variant：'couple'（夫婦並排 + 綠色實心心形 SVG）、'single'（單人置中）、'couple_with_pet'（夫婦 + 寵物 paw badge + 淺米色背景）。props：primaryMember（MemberInfo）、secondaryMember（MemberInfo，couple 必填）、pet（PetInfo，couple_with_pet 必填）、avatarSize（預設 80px）、isFocused（2px 綠框 + 擴散環 + 深陰影）、isPeek（opacity 0.5 + scale 0.92 + grayscale 10%）、width（carousel 層傳入）。通知紅點：MemberInfo.showNotificationDot = true → 8×8px var(--color-accent)，2px 白色外圈。全部資料由 props 傳入，唔內置任何 mock。禁止 hardcode hex、禁止粉紅、禁止橙色。"
+}

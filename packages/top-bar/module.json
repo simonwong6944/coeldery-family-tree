@@ -1,0 +1,13 @@
+{
+  "name": "@coeldery/top-bar",
+  "label": "頂部導航欄",
+  "category": "layout",
+  "version": "1.0.0",
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-i18next": "^15.0.0",
+    "i18next": "^24.0.0"
+  },
+  "derivedFrom": ".coappery/design/B1.md §3.1",
+  "docs": "固定 56px 頂部欄。props：titleKey（i18n key，預設 top_bar.title）、onBack（返回 handler）、rightSlot（ReactNode，右側三 icon 由父層組裝）。顏色全用 CSS var。熱區：返回鍵 ≥ 44×44px，右側各 icon ≥ 44×44px。底 1px var(--color-divider) 分隔線。禁止 hardcode hex、禁止粉紅、禁止橙色。"
+}

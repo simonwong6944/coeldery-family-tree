@@ -1,0 +1,13 @@
+{
+  "name": "@coeldery/upload-panel",
+  "label": "上傳相片/短片面板",
+  "category": "ui",
+  "version": "1.0.0",
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-i18next": "^15.0.0",
+    "i18next": "^24.0.0"
+  },
+  "derivedFrom": ".coappery/rules.md §9",
+  "docs": "UI 殼，靜態。觸發按鈕（CTA，min-height 56px，pill 28px，var(--color-primary) 底白字，boxShadow 綠光暈）。isOpen=true 時顯示底部 sheet（背景蒙層 + 三個選項按鈕 + 取消）。props：isOpen、onOpen、onClose、onSelectSource（UploadSource: 'camera_photo' | 'camera_video' | 'gallery'）、showTrigger（預設 true）。未來真實上傳狀態機（rules.md §9）：pending_upload → uploading → verified(200) → db_write → completed。相片/影片必須攞到成功上傳 URL/key（HTTP 200 response）先寫入資料庫。存 URL 嘅欄位 NOT NULL。現時唔做真實上傳、唔整合 R2、唔做狀態機邏輯，interface 已預留。禁止 hardcode hex、禁止橙色粉紅。"
+}

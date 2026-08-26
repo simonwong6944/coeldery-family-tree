@@ -1,3 +1,89 @@
 {
-  "app_name": "家庭樹"
+  "app_name": "家庭樹",
+
+  "top_bar": {
+    "back": "← 老有卡 App",
+    "title": "家庭樹",
+    "add_member": "＋加人",
+    "share": "分享",
+    "notifications": "通知"
+  },
+
+  "bottom_tab_bar": {
+    "family_tree": "家庭樹",
+    "family_circle": "家庭圈",
+    "family_gathering": "家庭聚會",
+    "my_recommendations": "我的推薦"
+  },
+
+  "upload_panel": {
+    "button_label": "＋ 上傳相片／短片",
+    "panel_title": "上傳相片／短片",
+    "option_camera": "拍攝相片",
+    "option_video": "拍攝短片",
+    "option_gallery": "從相簿選取",
+    "cancel": "取消",
+    "state_pending": "等待上傳",
+    "state_uploading": "上傳中…",
+    "state_verified": "驗證成功",
+    "state_db_write": "儲存紀錄",
+    "state_completed": "完成"
+  },
+
+  "household_card": {
+    "couple_connector_label": "配偶",
+    "pet_label": "{petName} · {ownerRelation}嘅{petType}",
+    "notification_dot_label": "有新動態"
+  },
+
+  "gen1": {
+    "layer_label": "第一代",
+    "member_self": "本人",
+    "member_self_relation": "我",
+    "member_spouse": "太太",
+    "member_spouse_relation": "妻子"
+  },
+
+  "gen2": {
+    "layer_label": "第二代",
+    "family_label": "{headName}一家",
+    "peek_left_hint": "‹",
+    "peek_right_hint": "›",
+    "dots_label": "第 {current} 個，共 {total} 個家庭",
+    "member_eldest_son": "大仔",
+    "member_eldest_son_relation": "大仔",
+    "member_eldest_daughter_in_law": "大新抱",
+    "member_eldest_daughter_in_law_relation": "新抱",
+    "member_daughter": "阿女",
+    "member_daughter_relation": "阿女",
+    "member_youngest_son": "細仔",
+    "member_youngest_son_relation": "細仔",
+    "pet_name": "Lucky",
+    "pet_type": "狗",
+    "pet_owner_relation": "大新抱"
+  },
+
+  "gen3": {
+    "layer_label": "第三代",
+    "member_grandson": "孫仔",
+    "member_grandson_relation": "孫",
+    "member_granddaughter": "孫女",
+    "member_granddaughter_relation": "孫",
+    "dots_label": "第 {current} 個，共 {total} 個成員"
+  },
+
+  "empty_state": {
+    "heading": "開始建立你嘅家庭樹啦！",
+    "subtext": "加入你嘅屋企人，一齊記錄成長。",
+    "cta": "＋ 加入第一位家人",
+    "self_label": "本人"
+  },
+
+  "a11y": {
+    "avatar_alt": "{name}的頭像",
+    "couple_heart_alt": "配偶關係心形",
+    "pet_paw_alt": "寵物標記",
+    "connection_line_alt": "家庭連接線",
+    "notification_dot_alt": "有新動態通知"
+  }
 }
