@@ -420,3 +420,60 @@ npx wrangler pages deploy dist --project-name coeldery-family-tree
 - Tab 名稱：家庭樹 / 家庭圈 / 家庭聚會 / 我的推薦（未變）✅
 - 頂欄標題：「老有樹」✅
 - props interface：MemberInfo / PetInfo / HouseholdCardProps / TopBarProps / BottomTabBarProps / UploadPanelProps 全部未變 ✅
+
+---
+
+## [細步 SOP-store][實時紀錄] 兩份 CoAppery SOP 入庫
+
+### 1. 完整指令原文
+任務：細步 SOP-store — 將兩份 CoAppery SOP 存入 repo
+
+任務性質：純文件寫入。不得改動 src/、packages/、locales/ 任何檔案，不寫 code、不改 UI。
+
+第一部分：新建 .coappery/SOP_module_development.md，存入「CoAppery 模組化開發 SOP」全文。
+第二部分：新建 .coappery/SOP_ai_workflow.md，存入「CoAppery AI 協作開發流程 SOP」全文。
+第三部分：於 .coappery/build_log.md append ## [細步 SOP-store] entry，依規則 14 填齊八欄。
+
+完成後 push 到 main，回報 Repo URL、完整 commit hash、timestamp、branch、變更檔案清單、兩份 SOP 行數、src/packages/locales/ 完全未變確認。
+
+### 2. 執行計畫
+1. 讀取 .coappery/rules.md、.coappery/memory_vault.md、.coappery/build_log.md 確認現狀
+2. Write .coappery/SOP_module_development.md（模組化開發 SOP 全文）
+3. Write .coappery/SOP_ai_workflow.md（AI 協作開發流程 SOP 全文）
+4. wc -l 確認兩份 SOP 行數
+5. Append 本 entry 至 build_log.md
+6. git add + git status 確認只有 .coappery/ 內檔案變動
+7. git commit + push main
+8. 回報六項客觀證據
+
+### 3. 檔案變更清單
+- 新增：.coappery/SOP_module_development.md（模組化開發 SOP，67 行）
+- 新增：.coappery/SOP_ai_workflow.md（AI 協作開發流程 SOP，93 行）
+- 修改：.coappery/build_log.md（append 本 entry）
+- 不改：src/、packages/、locales/ 全部未動
+
+### 4. 執行過嘅 Command
+```
+# 全部為 Read / Write / Edit tool 操作
+wc -l .coappery/SOP_module_development.md .coappery/SOP_ai_workflow.md
+git add .coappery/SOP_module_development.md .coappery/SOP_ai_workflow.md .coappery/build_log.md
+git status
+git commit -m "細步 SOP-store：兩份 CoAppery SOP 入庫（模組化開發 + AI 協作流程）"
+git push origin main
+```
+
+### 5. 所有 Error 與 Retry
+無 — 兩份文件首次 Write 即成功。
+
+### 6. 最終 Commit Hash + Timestamp
+（push 完成後填入）
+
+### 7. 未解決事項
+無。兩份 SOP 均為初版（2026-08-26 建立），修訂記錄表已預留，實戰中如需修訂依機制更新。
+
+### 8. src/ 改動確認
+本細步完全未改動以下目錄及其所有檔案：
+- src/（含 App.tsx、index.css、pages/、utils/）
+- packages/（含 top-bar/、bottom-tab-bar/、household-card/、upload-panel/）
+- locales/（含 zh-Hant.json）
+只新增 / 修改 .coappery/ 目錄內三個文件檔案。npm run build 本步不執行（無 code 變動）。
