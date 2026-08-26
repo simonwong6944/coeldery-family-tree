@@ -266,3 +266,80 @@ git -C /home/user/coeldery-family-tree push origin main
 - packages/upload-panel/index.tsx（rgba 替換）
 - 不改：src/App.tsx、src/utils/i18n.ts、src/pages/HomePage.tsx、packages/top-bar/
 - npm run build 結果：待確認（見下方 build log）
+
+---
+
+## [細步 3a-fix-2][實時紀錄] 頂欄純 icon + 紅心 + 卡自適應 + peek 露半卡
+
+### 1. 完整指令原文
+任務：細步 3a-fix-2 — 頂欄純 icon + 紅心 + 卡片自適應 + peek 露半卡
+
+任務性質：只修正靜態 UI 與規範文件，不加任何互動、state、mock array、swipe handler、autoplay 或新 npm 套件。
+
+第一部分：更新 .coappery/rules.md（新增第16條頂欄輔助圖示例外；修改第15條色彩限制，允許 --color-accent 用於情感裝飾心形）
+第二部分：更新 .coappery/design/B1.md（§2.3 新增純 icon 說明；夫婦心形由 --color-primary 改為 --color-accent；表格、互動章節同步更新）
+第三部分（程式碼）：
+  3a. 頂欄純 icon：移除文字標籤，改統一 line-style SVG（IconAddMember / IconShare / IconBell）；TopBar 改三欄 flex 佈局取代 absolute 置中
+  3b. 心改紅色：household-card HeartIcon fill 改為 var(--color-accent)
+  3c. 卡片闊度自適應：Gen2 focused 卡改 flex 1 1 auto + min-width 0 + maxWidth 320px
+  3d. peek 露半張真卡：PeekCard 移除 writing-mode 直排文字，改為 overflow:hidden + translateX 偏移露出真實 HouseholdCard 的邊緣（opacity 0.5 + grayscale 15% + scale 0.92）
+第四部分：locales/zh-Hant.json 移除已不再使用的 household_of / peek_left_hint / peek_right_hint 三個 key
+第五部分：Build Log 實時紀錄
+
+### 2. 執行計畫
+1. 讀取 rules.md、B1.md、memory_vault.md、src/index.css、B1HomePage.tsx、household-card/index.tsx、top-bar/index.tsx、zh-Hant.json、build_log.md
+2. 更新 rules.md：第1條色彩（accent 例外）+ 第2條（icon-only 例外連結）+ 第15條末（新增第16條）
+3. 更新 B1.md：§2.3 末加純 icon 說明；Gen1/Gen2 心形色改 --color-accent；表格 + 互動行更新
+4. 重寫 src/pages/B1HomePage.tsx：三個 line-style SVG icon；TopBarRightSlot 純 icon；PeekCard 改真卡露半；Gen2 focused 卡 flex 自適應
+5. 更新 packages/top-bar/index.tsx：三欄 flex 佈局（取代 h1 absolute 置中）
+6. 更新 packages/household-card/index.tsx：HeartIcon fill 改 var(--color-accent)
+7. 更新 locales/zh-Hant.json：移除 household_of / peek_left_hint / peek_right_hint
+8. npm run build 確認零 error
+9. 執行驗證 grep（rgba / 粵語 / writing-mode / props interface / rules.md / B1.md）
+10. Append 本 entry 至 build_log.md
+11. git add + commit + push main
+12. 回報八項客觀證據
+
+### 3. 檔案變更清單
+- 修改：.coappery/rules.md（第1條 accent 例外 + 第2條連結 + 新增第16條）
+- 修改：.coappery/design/B1.md（§2.3 純 icon 說明；Gen1/Gen2 心色 + 表格 + 互動章節）
+- 修改：src/pages/B1HomePage.tsx（三個 SVG icon；純 icon rightSlot；PeekCard 真卡露半；Gen2 flex 自適應；移除 PeekCard 直排文字）
+- 修改：packages/top-bar/index.tsx（三欄 flex 佈局）
+- 修改：packages/household-card/index.tsx（HeartIcon fill → var(--color-accent)）
+- 修改：locales/zh-Hant.json（移除 household_of / peek_left_hint / peek_right_hint）
+- 修改：.coappery/build_log.md（append 本 entry）
+
+### 4. 執行過嘅 Command
+```
+# 全部為 Read / Edit / Write / MultiEdit tool 操作
+cd /home/user/coeldery-family-tree && npm run build
+grep -rniE "rgba\(" src/ packages/ locales/
+grep -rnE "嘅|喺|咗|啦|㗎|屋企|撳|而家|邊個|邊位|唔該|幾多" src/ packages/ locales/
+grep -rn "writing-mode" src/ packages/
+git add .
+git commit -m "細步 3a-fix-2：頂欄純 icon + 紅心 + 卡自適應 + peek 露半卡"
+git push origin main
+```
+
+### 5. 所有 Error 與 Retry
+無 — 首次 build 即成功（exit code 0，48 modules transformed，407ms）。
+
+### 6. 最終 Commit Hash + Timestamp
+（push 完成後填入）
+
+### 7. 未解決事項
+- 關係標籤字級 16px vs 18px 矛盾：已登記 .coappery/pending_changes.md，待產品負責人決策（沿用 3a-fix 登記）。
+- B1.md token 表第13行仍寫「僅限通知紅點 + 新動態紅點」——本細步修正了 Gen1/Gen2 心形及互動章節描述，但 §2.1 token 表 --red-accent 說明未同步更新（留待下一 fix 決定是否修改 token 表，避免過度改動設計規範）。
+
+### 8. src/ 改動確認
+本細步修改：
+- src/pages/B1HomePage.tsx（頂欄純 icon SVG / PeekCard 真卡露半 / Gen2 flex 自適應）
+- packages/top-bar/index.tsx（三欄 flex 佈局）
+- packages/household-card/index.tsx（HeartIcon 改 --color-accent）
+- locales/zh-Hant.json（移除 3 個廢棄 key）
+- 不改：src/App.tsx、src/index.css、src/utils/i18n.ts、packages/bottom-tab-bar/、packages/upload-panel/
+- npm run build 結果：✅ exit code 0，零 TypeScript error，零 build error，48 modules，407ms。
+- rgba() grep：只命中 src/index.css（CSS 變數定義）✅
+- 粵語 grep：零命中 ✅
+- writing-mode grep：零命中 ✅
+- props interface：MemberInfo / PetInfo / HouseholdCardProps / TopBarProps / BottomTabBarProps / UploadPanelProps 全部未變 ✅

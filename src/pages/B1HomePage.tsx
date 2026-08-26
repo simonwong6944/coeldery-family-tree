@@ -2,19 +2,19 @@
  * B1HomePage — 家庭樹主頁（靜態 UI，狀態 A 有成員）
  *
  * 依 .coappery/design/B1.md 規範實作。
- * 細步 3a 範圍：靜態 UI only — 唔做 swipe、唔做 state、唔做 mock 陣列、唔做 autoplay。
+ * 細步 3a 範圍：靜態 UI only — 不做 swipe、不做 state、不做 mock 陣列、不做 autoplay。
  *
  * 頁面結構：
- *   - TopBar：標題「家庭樹」，右側三 icons（＋加人 / 分享 / 🔔通知+紅點）
+ *   - TopBar：三欄 flex 佈局（左返回 / 中標題 / 右三 icon），右側純 icon（rules.md 第16條例外）
  *   - BottomTabBar：active = 'family_tree'
  *   - 主體 scroll：Gen 1（固定）→ 連接線 → Gen 2 carousel（靜態）→ 連接線 → Gen 3
  *
- * Gen 1：我 + 太太，80px 圓形頭像，綠色心形，2px 連接線向下
- * Gen 2：focused 大仔+大新抱+Lucky（280px 寬，2px 綠框），左露「阿女一家」peek，右露「細仔一家」peek
- *        大新抱頭像右上角紅點（新動態）；底部指示點 ● ○ ○
- * Gen 3：孫仔 + 孫女（64px 頭像），指示點 ● ○
+ * Gen 1：本人 + 妻子，80px 圓形頭像，法拉利紅心形（--color-accent），2px 連接線向下
+ * Gen 2：focused 長子+長媳+Lucky（min-width 自適應，2px 綠框），左露女兒一家半卡，右露幼子一家半卡
+ *        長媳頭像右上角紅點（新動態）；底部指示點 ● ○ ○
+ * Gen 3：孫兒 + 孫女（64px 頭像），指示點 ● ○
  *
- * TopBar rightSlot：三個獨立 button，每個 ≥ 44×44px，icon + 文字。
+ * TopBar rightSlot：三欄 flex，三個純 icon（rules.md 第16條）每個 ≥ 44×44px，各有 aria-label。
  * 顏色：全部 CSS var。文字：全部 i18n t('key')。
  */
 
@@ -24,82 +24,138 @@ import BottomTabBar from '../../packages/bottom-tab-bar'
 import HouseholdCard from '../../packages/household-card'
 import type { MemberInfo } from '../../packages/household-card'
 
-/* ── Top Bar Right Slot ─── */
+/* ── SVG Icons（line-style，統一線寬 1.8，圓角 stroke-linecap round）── */
+
+/** 新增家人 icon（＋人形，line-style） */
+function IconAddMember({ size = 22 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {/* 人頭 */}
+      <circle cx="10" cy="7" r="3.5" />
+      {/* 身體弧線 */}
+      <path d="M3 19c0-3.314 3.134-6 7-6s7 2.686 7 6" />
+      {/* 右上角 + 號 */}
+      <line x1="19" y1="9" x2="19" y2="15" />
+      <line x1="16" y1="12" x2="22" y2="12" />
+    </svg>
+  )
+}
+
+/** 分享 icon（上箭頭 + 底部框，line-style） */
+function IconShare({ size = 22 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {/* 上箭頭 */}
+      <line x1="12" y1="3" x2="12" y2="15" />
+      <polyline points="8 7 12 3 16 7" />
+      {/* 底部托盤 */}
+      <path d="M5 14v5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5" />
+    </svg>
+  )
+}
+
+/** 通知鈴鐺 icon（line-style） */
+function IconBell({ size = 22 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {/* 鐘身 */}
+      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+      {/* 鐘舌 */}
+      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+    </svg>
+  )
+}
+
+/* ── Top Bar Right Slot（純 icon，rules.md 第16條例外）── */
 
 function TopBarRightSlot() {
   const { t } = useTranslation()
 
   const btnStyle: React.CSSProperties = {
     display: 'flex',
-    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    minWidth: '44px',
-    minHeight: '44px',
-    padding: '4px 6px',
+    width: '44px',
+    height: '44px',
+    padding: 0,
     background: 'none',
     border: 'none',
     cursor: 'pointer',
     color: 'var(--color-text)',
     fontFamily: 'inherit',
-    gap: '2px',
     outline: 'none',
     position: 'relative',
-  }
-
-  const iconStyle: React.CSSProperties = {
-    fontSize: '20px',
-    lineHeight: 1,
-  }
-
-  /* B1.md §2.3：頂部 icon 旁文字 16px Bold */
-  const labelStyle: React.CSSProperties = {
-    fontSize: '16px',
-    fontWeight: 'bold',
-    color: 'var(--color-text-secondary)',
-    lineHeight: 1,
-    whiteSpace: 'nowrap',
+    flexShrink: 0,
   }
 
   return (
     <>
-      {/* ＋加人 */}
+      {/* ＋新增家人（純 icon，aria-label 正式書面繁中） */}
       <button
         aria-label={t('top_bar.add_member')}
         style={btnStyle}
         onFocus={(e) => { e.currentTarget.style.outline = '3px solid var(--color-primary)'; e.currentTarget.style.outlineOffset = '2px' }}
         onBlur={(e) => { e.currentTarget.style.outline = 'none' }}
       >
-        <span style={iconStyle} aria-hidden="true">＋</span>
-        <span style={labelStyle}>{t('top_bar.add_member')}</span>
+        <IconAddMember size={22} />
       </button>
 
-      {/* 分享 */}
+      {/* 分享（純 icon） */}
       <button
         aria-label={t('top_bar.share')}
         style={btnStyle}
         onFocus={(e) => { e.currentTarget.style.outline = '3px solid var(--color-primary)'; e.currentTarget.style.outlineOffset = '2px' }}
         onBlur={(e) => { e.currentTarget.style.outline = 'none' }}
       >
-        <span style={iconStyle} aria-hidden="true">⬆</span>
-        <span style={labelStyle}>{t('top_bar.share')}</span>
+        <IconShare size={22} />
       </button>
 
-      {/* 🔔 通知（紅點） */}
+      {/* 通知（純 icon + 紅點） */}
       <button
         aria-label={t('top_bar.notifications')}
-        style={{ ...btnStyle, position: 'relative' }}
+        style={btnStyle}
         onFocus={(e) => { e.currentTarget.style.outline = '3px solid var(--color-primary)'; e.currentTarget.style.outlineOffset = '2px' }}
         onBlur={(e) => { e.currentTarget.style.outline = 'none' }}
       >
-        <span style={{ position: 'relative', display: 'inline-block', fontSize: '20px', lineHeight: 1 }} aria-hidden="true">
-          🔔
+        <span style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <IconBell size={22} />
           {/* 8×8px 紅點，白色 2px 外圈 */}
           <span
+            aria-hidden="true"
             style={{
               position: 'absolute',
-              top: '-2px',
-              right: '-4px',
+              top: '-3px',
+              right: '-3px',
               width: '8px',
               height: '8px',
               borderRadius: '50%',
@@ -107,16 +163,14 @@ function TopBarRightSlot() {
               border: '2px solid var(--color-card)',
               display: 'block',
             }}
-            aria-hidden="true"
           />
         </span>
-        <span style={labelStyle}>{t('top_bar.notifications')}</span>
       </button>
     </>
   )
 }
 
-/* ── Vertical Connection Line ─── */
+/* ── Vertical Connection Line ── */
 
 function ConnectionLine({ height = 24 }: { height?: number }) {
   return (
@@ -134,7 +188,7 @@ function ConnectionLine({ height = 24 }: { height?: number }) {
   )
 }
 
-/* ── Generation Layer Label ─── */
+/* ── Generation Layer Label ── */
 
 function GenLabel({ labelKey }: { labelKey: string }) {
   const { t } = useTranslation()
@@ -154,7 +208,7 @@ function GenLabel({ labelKey }: { labelKey: string }) {
   )
 }
 
-/* ── Indicator Dots ─── */
+/* ── Indicator Dots ── */
 
 function IndicatorDots({ total, active }: { total: number; active: number }) {
   const { t } = useTranslation()
@@ -188,61 +242,84 @@ function IndicatorDots({ total, active }: { total: number; active: number }) {
   )
 }
 
-/* ── Gen 2 Peek Card (static, no interactivity) ─── */
+/* ── Gen 2 Peek Card（露半張真實 HouseholdCard，isPeek=true）── */
+/*
+ * 3d 規格：移除直排文字條，改為露出相鄰真卡片的一部分。
+ * 透過 overflow:hidden 截斷，令真卡片的左/右半邊可見。
+ * isPeek=true 令 HouseholdCard 自動套用半透明 + grayscale + scale 0.92 樣式。
+ */
 
-function PeekCard({ labelText, side }: { labelText: string; side: 'left' | 'right' }) {
+function PeekCard({
+  side,
+  primaryMember,
+  secondaryMember,
+  pet,
+}: {
+  side: 'left' | 'right'
+  primaryMember: MemberInfo
+  secondaryMember?: MemberInfo
+  pet?: import('../../packages/household-card').PetInfo
+}) {
+  /* peek 容器：固定寬度 56px，overflow hidden，露出真卡片的一邊 */
   return (
     <div
       aria-hidden="true"
       style={{
-        width: '32px',
+        width: '56px',
         flexShrink: 0,
+        overflow: 'hidden',
+        /* 左 peek：卡片靠右，露出右半；右 peek：卡片靠左，露出左半 */
         display: 'flex',
         alignItems: 'center',
         justifyContent: side === 'left' ? 'flex-end' : 'flex-start',
-        overflow: 'hidden',
-        opacity: 0.5,
-        filter: 'grayscale(10%)',
         position: 'relative',
       }}
     >
-      {/* 半露卡邊緣（示意） */}
+      {/* 真實 HouseholdCard，isPeek=true 自動淡化 + 縮小 */}
       <div
         style={{
-          width: '32px',
-          height: '160px',
-          backgroundColor: 'var(--color-card)',
-          borderRadius: side === 'left' ? '0 16px 16px 0' : '16px 0 0 16px',
-          boxShadow: 'var(--shadow-soft)',
-          border: '1.5px solid var(--color-divider)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: '12px',
-          color: 'var(--color-text-secondary)',
-          writingMode: 'vertical-rl',
-          textOrientation: 'mixed',
-          padding: '8px 4px',
-          boxSizing: 'border-box',
-          overflow: 'hidden',
+          /*
+           * 卡片向外偏移，令其被容器截斷，形成「半露」效果：
+           * 左 peek：卡片向右偏移，露出左邊緣；
+           * 右 peek：卡片向左偏移，露出右邊緣。
+           * translateX 偏移量 = 卡片寬度 - 容器寬度（約 200-250px 被截）
+           */
+          transform: side === 'left'
+            ? 'translateX(calc(100% - 56px)) scale(0.92)'
+            : 'translateX(calc(-100% + 56px)) scale(0.92)',
+          transformOrigin: side === 'left' ? 'right center' : 'left center',
+          opacity: 0.5,
+          filter: 'grayscale(15%)',
+          transition: 'none',
+          flexShrink: 0,
+          width: '220px', /* 固定寬度令偏移量可預測 */
         }}
       >
-        <span style={{ fontSize: '11px', textAlign: 'center', lineHeight: 1.2 }}>
-          {labelText}
-        </span>
+        <HouseholdCard
+          variant={pet ? 'couple_with_pet' : secondaryMember ? 'couple' : 'single'}
+          primaryMember={primaryMember}
+          secondaryMember={secondaryMember}
+          pet={pet}
+          avatarSize={52}
+          isFocused={false}
+          isPeek={false} /* 已由父層處理 opacity/filter/scale，不重複套用 */
+          width="220px"
+        />
       </div>
 
-      {/* Chevron 暗示 */}
+      {/* Chevron 暗示（疊加在截斷邊緣） */}
       <span
         aria-hidden="true"
         style={{
           position: 'absolute',
           top: '50%',
+          [side === 'left' ? 'right' : 'left']: '4px',
           transform: 'translateY(-50%)',
-          [side === 'left' ? 'right' : 'left']: '-12px',
-          fontSize: '16px',
+          fontSize: '18px',
           color: 'var(--color-text-secondary)',
-          opacity: 0.6,
+          opacity: 0.7,
+          pointerEvents: 'none',
+          zIndex: 1,
         }}
       >
         {side === 'left' ? '‹' : '›'}
@@ -251,7 +328,7 @@ function PeekCard({ labelText, side }: { labelText: string; side: 'left' | 'righ
   )
 }
 
-/* ── Gen 3 Member Avatar ─── */
+/* ── Gen 3 Member Avatar ── */
 
 function Gen3Member({ member, size = 64 }: { member: MemberInfo; size?: number }) {
   const initial = member.name.charAt(0)
@@ -288,12 +365,12 @@ function Gen3Member({ member, size = 64 }: { member: MemberInfo; size?: number }
   )
 }
 
-/* ── Main Page Component ─── */
+/* ── Main Page Component ── */
 
 export default function B1HomePage() {
   const { t } = useTranslation()
 
-  /* ── 靜態資料（全部來自 i18n，唔 hardcode 文字）── */
+  /* ── 靜態資料（全部來自 i18n，不 hardcode 文字）── */
 
   const gen1Primary: MemberInfo = {
     name: t('gen1.member_self'),
@@ -305,7 +382,7 @@ export default function B1HomePage() {
     relation: t('gen1.member_spouse_relation'),
   }
 
-  /* Gen 2 focused 卡：大仔 + 大新抱 + Lucky */
+  /* Gen 2 focused 卡：長子 + 長媳 + Lucky */
   const gen2FocusedPrimary: MemberInfo = {
     name: t('gen2.member_eldest_son'),
     relation: t('gen2.member_eldest_son_relation'),
@@ -314,10 +391,22 @@ export default function B1HomePage() {
   const gen2FocusedSecondary: MemberInfo = {
     name: t('gen2.member_eldest_daughter_in_law'),
     relation: t('gen2.member_eldest_daughter_in_law_relation'),
-    showNotificationDot: true, /* 大新抱頭像有新動態紅點 */
+    showNotificationDot: true, /* 長媳頭像有新動態紅點 */
   }
 
-  /* Gen 3：孫仔 + 孫女 */
+  /* Gen 2 左 peek：女兒一家 */
+  const gen2PeekLeftPrimary: MemberInfo = {
+    name: t('gen2.member_daughter'),
+    relation: t('gen2.member_daughter_relation'),
+  }
+
+  /* Gen 2 右 peek：幼子一家 */
+  const gen2PeekRightPrimary: MemberInfo = {
+    name: t('gen2.member_youngest_son'),
+    relation: t('gen2.member_youngest_son_relation'),
+  }
+
+  /* Gen 3：孫兒 + 孫女 */
   const gen3Grandson: MemberInfo = {
     name: t('gen3.member_grandson'),
     relation: t('gen3.member_grandson_relation'),
@@ -337,7 +426,7 @@ export default function B1HomePage() {
         flexDirection: 'column',
       }}
     >
-      {/* ── TopBar ── */}
+      {/* ── TopBar（三欄 flex 佈局，頂欄不重疊）── */}
       <TopBar
         titleKey="top_bar.title"
         rightSlot={<TopBarRightSlot />}
@@ -398,7 +487,12 @@ export default function B1HomePage() {
         >
           <GenLabel labelKey="gen2.layer_label" />
 
-          {/* Carousel Band（靜態，overflow hidden，三卡並排：左peek + focused + 右peek） */}
+          {/*
+           * Carousel Band（靜態）
+           * 佈局：左 peek（56px） | focused 卡（min-width 自適應，max 320px） | 右 peek（56px）
+           * 3c：focused 卡改用 min-width + 內容撐開，避免固定闊度導致 overflow。
+           * 3d：左右 peek 改為露出真卡片的一部分，移除直排文字條。
+           */}
           <div
             role="group"
             aria-label={t('gen2.layer_label')}
@@ -407,18 +501,29 @@ export default function B1HomePage() {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '0',
-              paddingLeft: '16px',
-              paddingRight: '16px',
+              paddingLeft: '0',
+              paddingRight: '0',
               boxSizing: 'border-box',
               overflow: 'hidden',
             }}
           >
-            {/* 左 peek：女兒一家 */}
-            <PeekCard labelText={t('gen2.household_of', { name: t('gen2.member_daughter') })} side="left" />
+            {/* 左 peek：女兒一家（露右半邊） */}
+            <PeekCard
+              side="left"
+              primaryMember={gen2PeekLeftPrimary}
+            />
 
-            {/* Focused 卡：大仔一家（大仔 + 大新抱 + Lucky） */}
-            <div style={{ flex: '0 0 auto', width: 'calc(100% - 64px - 32px)', maxWidth: '320px' }}>
+            {/* Focused 卡：長子一家（長子 + 長媳 + Lucky） */}
+            {/* 3c：min-width 取代固定寬度，讓內容決定實際寬度，max-width 仍受 B1.md 約束 */}
+            <div
+              style={{
+                flex: '1 1 auto',
+                minWidth: '0',
+                maxWidth: '320px',
+                display: 'flex',
+                justifyContent: 'center',
+              }}
+            >
               <HouseholdCard
                 variant="couple_with_pet"
                 primaryMember={gen2FocusedPrimary}
@@ -434,11 +539,14 @@ export default function B1HomePage() {
               />
             </div>
 
-            {/* 右 peek：幼子一家 */}
-            <PeekCard labelText={t('gen2.household_of', { name: t('gen2.member_youngest_son') })} side="right" />
+            {/* 右 peek：幼子一家（露左半邊） */}
+            <PeekCard
+              side="right"
+              primaryMember={gen2PeekRightPrimary}
+            />
           </div>
 
-          {/* Gen2 指示點（● ○ ○，active = index 0 即 大仔一家） */}
+          {/* Gen2 指示點（● ○ ○，active = index 0 即長子一家） */}
           <IndicatorDots total={3} active={0} />
 
           {/* 連接線 Gen2 → Gen3 */}
@@ -461,7 +569,7 @@ export default function B1HomePage() {
         >
           <GenLabel labelKey="gen3.layer_label" />
 
-          {/* Gen 3 卡（白底，孫仔 + 孫女 並排） */}
+          {/* Gen 3 卡（白底，孫兒 + 孫女 並排） */}
           <div
             role="group"
             aria-label={t('gen3.layer_label')}

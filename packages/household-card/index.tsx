@@ -66,7 +66,7 @@ export interface HouseholdCardProps {
 
 /* ── Sub-components ─── */
 
-/** 心形 icon（森林綠實心，禁粉紅禁紅） */
+/** 心形 icon（法拉利紅 --color-accent，情感裝飾，見 rules.md 第16條色彩例外） */
 function HeartIcon() {
   return (
     <svg
@@ -79,7 +79,7 @@ function HeartIcon() {
     >
       <path
         d="M12 21.593c-.379-.286-8.592-6.483-8.592-12.152C3.408 5.88 5.698 4 8.008 4c1.726 0 3.259.85 4.104 2.122C12.957 4.85 14.49 4 16.216 4c2.31 0 4.6 1.88 4.6 5.441 0 5.669-8.213 11.866-8.592 12.152-.066.05-.143.075-.224.075s-.158-.025-.224-.075z"
-        fill="var(--color-primary)"
+        fill="var(--color-accent)"
       />
     </svg>
   )

@@ -35,59 +35,71 @@ export default function TopBar({ titleKey = 'top_bar.title', onBack, rightSlot }
         height: '56px',
         backgroundColor: 'var(--color-card)',
         borderBottom: '1px solid var(--color-divider)',
+        /* 三欄 flex 佈局：左返回 / 中標題 / 右 icons，消除重疊 */
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        padding: '0 8px',
+        padding: '0 4px',
         zIndex: 100,
         boxSizing: 'border-box',
       }}
       role="banner"
     >
-      {/* 左：返回鍵 */}
-      <button
-        onClick={onBack ?? undefined}
-        aria-label={t('top_bar.back')}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          minWidth: '44px',
-          minHeight: '44px',
-          padding: '0 8px 0 8px',
-          background: 'none',
-          border: 'none',
-          cursor: 'pointer',
-          color: 'var(--color-primary)',
-          fontSize: '16px',
-          fontWeight: 'bold',
-          fontFamily: 'inherit',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        {t('top_bar.back')}
-      </button>
+      {/* 左欄：返回鍵（flex-shrink 0，不被壓縮） */}
+      <div style={{ flex: '0 0 auto' }}>
+        <button
+          onClick={onBack ?? undefined}
+          aria-label={t('top_bar.back')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            minWidth: '44px',
+            minHeight: '44px',
+            padding: '0 8px',
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            color: 'var(--color-primary)',
+            fontSize: '15px',
+            fontWeight: 'bold',
+            fontFamily: 'inherit',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {t('top_bar.back')}
+        </button>
+      </div>
 
-      {/* 中：標題 */}
-      <h1
-        style={{
-          position: 'absolute',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          margin: 0,
-          fontSize: '20px',
-          fontWeight: 'bold',
-          color: 'var(--color-text)',
-          fontFamily: 'inherit',
-          pointerEvents: 'none',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        {t(titleKey)}
-      </h1>
-
-      {/* 右：icon slot */}
+      {/* 中欄：標題（flex 1，居中，overflow hidden 防止長標題頂開兩側） */}
       <div
         style={{
+          flex: '1 1 auto',
+          display: 'flex',
+          justifyContent: 'center',
+          overflow: 'hidden',
+          padding: '0 4px',
+        }}
+      >
+        <h1
+          style={{
+            margin: 0,
+            fontSize: '20px',
+            fontWeight: 'bold',
+            color: 'var(--color-text)',
+            fontFamily: 'inherit',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {t(titleKey)}
+        </h1>
+      </div>
+
+      {/* 右欄：icon slot（flex-shrink 0，不被壓縮） */}
+      <div
+        style={{
+          flex: '0 0 auto',
           display: 'flex',
           alignItems: 'center',
           gap: '0px',

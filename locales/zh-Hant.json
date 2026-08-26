@@ -47,9 +47,6 @@
   "gen2": {
     "layer_label": "第二代",
     "family_label": "{{headName}}一家",
-    "household_of": "{{name}}一家",
-    "peek_left_hint": "‹",
-    "peek_right_hint": "›",
     "dots_label": "第 {{current}} 個，共 {{total}} 個家庭",
     "member_eldest_son": "長子",
     "member_eldest_son_relation": "長子",
