@@ -463,10 +463,12 @@ git push origin main
 ```
 
 ### 5. 所有 Error 與 Retry
-無 — 兩份文件首次 Write 即成功。
+- git push 首次失敗（token 過期）；re-run setup_github_environment 後重新注入 token 至 remote URL，push 成功。
 
 ### 6. 最終 Commit Hash + Timestamp
-（push 完成後填入）
+- commit hash: c85e08ca713c7e32e0885dea5317f287326b1a28
+- timestamp: 2026-08-26 16:49:44 +0000
+- branch: main
 
 ### 7. 未解決事項
 無。兩份 SOP 均為初版（2026-08-26 建立），修訂記錄表已預留，實戰中如需修訂依機制更新。
