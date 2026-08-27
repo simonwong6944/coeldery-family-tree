@@ -218,6 +218,19 @@
     "post3_comment1_body": "下次一齊去！"
   },
 
+  "b5": {
+    "reminder_label": "溫馨提示",
+    "send_blessing_btn": "送上祝福",
+    "go_arrange_btn": "去安排",
+    "modal_one_click_btn": "一鍵祝福",
+    "modal_remind_later_btn": "稍後提醒",
+    "preview_modal_btn": "預覽提醒彈出卡",
+    "mock_title": "🎂 {{name}} 下個月生日",
+    "mock_subtitle": "10 月 15 日・仲有 30 日",
+    "mock_modal_headline": "{{name}} 明天生日 🎂",
+    "mock_modal_warm": "記得同佢講聲生日快樂 💚"
+  },
+
   "a11y": {
     "avatar_alt": "{{name}}的頭像",
     "couple_heart_alt": "配偶關係心形",

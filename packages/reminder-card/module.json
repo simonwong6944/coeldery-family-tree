@@ -1,0 +1,18 @@
+{
+  "name": "@coeldery/reminder-card",
+  "label": "Feed 溫馨提示卡（版本 A）",
+  "category": "ui",
+  "version": "1.0.0",
+  "description": "家庭圈 feed 內嵌的溫馨提示卡。白底 + 左側 4px 綠直條識別；顯示提醒細標、主標、副標、送上祝福（線框綠）+ 去安排（實心綠）兩個並列掣。純接資料，互動為靜態視覺回饋。",
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-i18next": "^15.0.0"
+  },
+  "exports": {
+    "default": "ReminderCard",
+    "types": ["ReminderCardProps"]
+  },
+  "localeKeys": "b5.reminder_label, b5.send_blessing_btn, b5.go_arrange_btn",
+  "derivedFrom": ".coappery/design/B5_reminder_cards.md §1",
+  "sizeLimit": 200
+}

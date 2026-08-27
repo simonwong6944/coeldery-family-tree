@@ -24,6 +24,18 @@
   --shadow-focus-card: 0 4px 20px rgba(34,139,34,0.18);
   --ring-focus: 0 0 0 4px rgba(34,139,34,0.10);
   --overlay-scrim: rgba(0,0,0,0.4);
+
+  /* ── B5 Reminder tokens（§0.2）── */
+  --green-glow: rgba(34,139,34,0.25);
+  --green-glow-strong: rgba(34,139,34,0.35);
+  --shadow-modal: 0 8px 32px rgba(0,0,0,0.15);
+  --overlay-dim: rgba(43,43,43,0.55);
+
+  /* ── B5 Surface tokens（non-rgba，hex）── */
+  --bg-engagement: #fafaf2;
+  --bg-solemn: #e8e4da;
+  --bg-solemn-row: #f0ece4;
+  --color-solemn-stroke: #9a958a;
 }
 
 body {

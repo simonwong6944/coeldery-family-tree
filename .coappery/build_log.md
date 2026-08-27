@@ -2,6 +2,60 @@
 
 ---
 
+## [細步 3g][實時紀錄] B5 提醒卡 A（Feed 溫馨提示卡）+ 彈出卡 B（入 App 迫近提醒）
+
+### 1. 完整指令原文
+任務：細步 3g — 砌 B5 提醒卡 A（ReminderCard，版本 A，Feed 溫馨提示卡）+ 彈出卡 B（ReminderModal，版本 B，入 App 迫近提醒）。(1) 升級 `src/index.css` 加入 8 個新 CSS token（4 個 rgba: --green-glow、--green-glow-strong、--shadow-modal、--overlay-dim；4 個 hex: --bg-engagement、--bg-solemn、--bg-solemn-row、--color-solemn-stroke）；(2) 升級 `locales/zh-Hant.json` 加 b5.* 10 個 keys；(3) 新建 `packages/reminder-card/index.tsx`（≤200 行）+ module.json；(4) 新建 `packages/reminder-modal/index.tsx`（≤200 行）+ module.json；(5) 升級 `src/pages/FamilyFeed.tsx`（≤170 行）嵌入 ReminderCard（夾在 post[0] / post[1] 之間）+ 臨時預覽掣 + ReminderModal（mock：陳大文明天生日）。硬規矩：文字全 t('key')、顏色只 CSS var、字 ≥18px、點擊區 ≥44px、主掣 ≥56px、不加新 npm package、不改現有 module props 介面。
+
+### 2. 新增 / 修改檔案清單
+| 檔案 | 操作 | 行數 |
+|------|------|------|
+| `src/index.css` | 修改 | 新增 8 個 B5 CSS token（l.29-36）|
+| `locales/zh-Hant.json` | 修改 | 新增 b5.* 10 個 key（reminder_label / send_blessing_btn / go_arrange_btn / modal_one_click_btn / modal_remind_later_btn / preview_modal_btn / mock_title / mock_subtitle / mock_modal_headline / mock_modal_warm）|
+| `packages/reminder-card/index.tsx` | **新增** | 134 行（≤200 ✅）|
+| `packages/reminder-card/module.json` | **新增** | — |
+| `packages/reminder-modal/index.tsx` | **新增** | 176 行（≤200 ✅）|
+| `packages/reminder-modal/module.json` | **新增** | — |
+| `src/pages/FamilyFeed.tsx` | 升級 | 123 行（≤170 ✅，原 123 行）|
+| `.coappery/build_log.md` | 修改 | 本條目 |
+
+### 3. 技術決策
+- **ReminderCard 視覺層次（版本 A）**：左 4px 綠直條（borderLeft）識別提醒卡；細標「溫馨提示」16px bold primary；主標 18px bold；副標 16px text-secondary；兩掣並列 flex gap:12px，各 flex:1 minHeight:56px — 「送上祝福」線框綠（靜態按下後切實心，blessingPressed useState 0.8s bounce），「去安排」實心綠 shadow-cta。
+- **ReminderModal 視覺層次（版本 B）**：固定遮罩 var(--overlay-dim) zIndex:200，遮罩不設 tap 關閉（§2.4 長者保護）；中央卡 shadow-modal；80px 頭像 border primary；headline 22px bold；一鍵祝福 dominant（實心綠 + 0 4px 14px var(--green-glow-strong)）> 去安排 secondary（線框綠）> 稍後提醒 tertiary（plain text muted 16px minHeight 44px）。
+- **FamilyFeed 嵌入**：臨時預覽掣（dashed border，`/* 臨時預覽，正式版由觸發邏輯控制 */`）置於 main 頂部；ReminderCard 夾在 posts[0] 和 posts[1] 之間（map 拆分為 posts[0] + ReminderCard + posts.slice(1)）；ReminderModal 置於 return() 底部，open/onClose 受 modalOpen useState 控制。
+- **mock 資料**：targetName「陳大文」，t('b5.mock_title', {name: t('b4.post3_author')})、t('b5.mock_subtitle')；Modal avatarUrl https://randomuser.me/api/portraits/men/68.jpg，headline t('b5.mock_modal_headline')，warmSub t('b5.mock_modal_warm')。
+- **現有 11 模組**：零改動（git diff --name-only packages/ 輸出只見 untracked 新目錄）。
+
+### 4. 驗證結果
+```
+npm run build：✅ exit code 0，零 TypeScript error，65 modules，427ms
+rgba() grep（src/ + packages/）：✅ 全部 10 個命中均在 src/index.css :root{}，packages/ 零命中
+口語字 grep（禁用簡體字）：✅ 零命中
+現有 11 module git diff（packages/ 除新增目錄）：✅ 零改動
+locales/ diff：13 行新增（b5.* 10 keys + 外框），零刪改 ✅
+reminder-card/index.tsx：134 行（≤200 ✅）
+reminder-modal/index.tsx：176 行（≤200 ✅）
+FamilyFeed.tsx：123 行（≤170 ✅）
+```
+
+### 5. Commit 資訊
+- commit: *pending*
+- timestamp: 2026-08-27
+- branch: main
+
+### 6. Deploy 資訊
+- Preview URL: *pending CF Pages deploy*
+
+### 7. 未解決事項
+- ReminderCard / ReminderModal 三個掣只做靜態視覺回饋，無真實後端觸發邏輯（Out of Scope，待 B6/B7）。
+- 提醒觸發條件（日曆判斷、push notification）未實作（v1.1 backlog）。
+- 臨時預覽掣需在正式版由觸發邏輯替換，移除 preview_modal_btn key。
+
+### 8. Build + 驗證結果（同第 4 節）
+見上方第 4 節。
+
+---
+
 ## [細步 3f][實時紀錄] B4 家庭圈 feed（靜態 mockup）
 
 ### 1. 完整指令原文

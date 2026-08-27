@@ -1,0 +1,8 @@
+{
+  "name": "@coeldery/reminder-modal",
+  "label": "入 App 迫近提醒彈出卡（版本 B）",
+  "category": "ui",
+  "version": "1.0.0",
+  "derivedFrom": ".coappery/design/B5_reminder_cards.md §2",
+  "sizeLimit": 200
+}
