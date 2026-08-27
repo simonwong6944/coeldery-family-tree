@@ -1029,3 +1029,25 @@ connection-line/index.tsx：41 行（≤250 ✅）
 gen-section/index.tsx：148 行（≤250 ✅）
 gen-carousel/index.tsx：183 行（≤250 ✅）
 ```
+
+---
+
+## [里程碑] 老有卡靜態 Mockup 全套完成 — 開發方法論記錄
+
+日期：2026-08-27
+
+達成：家庭樹線完整靜態 mockup 完成 —— B1 主頁（refactor 140 行）、B2 成員詳情（人版 + 寵物版）、B3 加入家人 4 步 wizard；四個底部 tab 全部可導航（家庭樹精緻,其餘三 tab placeholder）。所有頁面經 grep / build / 肉眼視覺對證通過。
+
+方法論（本項目證實有效,擬帶往 CoAppery）：
+
+1. 固化真相：所有產品決定、技術規則、設計規格寫入文件（rules.md / product_decisions.md / design/）,不靠記憶。實證：AI 據 rules.md Rule 15 自動糾正指令口誤（「佢嘅」→「其」）。
+
+2. 細步推進 + 每步驗證：每次只做一個細步,完成即 grep + build + 視覺對證,通過才落下一步。錯誤困於單步,不滾雪球。
+
+3. 模組化 + 硬界線：每 module 有清晰 props interface、行數上限、禁改規則。實證：3e 接駁 tab 導航,因 module 早有 onTabChange 接口,零改動 interface 即完成。
+
+方法論本質：以「流程紀律」補「技術背景」空缺。使用者只需指揮 + 驗證,無需親自寫 code。特別適合「有大量 idea、零 IT 背景」嘅開發者。
+
+下一步認知：靜態 mockup ≠ 完成品。靈魂功能（成長相簿 calendar、動態 12 月過期、遺言、跨代繼承）屬真後端（登入 / 儲存 / 上傳 / 資料庫）,為另一段長路。現階段先以 demo 驗證需求。
+
+戰略定位：老有卡 + CoFilmery = 兩個試驗場,用於提煉 CoAppery 平台之方法論。
