@@ -843,4 +843,84 @@ b2.pet_relation_label 值：「長媳的寵物犬」✅
 packages/ diff：0 行（零改動）✅
 行數：B2PersonDetail 160 行 / B2PetDetail 165 行（全部 ≤200 ✅）
 ```
+
+---
+
+## [細步 3c][實時紀錄] B1HomePage refactor 拆三個 module
+
+### 1. 任務描述
+純結構重整，視覺零改動。由 B1HomePage.tsx monolith（668 行）抽出三個新共用 module，原封搬移現有邏輯與樣式：
+- `@coeldery/connection-line`（ui）— 垂直 2px 綠色連接線
+- `@coeldery/gen-section`（ui）— 「第X代」標題 + Gen3 區塊容器（含 IndicatorDots、Gen3Member、GenLabel）
+- `@coeldery/gen-carousel`（ui）— 第二代輪播帶（PeekCard、IndicatorDots、carousel band）
+refactor 後 B1HomePage.tsx 減至 ≤200 行，只留 layout + 數據 + B1 專用 SVG icons。
+
+### 2. 改動檔案清單（共 8 個）
+| 檔案 | 操作 | 行數 |
+|------|------|------|
+| `packages/connection-line/index.tsx` | 新增 | 41 行 |
+| `packages/connection-line/module.json` | 新增 | 12 行 |
+| `packages/gen-section/index.tsx` | 新增 | 148 行 |
+| `packages/gen-section/module.json` | 新增 | 14 行 |
+| `packages/gen-carousel/index.tsx` | 新增 | 183 行 |
+| `packages/gen-carousel/module.json` | 新增 | 14 行 |
+| `src/pages/B1HomePage.tsx` | 重寫 | 668 → 140 行 |
+| `.coappery/build_log.md` | 更新 | 本條目 |
+
+**搬移邏輯：**
+- `ConnectionLine`（原 B1HomePage.tsx 178–192）→ `packages/connection-line/index.tsx`
+- `GenLabel`（原 196–212）+ `IndicatorDots`（216–246）+ `Gen3Member`（336–386）→ `packages/gen-section/index.tsx`（IndicatorDots 同時在 gen-carousel 定義並 re-export）
+- `PeekCard`（255–332）+ carousel band JSX（533–608）+ Gen2 IndicatorDots（611）→ `packages/gen-carousel/index.tsx`
+
+**架構決策：**
+- `IndicatorDots` 主定義在 `@coeldery/gen-carousel`（因其為 carousel 核心元件），`gen-section` 透過 `export { IndicatorDots } from '../gen-carousel'` re-export，供 Gen3 GenSection 使用，避免重複定義。
+- `GenSection` wrapper 只用於 Gen3（Gen1/Gen2 各自佈局不同，section wrapper 留在 B1HomePage）。
+
+（七個現有 module 及 locales/ 零改動）
+
+### 3. 設計決策
+- 唔新增任何 locale key（零 diff on locales/）
+- 唔改動任何 UI 外觀、行為、動畫（原封搬移）
+- `PeekCard` 改為 `gen-carousel` 內部 function，不導出（非共用元件）
+- B1 專用 SVG Icons（IconAddMember/IconShare/IconBell）及 TopBarRightSlot 留在 B1HomePage（非共用）
+- Gen1 section wrapper 留在 B1HomePage（帶 top padding 24px，其他代唔同）
+
+### 4. 執行指令序列
+```bash
+mkdir -p packages/connection-line packages/gen-section packages/gen-carousel
+# Write tool 逐一建立六個新檔案
+# Write tool 重寫 B1HomePage.tsx
+cd /home/user/coeldery-family-tree && npm run build
+grep -rniE "rgba\(" src/ packages/
+grep -rniE "(冇|係|唔|喺|嘅|佢|嚟|畀|咁|咗|囉|喎|㗎)" src/ packages/
+git diff packages/household-card packages/top-bar packages/bottom-tab-bar packages/upload-panel packages/member-header packages/photo-album-grid packages/entry-card
+git diff locales/
+wc -l src/pages/B1HomePage.tsx packages/connection-line/index.tsx packages/gen-section/index.tsx packages/gen-carousel/index.tsx
+git add packages/connection-line/ packages/gen-section/ packages/gen-carousel/ src/pages/B1HomePage.tsx .coappery/build_log.md
+git commit -m "細步 3c：B1HomePage refactor 拆三個 module（connection-line / gen-section / gen-carousel）"
+git push origin main
+```
+
+### 5. 所有 Error 與 Retry
+- `gen-carousel/index.tsx` 初版 282 行，超出 ≤250 限制；精簡 JSDoc + interface prop 注釋後壓縮至 183 行，通過。
+- `gen-section/index.tsx` 初版包含自行定義 `IndicatorDots`，後改為從 `gen-carousel` import 並 re-export，避免重複代碼，最終 148 行。
+
+### 6. 最終 Commit Hash + Timestamp
+（push 完成後填入）
+
+### 7. 未解決事項
+- 三個 module 為靜態 UI，carousel swipe 互動留待後續細步。
+- B1 peek 卡（女兒、幼子）仍用關係稱謂作 `name`（非本次範圍）。
+
+### 8. Build + 驗證結果
+```
+npm run build：✅ exit code 0，零 TypeScript error，57 modules，401ms
+rgba() grep：只命中 src/index.css（CSS 變數定義）✅
+粵語 grep：src/ + packages/ 新增檔案零命中 ✅（原有 HomePage.tsx + vite.svg 舊有內容，非本次改動）
+7 個現有 module git diff：零行（零改動）✅
+locales/ git diff：零行（零改動）✅
+B1HomePage.tsx 行數：668 → 140 行（≤200 ✅）
+connection-line/index.tsx：41 行（≤250 ✅）
+gen-section/index.tsx：148 行（≤250 ✅）
+gen-carousel/index.tsx：183 行（≤250 ✅）
 ```

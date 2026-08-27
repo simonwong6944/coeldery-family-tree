@@ -1,0 +1,13 @@
+{
+  "name": "@coeldery/gen-carousel",
+  "label": "第二代輪播帶",
+  "category": "ui",
+  "version": "1.0.0",
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-i18next": "^15.0.0",
+    "i18next": "^24.0.0"
+  },
+  "derivedFrom": ".coappery/design/B1.md §4.2–4.4（Gen2 輪播）",
+  "docs": "導出兩個元件：IndicatorDots（輪播指示點 ● ○ …，active 實心，亦供 gen-section 使用）、GenCarousel（第二代輪播帶主體，含 focused 卡＋左右 peek 半截卡＋IndicatorDots）。PeekCard 為內部元件，透過 translateX 偏移令真實 HouseholdCard 半露。佈局：position:relative 外容器＋overflow:hidden；focused 卡 calc(100% - 32px)；peek 卡 position:absolute 56px。顏色全部 CSS var，禁止 hardcode hex。文字全部 i18n。搬移自 B1HomePage.tsx PeekCard 及 Gen2 carousel 帶（細步 3c refactor，畫面零改動）。"
+}

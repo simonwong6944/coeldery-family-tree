@@ -1,0 +1,13 @@
+{
+  "name": "@coeldery/gen-section",
+  "label": "代區塊容器",
+  "category": "ui",
+  "version": "1.0.0",
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-i18next": "^15.0.0",
+    "i18next": "^24.0.0"
+  },
+  "derivedFrom": ".coappery/design/B1.md §4.1（代標題）、§4.5（Gen3 成員）",
+  "docs": "導出四個元件：GenLabel（代層標題，從 i18n key 讀取，居中）、IndicatorDots（輪播指示點 ● ○ …，active 實心）、Gen3Member（第三代成員頭像＋姓名＋關係，64px 圓形頭像含 fallback 首字母）、GenSection（Gen3 區塊容器，包含 GenLabel＋白底圓角卡片＋IndicatorDots＋可選底部 spacer）。顏色全部 CSS var，禁止 hardcode hex。文字全部 i18n。搬移自 B1HomePage.tsx GenLabel、IndicatorDots、Gen3Member（細步 3c refactor，畫面零改動）。"
+}
