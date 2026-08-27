@@ -906,7 +906,10 @@ git push origin main
 - `gen-section/index.tsx` 初版包含自行定義 `IndicatorDots`，後改為從 `gen-carousel` import 並 re-export，避免重複代碼，最終 148 行。
 
 ### 6. 最終 Commit Hash + Timestamp
-（push 完成後填入）
+- commit hash: f2109e63456435b15622736c59f39b81d27638fe
+- timestamp: 2026-08-27 13:33:29 +0000
+- branch: main
+- Preview URL: https://2ee271ea.coeldery-family-tree.pages.dev
 
 ### 7. 未解決事項
 - 三個 module 為靜態 UI，carousel swipe 互動留待後續細步。
