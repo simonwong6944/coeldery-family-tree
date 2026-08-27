@@ -72,11 +72,11 @@ Fallback："PingFang HK", "Microsoft JhengHei", sans-serif
 | 3.2 | 主標 | 「🎂 陳大文 下個月生日」 | 18 px Bold #2b2b2b |
 | 3.3 | 副標 | 「10 月 15 日 · 仲有 30 日」 | margin-top 4 px；16 px Regular #6b6b6b |
 | 3.4a | Outline pill 「送上祝福」 | 文字 18 px Bold #228B22 | 白底、2 px solid #228B22 邊框、pill 28 r、高 ≥ 56 px、margin-top 16 px |
-| 3.4b | Filled pill 「去安排」 | 文字 18 px Bold #ffffff | #228B22 填色、pill 28 r、高 ≥ 56 px、--shadow-cta 光暈 |
+| 3.4b | Filled pill 「前往安排」 | 文字 18 px Bold #ffffff | #228B22 填色、pill 28 r、高 ≥ 56 px、--shadow-cta 光暈 |
 | 4 | 其他普通卡 | 孫女 / 細仔 | 同 post card 規格 |
 | 5 | Bottom Tab Bar | 家庭圈 active | 80 px；18 px Bold；active #228B22 + 3 px 綠條 |
 
-互動邏輯：撳「送上祝福」→ inline comment composer（唔跳頁）；撳「去安排」→ push 慶祝詳情頁（Phone 3）。
+互動邏輯：撳「送上祝福」→ inline comment composer（唔跳頁）；撳「前往安排」→ push 慶祝詳情頁（Phone 3）。
 
 ---
 
@@ -94,17 +94,17 @@ Fallback："PingFang HK", "Microsoft JhengHei", sans-serif
 | 2 | Headline | 「陳大文 明天生日 🎂」 | 22 px Bold #2b2b2b 置中；margin-top 12 px |
 | 3 | 溫暖副標 | 「記得同佢講聲生日快樂 💚」 | 18 px Regular #2b2b2b 置中；margin-top 8 px |
 | 4 | Primary pill「一鍵祝福」 | 文字 18 px Bold white | #228B22 填色、pill 28 r、≥ 56 px、green-glow 強光暈（0 4px 14px rgba(34,139,34,0.35)）、全寬 |
-| 5 | Secondary pill「去安排」 | 文字 18 px Bold #228B22 | 白底 + 2 px solid #228B22 邊框、pill 28 r、≥ 56 px、全寬；margin-top 12 px |
+| 5 | Secondary pill「前往安排」 | 文字 18 px Bold #228B22 | 白底 + 2 px solid #228B22 邊框、pill 28 r、≥ 56 px、全寬；margin-top 12 px |
 | 6 | Tertiary text「稍後提醒」 | 文字 16 px Regular #6b6b6b | 純文字、padding ≥ 12 px vertical、tap ≥ 44 × 44 px；margin-top 16 px；置中 |
 
 2.3 視覺層次
 一鍵祝福 🔴🔴🔴 dominant（實心綠 + glow）
-去安排 🔴🔴 secondary（outline 綠）
+前往安排 🔴🔴 secondary（outline 綠）
 稍後提醒 🔴 tertiary（純文字 muted）
 
 2.4 互動
 「一鍵祝福」→ 預填留言直接 post 入 feed，唔跳頁
-「去安排」→ push 慶祝詳情頁（Phone 3）
+「前往安排」→ push 慶祝詳情頁（Phone 3）
 「稍後提醒」→ set local notification 6 / 12 / 24 小時後
 
 🚫 半透明遮罩唔可以純靠 tap 關閉（避免長者 miss）。
@@ -136,7 +136,7 @@ Sub 揀一樣你想做嘅就 OK 16 px Regular #6b6b6b，margin-bottom 16 px
 | # | Icon 48 px | Title 20 B | Sub 16 muted | 行動 |
 |---|-----------|-----------|-------------|------|
 | 1 | 🎁 | 送上祝福 | 電子賀卡、語音祝福 | inline compose sheet |
-| 2 | 🎉 | 去安排 | 禮物、聚會、活動 | 跳去家庭聚會 tab |
+| 2 | 🎉 | 前往安排 | 禮物、聚會、活動 | 跳去家庭聚會 tab |
 | 3 | 👨‍👩‍👧‍👦 | 邀請其他家庭成員 | 請大家一齊參與 | 家人多選 chip sheet |
 
 3.4 Bottom 「大家的祝福」
@@ -186,7 +186,7 @@ Sub 揀一樣適合嘅就 OK 16 px Regular #6b6b6b
 | 2 | 🕯️ 灰色線雕蠟燭 | 送上鮮花 | 虛擬鮮花悼念 | 開虛擬花束組裝 sheet |
 | 3 | 📖 灰色線雕相簿 | 翻睇相簿 | 懷念從前嘅時光 | 開陳李秀英相簿頁 |
 
-🚫 絕對唔可以出現：🎁 禮物、🎉 去安排、聚會、🍰 訂蛋糕、🍴 餐廳、👨‍👩‍👧‍👦 邀請家庭成員慶祝、🎁 買禮物、訂花店實體、任何商業轉化按鈕。
+🚫 絕對唔可以出現：🎁 禮物、🎉 前往安排、聚會、🍰 訂蛋糕、🍴 餐廳、👨‍👩‍👧‍👦 邀請家庭成員慶祝、🎁 買禮物、訂花店實體、任何商業轉化按鈕。
 
 4.4 Bottom 「大家的思念」
 H2 大家的思念 18 px Bold #2b2b2b
@@ -218,7 +218,7 @@ Row 內：頭像 32 px（灰度處理）+ 姓名 16 px Bold + timestamp 16 px Re
 | 倒數行 | 仲有 18 日 🎉 綠色 | 不存在 |
 | Middle Action icon | 🎁 / 🎉 / 👨‍👩‍👧‍👦 | 🕊️ / 🕯️ / 📖（純灰 line-art） |
 | Action 1 | 送上祝福 | 獻上思念 |
-| Action 2 | 去安排（→ 聚會 tab） | 送上鮮花（→ 虛擬花束） |
+| Action 2 | 前往安排（→ 聚會 tab） | 送上鮮花（→ 虛擬花束） |
 | Action 3 | 邀請家庭成員 | 翻睇相簿 |
 | Bottom H2 | 大家的祝福 | 大家的思念 |
 | Row 底色 | 奶白 #fafaf2 | 暖灰褐 #f0ece4 |
@@ -233,12 +233,12 @@ Row 內：頭像 32 px（灰度處理）+ 姓名 16 px Bold + timestamp 16 px Re
 
 ```
 Feed A 「送上祝福」 → (inline comment)            ❌ 不跳
-Feed A 「去安排」     → Events Detail 慶祝版 Phone 3
+Feed A 「前往安排」     → Events Detail 慶祝版 Phone 3
                        ├─ Action1 送上祝福     → inline compose
-                       ├─ Action2 去安排       → 家庭聚會 tab
+                       ├─ Action2 前往安排       → 家庭聚會 tab
                        └─ Action3 邀請家人     → 多選 chip sheet
 Modal B 「一鍵祝福」 → (inline comment 直接 post) ❌ 不跳
-Modal B 「去安排」     → Events Detail 慶祝版 Phone 3 (同上)
+Modal B 「前往安排」     → Events Detail 慶祝版 Phone 3 (同上)
 Feed C 「獻上思念」   → Events Detail 忌辰版 Phone 4
                        ├─ Action1 獻上思念    → inline compose sheet
                        ├─ Action2 送上鮮花    → 虛擬花束 sheet
