@@ -9,6 +9,7 @@
 import { useTranslation } from 'react-i18next'
 import TopBar from '../../packages/top-bar'
 import BottomTabBar from '../../packages/bottom-tab-bar'
+import type { TabId } from '../../packages/bottom-tab-bar'
 import HouseholdCard from '../../packages/household-card'
 import type { MemberInfo } from '../../packages/household-card'
 import ConnectionLine from '../../packages/connection-line'
@@ -134,7 +135,10 @@ export default function B1HomePage() {
 
       </main>
 
-      <BottomTabBar current="family_tree" />
+      <BottomTabBar current="family_tree" onTabChange={(tab: TabId) => {
+        const r: Record<TabId,string> = { family_tree:'#/', family_circle:'#/family-feed', family_gathering:'#/family-gather', my_recommendations:'#/my-recommend' }
+        window.location.hash = r[tab]
+      }} />
     </div>
   )
 }

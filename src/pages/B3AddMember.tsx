@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import TopBar from '../../packages/top-bar'
 import BottomTabBar from '../../packages/bottom-tab-bar'
+import type { TabId } from '../../packages/bottom-tab-bar'
 import WizardStepIndicator from '../../packages/wizard-step-indicator'
 
 type MemberType = 'person' | 'pet' | null
@@ -162,7 +163,10 @@ function Shell({ onBack, totalDots, dotStep, children }:{
         <WizardStepIndicator totalSteps={totalDots} currentStep={dotStep} />
         <div style={{ padding:'24px 16px', animation:'b3fade 0.25s ease' }}>{children}</div>
       </div>
-      <BottomTabBar current="family_tree" />
+      <BottomTabBar current="family_tree" onTabChange={(tab: TabId) => {
+        const r: Record<TabId,string> = { family_tree:'#/', family_circle:'#/family-feed', family_gathering:'#/family-gather', my_recommendations:'#/my-recommend' }
+        window.location.hash = r[tab]
+      }} />
     </div>
   )
 }

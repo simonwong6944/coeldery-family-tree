@@ -5,6 +5,9 @@ import B1HomePage from './pages/B1HomePage'
 import B2PersonDetail from './pages/B2PersonDetail'
 import B2PetDetail from './pages/B2PetDetail'
 import B3AddMember from './pages/B3AddMember'
+import FamilyFeed from './pages/FamilyFeed'
+import FamilyGather from './pages/FamilyGather'
+import MyRecommend from './pages/MyRecommend'
 
 /**
  * App root — 全域桌面置中限寬容器 + 輕量 Hash Router
@@ -18,6 +21,9 @@ import B3AddMember from './pages/B3AddMember'
  *   #/b2-person   → B2PersonDetail（人版成員詳情）
  *   #/b2-pet      → B2PetDetail（寵物版成員詳情）
  *   #/b3-add      → B3AddMember（加入家人精靈）
+ *   #/family-feed  → FamilyFeed（家庭圈 placeholder）
+ *   #/family-gather → FamilyGather（家庭聚會 placeholder）
+ *   #/my-recommend → MyRecommend（我的推薦 placeholder）
  */
 
 function useHashRoute(): string {
@@ -40,6 +46,12 @@ function App() {
     page = <B2PetDetail />
   } else if (hash === '#/b3-add') {
     page = <B3AddMember />
+  } else if (hash === '#/family-feed') {
+    page = <FamilyFeed />
+  } else if (hash === '#/family-gather') {
+    page = <FamilyGather />
+  } else if (hash === '#/my-recommend') {
+    page = <MyRecommend />
   } else {
     page = <B1HomePage />
   }

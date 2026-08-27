@@ -4,6 +4,57 @@
 
 ---
 
+## [細步 3e][實時紀錄] 收尾 batch：helper 文字修正 + 三個 tab placeholder
+
+### 1. 完整指令原文
+Task 3e — 收尾 batch：(1) B3 出生日期 helper 文字修正（人版「其」、寵物版「牠的」，書面繁中，rules.md Rule 15 凌駕 task 口語示例）；(2) 新建 FamilyFeed / FamilyGather / MyRecommend 三個 placeholder 頁（各≤80行）；(3) 接駁 BottomTabBar `onTabChange` 導航至全部六個頁面（B1/B2Person/B2Pet/B3/三新頁），家庭樹→#/ 其餘→對應新 route；不改任何 module props interface；build 零錯誤；commit + push + CF Pages deploy。
+
+### 2. 新增 / 修改檔案清單
+| 檔案 | 操作 | 備註 |
+|------|------|------|
+| `locales/zh-Hant.json` | 修改 | 改 birthdate_helper + pet_birthdate_helper；新增 placeholder.* 區塊 |
+| `src/pages/FamilyFeed.tsx` | **新建** | 48 行（≤80 ✅）|
+| `src/pages/FamilyGather.tsx` | **新建** | 48 行（≤80 ✅）|
+| `src/pages/MyRecommend.tsx` | **新建** | 48 行（≤80 ✅）|
+| `src/App.tsx` | 修改 | 新增 #/family-feed、#/family-gather、#/my-recommend 三 route |
+| `src/pages/B1HomePage.tsx` | 修改 | 加 `import type { TabId }` + `onTabChange` |
+| `src/pages/B2PersonDetail.tsx` | 修改 | 加 `import type { TabId }` + `onTabChange` |
+| `src/pages/B2PetDetail.tsx` | 修改 | 加 `import type { TabId }` + `onTabChange` |
+| `src/pages/B3AddMember.tsx` | 修改 | 加 `import type { TabId }` + `onTabChange` |
+
+### 3. 技術決策
+- **`onTabChange` 接駁方式**：`BottomTabBar` 已有 `onTabChange?: (tab: TabId) => void` prop，無需改 interface。各頁面定義共用 route map `Record<TabId,string>`，callback 直接設 `window.location.hash`。
+- **`TabId` import**：TypeScript `verbatimModuleSyntax` 要求 type-only import，用 `import type { TabId }`。
+- **書面繁中修正**：task 原文「佢嘅」/「牠嘅」均屬口語，rules.md Rule 15 凌駕，改為「其」/「牠的」。
+- **helper 文字最終值**：人版「用於自動提醒其生日 💝」；寵物版「用於自動提醒牠的生日 🐾」。
+
+### 4. 驗證結果
+```
+npm run build：✅ exit code 0，零 TypeScript error，62 modules，450ms
+rgba() grep（src/ + packages/ 排除 index.css）：✅ 零命中
+口語字 grep（嘅/喺/咗/佢 等）locales/ + 新頁面：✅ 零命中
+packages/ git diff：0 行（零改動）✅
+locales/ 只有新增，無刪改 ✅
+三個新頁面行數：各 48 行（≤80 ✅）
+```
+
+### 5. Commit 資訊
+- commit: （待 push 後補填）
+- timestamp: （待 push 後補填）
+- branch: main
+
+### 6. Deploy 資訊
+- Preview URL: （待 deploy 後補填）
+
+### 7. 未解決事項
+- 三個 placeholder 頁為靜態，無真實內容 — 符合 mock 規格。
+- B3AddMember 的 Shell 組件傳入 `onTabChange` 令 family_tree tab 重新觸發時會導航到 `#/`，此為預期行為（精靈流程只在 #/b3-add，完成後返回 #/）。
+
+### 8. Build + 驗證結果（同第 4 欄）
+見上方第 4 節。
+
+---
+
 ## [細步 3d][實時紀錄] B3 加入家人精靈 wizard
 
 ### 1. 完整指令原文

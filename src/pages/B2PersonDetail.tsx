@@ -14,6 +14,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import TopBar from '../../packages/top-bar'
 import BottomTabBar from '../../packages/bottom-tab-bar'
+import type { TabId } from '../../packages/bottom-tab-bar'
 import MemberHeader from '../../packages/member-header'
 import PhotoAlbumGrid from '../../packages/photo-album-grid'
 import UploadPanel from '../../packages/upload-panel'
@@ -154,7 +155,10 @@ export default function B2PersonDetail() {
       </main>
 
       {/* ── BottomTabBar：家庭樹 active ── */}
-      <BottomTabBar current="family_tree" />
+      <BottomTabBar current="family_tree" onTabChange={(tab: TabId) => {
+        const r: Record<TabId,string> = { family_tree:'#/', family_circle:'#/family-feed', family_gathering:'#/family-gather', my_recommendations:'#/my-recommend' }
+        window.location.hash = r[tab]
+      }} />
     </div>
   )
 }
