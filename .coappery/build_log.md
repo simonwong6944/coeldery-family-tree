@@ -757,7 +757,7 @@ git push origin main
 - 無。本細步純文件操作，無 build、無 deploy、無 npm、無 code 改動。
 
 ### 6. 最終 Commit Hash + Timestamp
-- commit hash: TBD（push 後填入）
+- commit hash: 630037190367d7d5bc349497922ea7f48c5c4be9
 - timestamp: 2026-08-27 UTC
 - branch: main
 
