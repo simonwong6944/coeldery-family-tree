@@ -40,8 +40,10 @@
     "layer_label": "第一代",
     "member_self": "本人",
     "member_self_relation": "本人",
+    "member_self_name": "陳大文",
     "member_spouse": "妻子",
-    "member_spouse_relation": "妻子"
+    "member_spouse_relation": "妻子",
+    "member_spouse_name": "陳李秀英"
   },
 
   "gen2": {
@@ -50,8 +52,10 @@
     "dots_label": "第 {{current}} 個，共 {{total}} 個家庭",
     "member_eldest_son": "長子",
     "member_eldest_son_relation": "長子",
+    "member_eldest_son_name": "陳志明",
     "member_eldest_daughter_in_law": "長媳",
     "member_eldest_daughter_in_law_relation": "長媳",
+    "member_eldest_daughter_in_law_name": "陳美玲",
     "member_daughter": "女兒",
     "member_daughter_relation": "女兒",
     "member_youngest_son": "幼子",
@@ -65,8 +69,10 @@
     "layer_label": "第三代",
     "member_grandson": "孫兒",
     "member_grandson_relation": "孫兒",
+    "member_grandson_name": "陳嘉俊",
     "member_granddaughter": "孫女",
     "member_granddaughter_relation": "孫女",
+    "member_granddaughter_name": "陳嘉欣",
     "dots_label": "第 {{current}} 個，共 {{total}} 個成員"
   },
 
@@ -103,13 +109,15 @@
     "activity_subtitle": "前往家庭圈，可 like／留言",
     "growth_title": "成長相簿",
     "growth_subtitle_person": "{{name}}的成長相簿",
-    "growth_subtitle_pet": "{{name}}的成長相簿"
+    "growth_subtitle_pet": "{{name}}的成長相簿",
+    "growth_subtitle_zhiming": "陳志明的成長相簿",
+    "growth_subtitle_lucky": "Lucky的成長相簿"
   },
 
   "b2": {
     "page_title": "成員詳情",
     "edit_label": "編輯成員資料",
-    "pet_relation_label": "寵物犬",
+    "pet_relation_label": "長媳的寵物犬",
     "lucky_birthday": "2020年3月15日"
   },
 

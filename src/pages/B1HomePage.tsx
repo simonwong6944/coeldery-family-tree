@@ -403,26 +403,26 @@ export default function B1HomePage() {
   const AVATAR_DOG       = 'https://images.dog.ceo/breeds/retriever-golden/n02099601_3004.jpg' // Lucky（黃金獵犬）
 
   const gen1Primary: MemberInfo = {
-    name: t('gen1.member_self'),
+    name: t('gen1.member_self_name'),
     relation: t('gen1.member_self_relation'),
     avatarUrl: AVATAR_SELF,
   }
 
   const gen1Secondary: MemberInfo = {
-    name: t('gen1.member_spouse'),
+    name: t('gen1.member_spouse_name'),
     relation: t('gen1.member_spouse_relation'),
     avatarUrl: AVATAR_SPOUSE,
   }
 
   /* Gen 2 focused 卡：長子 + 長媳 + Lucky */
   const gen2FocusedPrimary: MemberInfo = {
-    name: t('gen2.member_eldest_son'),
+    name: t('gen2.member_eldest_son_name'),
     relation: t('gen2.member_eldest_son_relation'),
     avatarUrl: AVATAR_SON,
   }
 
   const gen2FocusedSecondary: MemberInfo = {
-    name: t('gen2.member_eldest_daughter_in_law'),
+    name: t('gen2.member_eldest_daughter_in_law_name'),
     relation: t('gen2.member_eldest_daughter_in_law_relation'),
     showNotificationDot: true, /* 長媳頭像有新動態紅點 */
     avatarUrl: AVATAR_DIL,
@@ -442,13 +442,13 @@ export default function B1HomePage() {
 
   /* Gen 3：孫兒 + 孫女 */
   const gen3Grandson: MemberInfo = {
-    name: t('gen3.member_grandson'),
+    name: t('gen3.member_grandson_name'),
     relation: t('gen3.member_grandson_relation'),
     avatarUrl: AVATAR_GRANDSON,
   }
 
   const gen3Granddaughter: MemberInfo = {
-    name: t('gen3.member_granddaughter'),
+    name: t('gen3.member_granddaughter_name'),
     relation: t('gen3.member_granddaughter_relation'),
     avatarUrl: AVATAR_GRANDDAUGHTER,
   }

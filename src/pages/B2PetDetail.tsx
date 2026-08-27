@@ -34,13 +34,14 @@ function EditIcon({ size = 22 }: { size?: number }) {
 
 /* ── mock 相簿縮圖（dog.ceo 同源 placeholder）── */
 // mockup placeholder 外部圖 URL，正式版須替換為使用者實際上載圖片
+// 以下 URL 均經 dog.ceo API（GET /breed/retriever/golden/images）回傳並 HTTP 200 驗證
 const MOCK_PET_PHOTOS = [
-  { thumbnailUrl: 'https://images.dog.ceo/breeds/retriever-golden/n02099601_3004.jpg', isNew: false },
-  { thumbnailUrl: 'https://images.dog.ceo/breeds/retriever-golden/n02099601_3929.jpg', isNew: true },
-  { thumbnailUrl: 'https://images.dog.ceo/breeds/retriever-golden/n02099601_5765.jpg', isNew: false },
-  { thumbnailUrl: 'https://images.dog.ceo/breeds/retriever-golden/n02099601_7435.jpg', isNew: false },
-  { thumbnailUrl: 'https://images.dog.ceo/breeds/retriever-golden/n02099601_1022.jpg', isNew: false },
-  { thumbnailUrl: 'https://images.dog.ceo/breeds/retriever-golden/n02099601_2026.jpg', isNew: false },
+  { thumbnailUrl: 'https://images.dog.ceo/breeds/retriever-golden/n02099601_8181.jpg', isNew: false },
+  { thumbnailUrl: 'https://images.dog.ceo/breeds/retriever-golden/n02099601_5876.jpg', isNew: true },
+  { thumbnailUrl: 'https://images.dog.ceo/breeds/retriever-golden/n02099601_9504.jpg', isNew: false },
+  { thumbnailUrl: 'https://images.dog.ceo/breeds/retriever-golden/n02099601_4678.jpg', isNew: false },
+  { thumbnailUrl: 'https://images.dog.ceo/breeds/retriever-golden/n02099601_864.jpg',  isNew: false },
+  { thumbnailUrl: 'https://images.dog.ceo/breeds/retriever-golden/n02099601_2663.jpg', isNew: false },
 ]
 
 /* ── Main Component ── */
@@ -104,11 +105,11 @@ export default function B2PetDetail() {
             showPawBadge={true}
             owners={[
               {
-                name: t('gen2.member_eldest_son'),
+                name: t('gen2.member_eldest_son_name'),
                 onClick: () => console.log('navigate to eldest son detail'),
               },
               {
-                name: t('gen2.member_eldest_daughter_in_law'),
+                name: t('gen2.member_eldest_daughter_in_law_name'),
                 onClick: () => console.log('navigate to eldest dil detail'),
               },
             ]}
@@ -147,7 +148,7 @@ export default function B2PetDetail() {
         <section style={{ padding: '20px 16px 0', boxSizing: 'border-box' }}>
           <EntryCard
             titleKey="entry_card.growth_title"
-            subtitleKey="entry_card.growth_subtitle_pet"
+            subtitleKey="entry_card.growth_subtitle_lucky"
             iconType="growth"
             onClick={() => console.log('pet growth clicked')}
           />

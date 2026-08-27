@@ -772,4 +772,72 @@ product_decisions.md：49 行，含六節全文 + 修訂機制 + 首條修訂記
 B2_B3.md 第 61 行修改前：（若為 BB）「成長相簿」卡：綠色系 + 嫩芽 sprout icon + 文字「長子的成長相簿」
 B2_B3.md 第 61 行修改後：「成長相簿」卡：成長相簿為所有成員標準顯示區塊,不因年齡或物種條件顯示；綠色系 + 嫩芽 sprout icon + 文字「長子的成長相簿」 ✅
 rules.md 備註追加：【待定/矛盾提醒】老有樹商業模式將包含增值收費(見 product_decisions.md 第四節);將來實作收費功能時,本規則需修訂並處理矛盾。 ✅
+
+---
+
+## [細步 3b-fix][實時紀錄] B2 純顯示修正
+
+### 1. 任務描述
+四項純顯示修正，不改 packages/ 介面、不加 npm package、不改頁面結構：
+1. **{{name}} 代入**：EntryCard.subtitleKey 用 `t(key)` 無 interpolation，改用不含插值的專用 key（`entry_card.growth_subtitle_zhiming` / `entry_card.growth_subtitle_lucky`）
+2. **寵物相簿空格**：dog.ceo 原 5 個 URL 均為 404（curl -s -o /dev/null -w "%{http_code}" 驗證）；換用 API 回傳清單中已確認 HTTP 200 的六個 URL
+3. **寵物 pill 對齊 B1**：`b2.pet_relation_label` 值 `"寵物犬"` → `"長媳的寵物犬"`（B1 格式 ownerRelation + 的 + petType）
+4. **加示範真名**：新增六個 `*_name` i18n keys；三個頁面（B1/B2 人版/B2 寵物版）`name` prop 改用 `*_name` key，令「真名 / 關係」雙行正常顯示
+
+### 2. 改動檔案清單（共 4 個）
+| 檔案 | 操作 | 說明 |
+|------|------|------|
+| `locales/zh-Hant.json` | 修改 | 新增 6 個 `*_name` keys（gen1/gen2/gen3）；新增 `entry_card.growth_subtitle_zhiming/lucky`；`b2.pet_relation_label` 改值 |
+| `src/pages/B2PersonDetail.tsx` | 修改 | `name` 改 `member_eldest_son_name`；`subtitleKey` 改 `growth_subtitle_zhiming` |
+| `src/pages/B2PetDetail.tsx` | 修改 | `relationLabel` 改 `b2.pet_relation_label`（新值）；`owners[*].name` 改真名；`subtitleKey` 改 `growth_subtitle_lucky`；相簿 URLs 換為已驗證 HTTP 200 的六個 dog.ceo URL |
+| `src/pages/B1HomePage.tsx` | 修改 | 六個成員 `name` prop 改用 `*_name` key（gen1/gen2/gen3 各兩個） |
+
+（packages/ 零改動）
+
+### 3. 設計決策
+- 不改 EntryCard 介面（`subtitleKey: string`），而是新增無插值專用 i18n key，令 `t(key)` 直接輸出正確文字
+- dog.ceo URL 以 `curl -s -o /dev/null -w "%{http_code}"` 驗證六個有效 URL（n02099601_8181 / 5876 / 9504 / 4678 / 864 / 2663）替換原有五個 404 URL
+- `b2.pet_relation_label` 直接改值，對齊 B1 `household_card.pet_label` 格式（ownerRelation + 的 + petType）
+- B1 peek 卡（女兒、幼子）不加 `*_name` key（peek 卡 `name` 欄以關係稱謂作識別，非本次範圍）
+
+### 4. 執行指令序列
+```bash
+# URL 驗證
+for url in ...; do curl -s -o /dev/null -w "%{http_code}" "$url"; done
+# dog.ceo API 查詢有效 URL
+curl -s "https://dog.ceo/api/breed/retriever/golden/images" | python3 -c "..."
+# Build
+cd /home/user/coeldery-family-tree && npm run build
+# Grep 驗證
+grep -rniE "rgba\(" src/ packages/
+grep -rniE "(係|唔|咁|咗|佢|嘅|喺|冇|啩|囉|呀|喎|囉)" src/pages/ src/App.tsx packages/
+grep -rn "{{name}}" src/ packages/
+grep -n "pet_relation_label|長媳的寵物犬" locales/zh-Hant.json
+git diff packages/ | wc -l
+wc -l src/pages/B2PersonDetail.tsx src/pages/B2PetDetail.tsx
+git add locales/zh-Hant.json src/pages/B2PersonDetail.tsx src/pages/B2PetDetail.tsx src/pages/B1HomePage.tsx .coappery/build_log.md
+git commit -m "細步 3b-fix：B2 純顯示修正（真名 + 相簿 URLs + 寵物 pill + 成長相簿副標題）"
+git push origin main
+```
+
+### 5. 所有 Error 與 Retry
+- MultiEdit 處理 B1HomePage.tsx 時因中文字元匹配問題失敗；改用 Python script 直接替換，驗證六個 key 各 1 occurrence，舊 key 零殘留，成功。
+
+### 6. 最終 Commit Hash + Timestamp
+（push 完成後填入）
+
+### 7. 未解決事項
+- B1 peek 卡（女兒、幼子）仍用關係稱謂作 `name`（非真名），因 peek 卡僅作視覺提示，非本次範圍。
+- TopBar `onBack` 仍為 noop，實際 navigation 待後續細步。
+
+### 8. Build + 驗證結果
+```
+npm run build：✅ exit code 0，零 TypeScript error，54 modules，635ms
+rgba() grep：只命中 src/index.css（CSS 變數定義）✅
+粵語 grep：src/pages/ + src/App.tsx + packages/ — 只命中 packages/ module.json docs 及 module 內 comment（非 UI 渲染文字）✅
+{{name}} 殘留 grep：零命中 ✅
+b2.pet_relation_label 值：「長媳的寵物犬」✅
+packages/ diff：0 行（零改動）✅
+行數：B2PersonDetail 160 行 / B2PetDetail 165 行（全部 ≤200 ✅）
+```
 ```

@@ -91,13 +91,13 @@ export default function B2PersonDetail() {
       >
         {/* ── 身份區：MemberHeader(person / 長子)── */}
         <section
-          aria-label={t('member_header.section_label', { name: t('gen2.member_eldest_son') })}
+          aria-label={t('member_header.section_label', { name: t('gen2.member_eldest_son_name') })}
           style={{ padding: '24px 16px 0', boxSizing: 'border-box' }}
         >
           <MemberHeader
             variant="person"
             avatarUrl={AVATAR_SON}
-            name={t('gen2.member_eldest_son')}
+            name={t('gen2.member_eldest_son_name')}
             relationLabel={t('gen2.member_eldest_son_relation')}
           />
         </section>
@@ -143,7 +143,7 @@ export default function B2PersonDetail() {
         <section style={{ padding: '16px 16px 0', boxSizing: 'border-box' }}>
           <EntryCard
             titleKey="entry_card.growth_title"
-            subtitleKey="entry_card.growth_subtitle_person"
+            subtitleKey="entry_card.growth_subtitle_zhiming"
             iconType="growth"
             onClick={() => console.log('growth clicked')}
           />
