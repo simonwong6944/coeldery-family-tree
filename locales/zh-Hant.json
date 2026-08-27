@@ -106,6 +106,13 @@
     "growth_subtitle_pet": "{{name}}的成長相簿"
   },
 
+  "b2": {
+    "page_title": "成員詳情",
+    "edit_label": "編輯成員資料",
+    "pet_relation_label": "寵物犬",
+    "lucky_birthday": "2020年3月15日"
+  },
+
   "a11y": {
     "avatar_alt": "{{name}}的頭像",
     "couple_heart_alt": "配偶關係心形",

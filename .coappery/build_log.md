@@ -644,3 +644,66 @@ npm run build 結果：✅ exit code 0，零 TypeScript error，零 build error�
 rgba() grep：只命中 src/index.css（CSS 變數定義）✅
 粵語 grep：packages/ + locales/ 零命中 ✅
 三個 module 行數：member-header 152 行 / photo-album-grid 226 行 / entry-card 230 行（全部 ≤250 ✅）
+
+---
+
+## [細步 3b-2][實時紀錄] B2 兩個成員詳情頁組裝
+
+### 1. 任務描述
+新增 B2 成員詳情頁（人版 + 寵物版），組裝現有 module，只做 layout + mock data。
+- 新增 `src/pages/B2PersonDetail.tsx`（route `#/b2-person`，人版）
+- 新增 `src/pages/B2PetDetail.tsx`（route `#/b2-pet`，寵物版）
+- 更新 `src/App.tsx`：輕量 hash router（無需 npm package），加兩條 route
+- 更新 `locales/zh-Hant.json`：新增 `b2.*` 四個 keys（書面繁中）
+- 追加 `.coappery/build_log.md`：本條目
+
+### 2. 改動檔案清單（共 5 個）
+| 檔案 | 操作 | 行數 |
+|------|------|------|
+| `src/pages/B2PersonDetail.tsx` | 新增 | 160 行 |
+| `src/pages/B2PetDetail.tsx` | 新增 | 164 行 |
+| `src/App.tsx` | 更新 | 54 行 |
+| `locales/zh-Hant.json` | 更新 | +6 行（b2 section） |
+| `.coappery/build_log.md` | 更新 | 本條目 |
+
+### 3. 設計決策
+- **Hash Router**：App.tsx 中以 `useHashRoute()` 監聽 `window.location.hash`，零 npm package，符合「唔准新增 npm package」硬性規則。Routes：`#/` = B1HomePage（預設），`#/b2-person` = B2PersonDetail，`#/b2-pet` = B2PetDetail。
+- **B2PersonDetail**：TopBar(b2.page_title) + MemberHeader(person/長子) + PhotoAlbumGrid(6 張 mock，第2張 isNew) + UploadPanel(isOpen state) + EntryCard(activity) + EntryCard(growth) + BottomTabBar(family_tree)。
+- **B2PetDetail**：同上結構但 MemberHeader(pet/Lucky，showPawBadge=true，owners=[長子,長媳]，birthday) + 無 EntryCard(activity)（依 §2.2）+ EntryCard(growth)。
+- **EditIcon**：兩頁各自 inline SVG，符合 Rule 16（純 icon + aria-label + ≥44px 觸控區）。
+- **Mock 圖片**：人版用 randomuser.me/api/portraits/men/32-37，寵物版用 dog.ceo golden retriever URLs（同 3a-fix-3 來源）。
+- **i18n**：新增 `b2.page_title`（成員詳情）、`b2.edit_label`（編輯成員資料）、`b2.pet_relation_label`（寵物犬）、`b2.lucky_birthday`（2020年3月15日）。`entry_card.growth_subtitle_pet` 已在 3b-1 建立，直接沿用。
+
+### 4. 執行指令序列
+```bash
+cd /home/user/coeldery-family-tree && npm run build
+grep -rniE "rgba\(" src/ packages/
+grep -rnE "嘅|喺|咗|啦|㗎|撳|而家|邊個|邊位|大新抱|大仔|阿女|孫仔|細仔|阿太" src/ packages/ locales/
+wc -l src/pages/B2PersonDetail.tsx src/pages/B2PetDetail.tsx
+git add src/pages/B2PersonDetail.tsx src/pages/B2PetDetail.tsx src/App.tsx locales/zh-Hant.json .coappery/build_log.md
+git commit -m "細步 3b-2：B2 兩個成員詳情頁（人版 + 寵物版）"
+git push origin main
+```
+
+### 5. 所有 Error 與 Retry
+- **App.tsx routing 方案**：原 App.tsx 無 router，無法直接加 `<Route>`。採用輕量 hash router（`useHashRoute()` hook），完全不依賴 react-router-dom，符合「唔准新增 npm package」規則。
+
+### 6. 最終 Commit Hash + Timestamp
+- commit hash: TBD（push 後填入）
+- timestamp: 2026-08-27 UTC
+- branch: main
+
+### 7. 未解決事項
+- 兩個頁面為靜態 UI + mock data，尚未接入真實數據層。
+- TopBar `onBack` 留空 noop，實際 navigation 邏輯待後續細步實作。
+- UploadPanel `onSelectSource` 只做 console.log，未接 R2 上傳。
+
+### 8. Build + 驗證結果
+```
+npm run build：✅ exit code 0，零 TypeScript error，54 modules，693ms
+rgba() grep：只命中 src/index.css（CSS 變數定義）✅
+粵語 grep：src/ + packages/ + locales/ 零命中 ✅
+行數：B2PersonDetail 160 行 / B2PetDetail 164 行（全部 ≤200 ✅）
+packages/ diff：零改動 ✅
+9 個 props 介面：全部不變（MemberInfo/PetInfo/HouseholdCardProps/TopBarProps/BottomTabBarProps/UploadPanelProps + MemberHeaderProps/PhotoAlbumGridProps/EntryCardProps）✅
+```
