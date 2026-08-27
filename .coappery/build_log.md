@@ -38,12 +38,12 @@ wizard-step-indicator/index.tsx 行數：90 行（≤250 ✅）
 ```
 
 ### 5. Commit 資訊
-- commit: （待 push 後補填）
-- timestamp: （待 push 後補填）
+- commit: `faeeb411bc9a0c448f417448e4a1d425d9ccc95b`
+- timestamp: 2026-08-27 13:59:14 +0000
 - branch: main
 
 ### 6. Deploy 資訊
-- Preview URL: （待 deploy 後補填）
+- Preview URL: https://7d592df0.coeldery-family-tree.pages.dev
 
 ### 7. 未解決事項
 - 人版 Step 2 姓名欄未做非空驗證（Next 按鈕在姓名空白時仍可點）— 留待後續 polish。
