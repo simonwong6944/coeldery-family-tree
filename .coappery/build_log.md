@@ -627,7 +627,9 @@ git push origin main
 - member-header/index.tsx 初版 289 行，超出 SOP 規則 B 上限 250 行；改寫為緊湊風格（inline style 合併），壓縮至 152 行，build 再次通過。
 
 ### 6. 最終 Commit Hash + Timestamp
-（push 完成後填入）
+- commit hash: 39108a4e4afaed495eaa01e241ef822f6845f669
+- timestamp: 2026-08-26 17:28:00 +0000
+- branch: main
 
 ### 7. 未解決事項
 - 三個 module 均為靜態 UI shell，onClick 回調由父層傳入（細步 3b-2 B2 page 砌合時連接）。
