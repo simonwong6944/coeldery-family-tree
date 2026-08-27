@@ -39,12 +39,12 @@ locales/ 只有新增，無刪改 ✅
 ```
 
 ### 5. Commit 資訊
-- commit: （待 push 後補填）
-- timestamp: （待 push 後補填）
+- commit: `a3f7483b77dee68ac604b838f1ad32d4f208ddf7`
+- timestamp: 2026-08-27 14:20:20 +0000
 - branch: main
 
 ### 6. Deploy 資訊
-- Preview URL: （待 deploy 後補填）
+- Preview URL: https://5f576fbb.coeldery-family-tree.pages.dev
 
 ### 7. 未解決事項
 - 三個 placeholder 頁為靜態，無真實內容 — 符合 mock 規格。
