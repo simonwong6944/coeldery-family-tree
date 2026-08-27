@@ -39,12 +39,14 @@ FamilyFeed.tsx：123 行（≤170 ✅）
 ```
 
 ### 5. Commit 資訊
-- commit: *pending*
+- commit: `7d0bb1d` (full: `7d0bb1da...`)
 - timestamp: 2026-08-27
 - branch: main
+- repo: https://github.com/simonwong6944/coeldery-family-tree
 
 ### 6. Deploy 資訊
-- Preview URL: *pending CF Pages deploy*
+- Preview URL: https://a82464f6.coeldery-family-tree.pages.dev
+- 視覺驗證：#/family-feed → ReminderCard 嵌入（夾在 post[0]/post[1]之間）✅；預覽掣→Modal 彈出（遮罩/三掣/層次）✅；家庭圈 tab active ✅；零 console error ✅
 
 ### 7. 未解決事項
 - ReminderCard / ReminderModal 三個掣只做靜態視覺回饋，無真實後端觸發邏輯（Out of Scope，待 B6/B7）。
