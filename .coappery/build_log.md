@@ -41,13 +41,16 @@ event-detail/index.tsx：182 行（≤250 ✅）
 ```
 
 ### 5. Commit 資訊
-- commit: *pending*
+- commit: `6189c5d` (full: `6189c5da...`)
 - timestamp: 2026-08-27
 - branch: main
+- repo: https://github.com/simonwong6944/coeldery-family-tree
 
 ### 6. Deploy 資訊
-- #/event-celebration: *pending CF Pages deploy*
-- #/event-memorial: *pending CF Pages deploy*
+- Preview base: https://ce935f08.coeldery-family-tree.pages.dev
+- 慶祝版: https://ce935f08.coeldery-family-tree.pages.dev/#/event-celebration ✅（零 console error）
+- 忌辰版: https://ce935f08.coeldery-family-tree.pages.dev/#/event-memorial ✅（零 console error）
+- §5 速查表視覺驗證：Header 底色差異（白 vs bg-solemn）✅、綠 icon box vs 灰🕊️✅、慶祝倒數行 vs 無✅、Action icon 灰度（忌辰）✅、訊息列底色差異（bg-engagement vs bg-solemn-row）✅、FAB 綠色 vs 白底灰邊框✅
 
 ### 7. 未解決事項
 - 3 個 Action Card 撳落去、FAB — 只做視覺回饋（opacity 0.75 flash），唔做真實跳轉/compose/後端（Out of Scope）。
