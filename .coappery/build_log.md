@@ -689,7 +689,7 @@ git push origin main
 - **App.tsx routing 方案**：原 App.tsx 無 router，無法直接加 `<Route>`。採用輕量 hash router（`useHashRoute()` hook），完全不依賴 react-router-dom，符合「唔准新增 npm package」規則。
 
 ### 6. 最終 Commit Hash + Timestamp
-- commit hash: TBD（push 後填入）
+- commit hash: a51d0f7ea2ee12899858fda8fe3e1c8c60f025f3
 - timestamp: 2026-08-27 UTC
 - branch: main
 
