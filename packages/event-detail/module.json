@@ -1,0 +1,8 @@
+{
+  "name": "@coeldery/event-detail",
+  "label": "事件詳情頁（慶祝版 + 忌辰莊重版共用組件）",
+  "category": "page",
+  "version": "1.0.0",
+  "derivedFrom": ".coappery/design/B5_reminder_cards.md §3 §4 §5",
+  "sizeLimit": 250
+}

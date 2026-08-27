@@ -8,6 +8,7 @@ import B3AddMember from './pages/B3AddMember'
 import FamilyFeed from './pages/FamilyFeed'
 import FamilyGather from './pages/FamilyGather'
 import MyRecommend from './pages/MyRecommend'
+import EventDetail from '../packages/event-detail'
 
 /**
  * App root — 全域桌面置中限寬容器 + 輕量 Hash Router
@@ -24,6 +25,8 @@ import MyRecommend from './pages/MyRecommend'
  *   #/family-feed  → FamilyFeed（家庭圈 placeholder）
  *   #/family-gather → FamilyGather（家庭聚會 placeholder）
  *   #/my-recommend → MyRecommend（我的推薦 placeholder）
+ *   #/event-celebration → EventDetail（慶祝版，陳大文生日）
+ *   #/event-memorial    → EventDetail（忌辰莊重版，陳李秀英）
  */
 
 function useHashRoute(): string {
@@ -52,6 +55,10 @@ function App() {
     page = <FamilyGather />
   } else if (hash === '#/my-recommend') {
     page = <MyRecommend />
+  } else if (hash === '#/event-celebration') {
+    page = <EventDetail variant="celebration" />
+  } else if (hash === '#/event-memorial') {
+    page = <EventDetail variant="memorial" />
   } else {
     page = <B1HomePage />
   }

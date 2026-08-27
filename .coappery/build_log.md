@@ -2,6 +2,63 @@
 
 ---
 
+## [細步 3h][實時紀錄] 事件詳情頁（慶祝版 + 忌辰版共用組件）
+
+### 1. 完整指令原文
+任務：細步 3h — 砌事件詳情頁（慶祝版 + 忌辰版，共用組件 + props 切換）。(1) 新建 `packages/event-detail/index.tsx`（≤250 行）+ module.json；單一組件 `prop variant: 'celebration' | 'memorial'` 切換兩版；共用 skeleton：Header Card → Middle 3 Action Card → Bottom 列表 → FAB。慶祝版：白底 Header、綠 icon box 🎂、H1 陳大文的生日、倒數「仲有 18 日 🎉」綠色、三 Action（🎁送上祝福/🎉去安排/👨‍👩‍👧‍👦邀請家人）、Bottom 大家的祝福（bg-engagement 底）、FAB 實心綠 green-glow-strong。忌辰版：bg-solemn 暗米褐底、🕊️灰線雕裝飾（灰度，無綠色）、H1「紀念·陳李秀英 (1928–2020) 享年 92 歲」（無 emoji 無綠色）、無倒數行、三 Action 莊重化（🕊️獻上思念/🕯️送上鮮花/📖翻睇相簿、grayscale icon）、Bottom 大家的思念（bg-solemn-row 底、頭像灰度）、FAB 白底灰邊框無 glow。(2) 升級 `src/App.tsx` 加 #/event-celebration + #/event-memorial 兩條 route。(3) 新增 `locales/zh-Hant.json` b5_detail.* 47 個 key。忌辰版嚴禁任何綠 accent、慶祝/商業元素。
+
+### 2. 新增 / 修改檔案清單
+| 檔案 | 操作 | 行數 |
+|------|------|------|
+| `packages/event-detail/index.tsx` | **新增** | 182 行（≤250 ✅）|
+| `packages/event-detail/module.json` | **新增** | — |
+| `locales/zh-Hant.json` | 修改 | 新增 b5_detail.* 47 行（47 個 locale key）|
+| `src/App.tsx` | 修改 | 加 import EventDetail + #/event-celebration + #/event-memorial 兩條 if-branch（83 行，無行數上限）|
+| `.coappery/build_log.md` | 修改 | 本條目 |
+
+### 3. 技術決策
+- **單組件 variant prop 設計**：`variant: 'celebration' | 'memorial'` 控制所有視覺差異，`isCel` boolean 在整個 render 做條件切換。兩版共用完全相同的 JSX 結構 skeleton，差異只在 style 值/icon/locale key/data arrays。
+- **忌辰版嚴格綠色隔離**：color-primary、green-glow-strong 在所有 `isCel ? ... : ...` 三元表達式中，只在 `isCel=true`（慶祝）分支取用，`isCel=false`（忌辰）取用非綠替代值（color-card、shadow-soft）。人手逐行核對確認。
+- **忌辰 FAB**：白底（color-card）+ 2px solid color-text-secondary 灰邊框 + shadow-soft，無任何 green-glow。
+- **忌辰 icon grayscale**：Action Card icon 以 `filter: isCel ? 'none' : 'grayscale(100%)'` 令慶祝 emoji 在忌辰版呈現灰色線雕感。
+- **忌辰頭像灰度**：MsgRow 頭像同樣 `filter: isCel ? 'none' : 'grayscale(100%)'`。
+- **data 陣列設計**：actions 和 msgs 以 `isCel ? [...] : [...]` 二元陣列，保持主組件 < 182 行。
+- **locale prefix 動態拼接**：`t(\`b5_detail.${prefix}_name\`)` 等，令 MsgRow/ActionCard 子組件無需逐 key 傳 props。
+- **返回掣**：`TopBar onBack={() => window.history.back()}`，支援從 #/family-feed 去安排掣導過來後返回。
+
+### 4. 驗證結果
+```
+npm run build：✅ exit code 0，零 TypeScript error，66 modules，463ms
+rgba() grep（src/ + packages/）：✅ 全部 10 個命中均在 src/index.css :root{}，packages/ 零命中
+口語字 grep（禁用簡體字）：✅ 零命中
+忌辰版綠色人手核對：✅
+  - isCel=true 分支（行59/70/73）：color-primary 只在慶祝 JSX 塊，忌辰 else 分支無任何綠色 var
+  - FAB（行124/126）：isCel=false → backgroundColor=color-card，boxShadow=shadow-soft，無 green-glow
+  - ActionCard isCel prop 控制 border/filter，memorial 分支無 green
+現有模組 git diff：✅ packages/ 只有新 untracked event-detail 目錄，現有 13 模組零改動
+locale diff：47 行新增（b5_detail.* keys），零刪改 ✅
+event-detail/index.tsx：182 行（≤250 ✅）
+```
+
+### 5. Commit 資訊
+- commit: *pending*
+- timestamp: 2026-08-27
+- branch: main
+
+### 6. Deploy 資訊
+- #/event-celebration: *pending CF Pages deploy*
+- #/event-memorial: *pending CF Pages deploy*
+
+### 7. 未解決事項
+- 3 個 Action Card 撳落去、FAB — 只做視覺回饋（opacity 0.75 flash），唔做真實跳轉/compose/後端（Out of Scope）。
+- 忌辰版 Header 🕊️ 目前用 emoji 代替純 SVG line-art，將來可換灰色百合/蠟燭 SVG（B6 backlog）。
+- 「去安排」慶祝版 wire 至 #/family-gather（Out of Scope，需評估 §6 跳轉優先級）。
+
+### 8. Build + 驗證結果（同第 4 節）
+見上方第 4 節。
+
+---
+
 ## [細步 3g][實時紀錄] B5 提醒卡 A（Feed 溫馨提示卡）+ 彈出卡 B（入 App 迫近提醒）
 
 ### 1. 完整指令原文
