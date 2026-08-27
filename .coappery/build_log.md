@@ -824,7 +824,10 @@ git push origin main
 - MultiEdit 處理 B1HomePage.tsx 時因中文字元匹配問題失敗；改用 Python script 直接替換，驗證六個 key 各 1 occurrence，舊 key 零殘留，成功。
 
 ### 6. 最終 Commit Hash + Timestamp
-（push 完成後填入）
+- commit hash: b2b6462b2e60d0e610bf22a6f1a072987aeeee08
+- timestamp: 2026-08-27 13:12:41 +0000
+- branch: main
+- Preview URL: https://dba23f69.coeldery-family-tree.pages.dev
 
 ### 7. 未解決事項
 - B1 peek 卡（女兒、幼子）仍用關係稱謂作 `name`（非真名），因 peek 卡僅作視覺提示，非本次範圍。
