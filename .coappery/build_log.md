@@ -707,3 +707,69 @@ rgba() grep：只命中 src/index.css（CSS 變數定義）✅
 packages/ diff：零改動 ✅
 9 個 props 介面：全部不變（MemberInfo/PetInfo/HouseholdCardProps/TopBarProps/BottomTabBarProps/UploadPanelProps + MemberHeaderProps/PhotoAlbumGridProps/EntryCardProps）✅
 ```
+
+---
+
+## [細步 product-decisions][實時紀錄] 產品決定文件入庫 + 設計/規則對齊
+
+### 1. 任務描述
+純文件操作，零 code 改動。三項工作：
+1. 新增 `.coappery/product_decisions.md`（產品決定紀錄，六節 + 願景 + 修訂機制）
+2. 修正 `.coappery/design/B2_B3.md`：第 61 行「成長相簿條件顯示」→「所有成員標準顯示」
+3. 修正 `.coappery/rules.md`：Out-of-Scope 付款條目後追加【待定/矛盾提醒】備註
+
+嚴格限制：src/、packages/、locales/ 零改動；無 build、無 deploy。
+
+### 2. 改動檔案清單（共 4 個，全部在 .coappery/ 下）
+| 檔案 | 操作 | 說明 |
+|------|------|------|
+| `.coappery/product_decisions.md` | 新增 | 49 行，六節產品決定 + 願景 + 修訂記錄表 |
+| `.coappery/design/B2_B3.md` | 修改 | 第 61 行：移除「若為 BB」條件語句，改為所有成員標準顯示 |
+| `.coappery/rules.md` | 修改 | 第 87 行：Out-of-Scope 付款條目後追加矛盾提醒備註 |
+| `.coappery/build_log.md` | 更新 | 追加本條目 |
+
+### 3. 設計決策
+- **product_decisions.md 架構**：逐字照抄六節正文（〇至六節）+ 修訂機制段落 + 初版修訂記錄表（v1.0，2026-08-27）。
+- **B2_B3.md §2.1 修改**：原句「（若為 BB）」隱含「兒童才有成長相簿」，與 product_decisions.md 第二節【已定】「不因年齡或物種條件顯示」矛盾；修改為「成長相簿為所有成員標準顯示區塊,不因年齡或物種條件顯示」，視覺/icon 描述保留。
+- **rules.md 備註**：原規則文字「任何付款 / 金流 / 交易 / 抽佣 / 退款 / 發票。」完整保留；在同一行末追加【待定/矛盾提醒】備註，指向 product_decisions.md 第四節。
+
+### 4. 執行指令序列
+```bash
+# 建立 product_decisions.md
+Write /home/user/coeldery-family-tree/.coappery/product_decisions.md
+
+# 修正 B2_B3.md 第 61 行
+Edit B2_B3.md: "（若為 BB）「成長相簿」卡：..." → "「成長相簿」卡：成長相簿為所有成員標準顯示區塊..."
+
+# 修正 rules.md 第 87 行
+Edit rules.md: 在 "任何付款 / 金流 / 交易..." 行末追加【待定/矛盾提醒】
+
+# 確認零 code 改動
+git diff src/ packages/ locales/
+
+# commit + push
+git add .coappery/
+git commit -m "產品文件入庫：product_decisions.md + B2_B3.md + rules.md 對齊（純文件，零 code 改動）"
+git push origin main
+```
+
+### 5. 所有 Error 與 Retry
+- 無。本細步純文件操作，無 build、無 deploy、無 npm、無 code 改動。
+
+### 6. 最終 Commit Hash + Timestamp
+- commit hash: TBD（push 後填入）
+- timestamp: 2026-08-27 UTC
+- branch: main
+
+### 7. 未解決事項
+- rules.md 第 3 條語言規範（香港用語如「大新抱、阿仔、阿女、孫仔」）與第 15 條書面語規範存在潛在矛盾；待產品負責人釐清並在下一細步修訂。
+- product_decisions.md 第四節商業模式與 rules.md 第 12 條矛盾已標記【待定/矛盾提醒】，待將來實作收費功能時修訂。
+
+### 8. 驗證結果
+```
+git diff src/ packages/ locales/：空輸出（零改動）✅
+product_decisions.md：49 行，含六節全文 + 修訂機制 + 首條修訂記錄（v1.0，2026-08-27）✅
+B2_B3.md 第 61 行修改前：（若為 BB）「成長相簿」卡：綠色系 + 嫩芽 sprout icon + 文字「長子的成長相簿」
+B2_B3.md 第 61 行修改後：「成長相簿」卡：成長相簿為所有成員標準顯示區塊,不因年齡或物種條件顯示；綠色系 + 嫩芽 sprout icon + 文字「長子的成長相簿」 ✅
+rules.md 備註追加：【待定/矛盾提醒】老有樹商業模式將包含增值收費(見 product_decisions.md 第四節);將來實作收費功能時,本規則需修訂並處理矛盾。 ✅
+```
