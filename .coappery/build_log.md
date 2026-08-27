@@ -36,10 +36,12 @@ post-card/index.tsx 行數：169 行（≤250 ✅）
 ```
 
 ### 5. Commit 資訊
-（push 完成後填入）
+- commit: `42866b088b9f97542fcd0481dec7763e80bd3cf3`
+- timestamp: 2026-08-27 15:06:42 +0000
+- branch: main
 
 ### 6. Deploy 資訊
-（deploy 完成後填入）
+- Preview URL: https://7c11e92f.coeldery-family-tree.pages.dev
 
 ### 7. 未解決事項
 - 3 則 mock post 為靜態，無真實後端。
