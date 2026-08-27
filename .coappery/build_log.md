@@ -4,6 +4,57 @@
 
 ---
 
+## [細步 3d][實時紀錄] B3 加入家人精靈 wizard
+
+### 1. 完整指令原文
+Task 3d — 砌 B3 加入家人精靈（靜態 4 步 mockup）。新增 `#/b3-add` route（單一頁 useState 管 step）；新建 `packages/wizard-step-indicator/`（≤250 行）；新建 `src/pages/B3AddMember.tsx`（≤200 行），實作人版 4 步 + 寵物版 3 步流程；更新 `locales/zh-Hant.json` 新增所有 `b3.*` keys；更新 `src/App.tsx` 加入 `#/b3-add` route。
+
+### 2. 新增 / 修改檔案清單
+| 檔案 | 操作 | 行數 |
+|------|------|------|
+| `packages/wizard-step-indicator/index.tsx` | 新建 | 90 行（≤250 ✅）|
+| `packages/wizard-step-indicator/module.json` | 新建 | — |
+| `locales/zh-Hant.json` | 修改（只新增 b3.* 區塊） | — |
+| `src/pages/B3AddMember.tsx` | 新建 | 169 行（≤200 ✅）|
+| `src/App.tsx` | 修改（加 #/b3-add route + import） | — |
+
+### 3. 技術決策
+- **步驟指示器**：`WizardStepIndicator` 接 `totalSteps` + `currentStep`（1-based），當前點 `scale(1.25)` 放大 + `var(--color-primary)` 實心，已完成亦實心，未來為空心邊框。
+- **寵物 3 點**：internal step 仍用 1/2/4（跳過發邀請 step 3），dotStep 映射：isPet && step===4 → dot 3；totalDots 傳 3。
+- **Fade 動畫**：`@keyframes b3fade` 注入 `<style>` 標籤，Shell 內容 div 套 `animation: b3fade 0.25s ease`，無外部 dep。
+- **Owner chips 預設**：index 0（陳大文）+ index 3（陳美玲）= `new Set([0,3])`，沿用現有真名 i18n key。
+- **QR placeholder**：9×9 grid，逢（row+col）%2===0 用 `var(--color-primary)`，其餘 `var(--color-bg)`，純 CSS 無外部圖。
+- **Shell 共用殼**：`PageShell` 函式，TopBar + WizardStepIndicator + content + BottomTabBar，消除 5 個 step 重複佈局。
+
+### 4. 驗證結果
+```
+npm run build：✅ exit code 0，零 TypeScript error，59 modules，480ms
+rgba() grep（src/ + packages/ *.tsx/*.ts/*.css）：零命中（只 src/index.css）✅
+簡體字 grep（B3AddMember.tsx + wizard-step-indicator/index.tsx）：零命中 ✅
+現有 9 個 module git diff：0 行（零改動）✅
+locales/ git diff：只有 b3.* 新增區塊，零刪改 ✅
+B3AddMember.tsx 行數：169 行（≤200 ✅）
+wizard-step-indicator/index.tsx 行數：90 行（≤250 ✅）
+```
+
+### 5. Commit 資訊
+- commit: （待 push 後補填）
+- timestamp: （待 push 後補填）
+- branch: main
+
+### 6. Deploy 資訊
+- Preview URL: （待 deploy 後補填）
+
+### 7. 未解決事項
+- 人版 Step 2 姓名欄未做非空驗證（Next 按鈕在姓名空白時仍可點）— 留待後續 polish。
+- QR placeholder 為靜態格仔圖案，非真實 QR code — 符合 mock 階段規格。
+- WhatsApp 邀請按鈕無實際動作 — 符合靜態 mockup 規格。
+
+### 8. Build + 驗證結果（同第 4 欄）
+見上方第 4 節。
+
+---
+
 ## [細步 1.5-A][實時紀錄] 設計規範入庫(B1/B2_B3/B3_pet_zoom + mockups)
 
 ### 1. 完整指令原文

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import B1HomePage from './pages/B1HomePage'
 import B2PersonDetail from './pages/B2PersonDetail'
 import B2PetDetail from './pages/B2PetDetail'
+import B3AddMember from './pages/B3AddMember'
 
 /**
  * App root — 全域桌面置中限寬容器 + 輕量 Hash Router
@@ -16,6 +17,7 @@ import B2PetDetail from './pages/B2PetDetail'
  *   #/            → B1HomePage（家庭樹主頁，預設）
  *   #/b2-person   → B2PersonDetail（人版成員詳情）
  *   #/b2-pet      → B2PetDetail（寵物版成員詳情）
+ *   #/b3-add      → B3AddMember（加入家人精靈）
  */
 
 function useHashRoute(): string {
@@ -36,6 +38,8 @@ function App() {
     page = <B2PersonDetail />
   } else if (hash === '#/b2-pet') {
     page = <B2PetDetail />
+  } else if (hash === '#/b3-add') {
+    page = <B3AddMember />
   } else {
     page = <B1HomePage />
   }

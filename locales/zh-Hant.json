@@ -121,6 +121,58 @@
     "lucky_birthday": "2020年3月15日"
   },
 
+  "b3": {
+    "page_title": "加入家人",
+    "step_indicator_label": "第 {{current}} 步，共 {{total}} 步",
+    "step_dots_label": "步驟進度圓點",
+    "step_dot_label": "第 {{step}} 步",
+    "step_text": "第 {{current}} 步 / 共 {{total}} 步",
+
+    "type_card_person_title": "家庭成員（人）",
+    "type_card_person_desc": "為家人建立專屬成員檔案",
+    "type_card_pet_title": "寵物",
+    "type_card_pet_desc": "為毛孩建立專屬寵物檔案",
+
+    "step1_title": "請選擇成員類型",
+    "step2_person_title": "填寫成員資料",
+    "step3_invite_title": "發送邀請",
+    "step4_done_title": "加入成功",
+    "step2_pet_title": "填寫寵物資料",
+
+    "label_name": "姓名",
+    "placeholder_name": "請輸入姓名",
+    "label_relation": "與您的關係",
+    "label_birthdate": "出生日期",
+    "birthdate_helper": "用於自動提醒您的生日 💝",
+
+    "relation_spouse": "配偶",
+    "relation_child": "子女",
+    "relation_parent": "父母",
+    "relation_sibling": "兄弟姊妹",
+    "relation_grandchild": "孫子女",
+    "relation_other": "其他",
+
+    "label_pet_name": "寵物名稱",
+    "placeholder_pet_name": "Lucky",
+    "label_pet_birthdate": "出生日期",
+    "pet_birthdate_helper": "用於自動提醒您的生日 💝",
+    "label_pet_owners": "主人",
+    "pet_owners_hint": "請至少選擇一位主人",
+
+    "qr_placeholder_label": "邀請二維碼",
+    "qr_helper": "以 WhatsApp 掃碼發送邀請",
+    "whatsapp_invite_btn": "用 WhatsApp 邀請",
+    "invite_footnote": "寵物成員將跳過此步驟",
+
+    "success_heading": "成功加入！",
+    "success_sub": "{{name}} 現已加入您的家庭樹 🌳",
+    "btn_back_home": "返回家庭樹",
+
+    "btn_next": "下一步",
+    "btn_prev": "上一步",
+    "btn_finish": "完成加入"
+  },
+
   "a11y": {
     "avatar_alt": "{{name}}的頭像",
     "couple_heart_alt": "配偶關係心形",

@@ -1,0 +1,13 @@
+{
+  "name": "@coeldery/wizard-step-indicator",
+  "label": "精靈步驟指示器",
+  "category": "ui",
+  "version": "1.0.0",
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-i18next": "^15.0.0",
+    "i18next": "^24.0.0"
+  },
+  "derivedFrom": ".coappery/design/B2_B3.md §3.0（步驟指示器）、§4（寵物精靈）",
+  "docs": "橫排圓點步驟指示器：當前步驟為 var(--color-primary) 實心，已完成為較深實心，未來為 var(--color-divider) 空心。下方顯示「第 X 步 / 共 N 步」muted 文字。Props: totalSteps（總步驟數）、currentStep（當前步驟，1-based）。適用於人版 4 步精靈及寵物版 3 步精靈。"
+}
