@@ -183,6 +183,41 @@
     "coming_soon": "即將推出"
   },
 
+  "b4": {
+    "page_title": "家庭圈",
+    "about_prefix": "關於：",
+    "like_btn": "❤️ 讚好",
+    "comment_btn": "💬 留言",
+    "likes_suffix": "讚好",
+    "new_post_btn": "發布新動態",
+    "post_img_alt": "{{name}}發布的相片",
+    "avatar_alt": "{{name}}的頭像",
+    "comment_avatar_alt": "{{name}}的頭像",
+
+    "post1_author": "陳美玲",
+    "post1_time": "2 小時前",
+    "post1_about": "Lucky",
+    "post1_body": "今日帶 Lucky 去公園散步 🐾",
+    "post1_liker1": "陳大文",
+    "post1_comment1_author": "陳大文",
+    "post1_comment1_body": "好得意！",
+
+    "post2_author": "陳志明",
+    "post2_time": "今日",
+    "post2_about": "陳嘉俊",
+    "post2_body": "阿仔今日考試攞咗 A 🎉",
+    "post2_liker1": "陳大文",
+    "post2_liker2": "陳美玲",
+
+    "post3_author": "陳大文",
+    "post3_time": "昨日",
+    "post3_about": "本人",
+    "post3_body": "一家人飲茶，好開心",
+    "post3_liker1": "陳美玲",
+    "post3_comment1_author": "陳志明",
+    "post3_comment1_body": "下次一齊去！"
+  },
+
   "a11y": {
     "avatar_alt": "{{name}}的頭像",
     "couple_heart_alt": "配偶關係心形",

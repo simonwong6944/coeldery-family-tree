@@ -1,0 +1,22 @@
+{
+  "name": "@coeldery/post-card",
+  "label": "家庭圈動態卡片",
+  "category": "ui",
+  "version": "1.0.0",
+  "description": "顯示家庭圈單則動態：頭像、名、時間、關於 pill、大相、內文、讚好名單、留言區、互動掣。純接資料，mock data 由頁面層提供。",
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-i18next": "^15.0.0"
+  },
+  "peerDependencies": {
+    "hono": "*"
+  },
+  "exports": {
+    "default": "PostCard",
+    "types": ["CommentItem", "PostCardProps"]
+  },
+  "localeKeys": "b4.*",
+  "derivedFrom": ".coappery/design/B4_family_feed.md §二/§三",
+  "sizeLimit": 250,
+  "currentLines": 169
+}

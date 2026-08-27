@@ -1,5 +1,55 @@
 # CoEldery 85 家庭樹 — Build Log
 
+---
+
+## [細步 3f][實時紀錄] B4 家庭圈 feed（靜態 mockup）
+
+### 1. 完整指令原文
+任務：細步 3f — 砌 B4 家庭圈 feed（靜態，3 則假動態）。將 `#/family-feed` 由「即將推出」placeholder 升級為真正嘅家庭圈 feed。新建共用 module `packages/post-card/`（index.tsx ≤250 行 + module.json）；升級 `src/pages/FamilyFeed.tsx`（≤150 行）：TopBar（家庭圈）+ 3 PostCard instances（mock data 放頁面層）+ 浮動 ＋ FAB（右下角，≥56px，var(--color-primary)）+ BottomTabBar（family_circle active，保留 3e onTabChange 導航）。所有文字 via t('key')，新增 b4.* keys；顏色全用 CSS vars；相片用已驗證 HTTP 200 URL（dog.ceo + randomuser.me）；不加新 npm package；現有 11 module 零改動。
+
+### 2. 新增 / 修改檔案清單
+| 檔案 | 操作 | 行數 |
+|------|------|------|
+| `packages/post-card/index.tsx` | **新增** | 169 行（≤250 ✅）|
+| `packages/post-card/module.json` | **新增** | — |
+| `locales/zh-Hant.json` | 修改 | 新增 b4.* 34 個 key（page_title、about_prefix、like/comment btn、3 則 mock post 全文）|
+| `src/pages/FamilyFeed.tsx` | 升級 | 49 行 placeholder → 123 行真實 feed（≤150 ✅）|
+| `.coappery/build_log.md` | 修改 | 本條目 |
+
+### 3. 技術決策
+- **PostCard props 設計**：純接資料（authorName、authorAvatarUrl、timeText、aboutText、photoUrl、photoAlt、bodyText、likers: string[]、comments: CommentItem[]），mock data 完全在頁面層定義，module 本身不含 mock。
+- **liked 內部 state**：PostCard 的讚好按鈕用 internal `useState<boolean>(false)`，切換 ❤️/🤍，符合 spec §七「靜態 mockup，互動無後端」要求。
+- **formatLikers**：module-internal function，用頓號連接讚好名字（如「陳大文、陳美玲 讚好」），避免頁面層重複邏輯。
+- **浮動 FAB 定位**：`position: fixed; bottom: 88px; right: 20px`，高於 BottomTabBar（80px）避免遮擋；`zIndex: 100`。
+- **相片 URL**：dog.ceo（Post 1）+ randomuser.me portraits（Post 2/3/頭像），全部 HTTP 200 已驗證。
+- **verbatimModuleSyntax**：type-only import 使用 `import type { PostCardProps }` from post-card。
+
+### 4. 驗證結果
+```
+npm run build：✅ exit code 0，零 TypeScript error，63 modules，448ms
+rgba() grep（src/ + packages/ 排除 index.css）：✅ 只命中 src/index.css（CSS 變數定義）
+口語字 grep（佢/嘅/咗/冇/唔/囉/喇 等）新建/修改檔案：✅ 零命中
+現有 11 module git diff（packages/household-card..packages/wizard-step-indicator）：✅ 0 行（零改動）
+locales/ diff：只有 b4.* 新增，零刪改 ✅
+FamilyFeed.tsx 行數：123 行（≤150 ✅）
+post-card/index.tsx 行數：169 行（≤250 ✅）
+```
+
+### 5. Commit 資訊
+（push 完成後填入）
+
+### 6. Deploy 資訊
+（deploy 完成後填入）
+
+### 7. 未解決事項
+- 3 則 mock post 為靜態，無真實後端。
+- 讚好/留言 互動按鈕按下無實際動作（符合靜態 mockup 規格）。
+- FAB 按下無動作（符合靜態 mockup 規格）。
+- post-card 目前只支援單張相片（日後可擴充為相片陣列）。
+
+### 8. Build + 驗證結果（同第 4 節）
+見上方第 4 節。
+
 > 本檔記錄每個細步嘅執行紀錄，依 rules.md 第 7 條（GitHub 防呆）要求，每細步完成後必須填齊以下八個欄位。
 
 ---
