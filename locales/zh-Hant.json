@@ -218,6 +218,14 @@
     "post3_comment1_body": "下次一齊去！"
   },
 
+    "b4_reco": {
+    "label": "為您推薦",
+    "title1": "為您推薦：預約家庭聚會",
+    "title2": "下個月有幾位家人生日",
+    "cta": "了解更多",
+    "dismiss": "稍後再提醒我"
+  },
+  
   "b5": {
     "reminder_label": "溫馨提示",
     "send_blessing_btn": "送上祝福",
