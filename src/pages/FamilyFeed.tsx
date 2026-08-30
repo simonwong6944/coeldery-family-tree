@@ -1,6 +1,6 @@
 /**
- * FamilyFeed — 家庭圈動態 feed（B4 靜態 mockup + B5 提醒卡）
- * 規格：.coappery/design/B4_family_feed.md + B5_reminder_cards.md
+ * FamilyFeed — 家庭圈動態 feed（B4 靜態 mockup + B5 提醒卡 + B4 推薦卡）
+ * 規格：.coappery/design/B4_family_feed.md + B5_reminder_cards.md + B4_recommendation_card.md
  * 行數上限：≤170 行
  */
 
@@ -13,6 +13,7 @@ import PostCard from '../../packages/post-card'
 import type { PostCardProps } from '../../packages/post-card'
 import ReminderCard from '../../packages/reminder-card'
 import ReminderModal from '../../packages/reminder-modal'
+import RecommendationCard from '../../packages/recommendation-card'
 
 const TAB_ROUTES: Record<TabId, string> = {
   family_tree: '#/', family_circle: '#/family-feed',
@@ -84,11 +85,20 @@ export default function FamilyFeed() {
           onArrange={() => undefined}
         />
 
-        {/* posts[1] + posts[2] */}
-        {posts.slice(1).map((p, i) => <PostCard key={i + 1} {...p} />)}
+        {/* posts[1] */}
+        <PostCard {...posts[1]} />
+
+        {/* ── B4 推薦卡（插於 posts[1] 之後、posts[2] 之前）── */}
+        <RecommendationCard
+          title={t('b4_reco.title1')}
+          onCtaClick={() => undefined}
+        />
+
+        {/* posts[2] */}
+        <PostCard {...posts[2]} />
       </main>
 
-      {/* FAB ＋ 新動態（§四：fixed 右下角，≥56px）*/}
+      {/* FAB ＋ 新動態（§四，fixed 右下角，≥56px）*/}
       <button
         aria-label={t('b4.new_post_btn')}
         onClick={() => undefined}

@@ -1,0 +1,22 @@
+{
+  "name": "@coeldery/recommendation-card",
+  "label": "家庭圈推薦卡",
+  "category": "ui",
+  "version": "1.0.0",
+  "description": "插入家庭圈 B4 feed 的推薦卡：暖金底、標籤 pill、標題（props 傳入）、副標題、CTA 掣「了解更多」、關閉掣「稍後再提醒我」（僅本地淡出，不呼叫 API）。",
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-i18next": "^15.0.0"
+  },
+  "peerDependencies": {
+    "hono": "*"
+  },
+  "exports": {
+    "default": "RecommendationCard",
+    "types": ["RecommendationCardProps"]
+  },
+  "localeKeys": "b4_reco.*",
+  "derivedFrom": ".coappery/design/B4_recommendation_card.md",
+  "sizeLimit": 250,
+  "currentLines": 159
+}
