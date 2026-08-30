@@ -4,9 +4,9 @@
  * 規格：.coappery/design/B4_recommendation_card.md
  * 顏色：只用 CSS var，禁止 hardcode hex / rgba
  * 文字：全部 via i18n t('b4_reco.*')
+ * v1.1.0：移除內部 dismissed useState，改由頁面層經 onDismiss prop 持久化至 feedRepository
  */
 
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export interface RecommendationCardProps {
@@ -16,21 +16,17 @@ export interface RecommendationCardProps {
   subtitle?: string
   /** 點擊「了解更多」CTA 的回調 */
   onCtaClick?: () => void
+  /** 點擊「稍後再提醒我」的回調（頁面層負責呼叫 feedRepository.dismissReco 並更新 state）*/
+  onDismiss?: () => void
 }
 
 export default function RecommendationCard({
   title,
   subtitle,
   onCtaClick,
+  onDismiss,
 }: RecommendationCardProps) {
   const { t } = useTranslation()
-  const [dismissed, setDismissed] = useState(false)
-
-  /* ── 淡出動畫：僅本地 state，第一版不呼叫任何 API（B4 §6、§8）── */
-  const handleDismiss = () => setDismissed(true)
-
-  /* ── 淡出後移除佔位，避免留白 ── */
-  if (dismissed) return null
 
   /* ── 共用樣式 token（跟足 post-card 的 React.CSSProperties 寫法）── */
   const cardStyle: React.CSSProperties = {
@@ -40,8 +36,6 @@ export default function RecommendationCard({
     overflow: 'hidden',
     marginBottom: '16px',
     padding: '20px 16px 16px',
-    /* 淡出動畫約 280ms，跟 B4 §6 規格 */
-    transition: 'opacity 280ms ease, transform 280ms ease',
   }
 
   /* 標籤 pill：白底 + var(--color-divider) 淺邊框 + 次要文字色（暖灰褐）
@@ -98,7 +92,8 @@ export default function RecommendationCard({
   }
 
   /* 關閉掣：純文字樣式，熱區 ≥ 44×44px（rules.md §2）
-     禁止 icon-only（rules.md §2、B4 §5）*/
+     禁止 icon-only（rules.md §2、B4 §5）
+     onClick 委派給頁面層 onDismiss（持久化責任在頁面層）*/
   const dismissStyle: React.CSSProperties = {
     display: 'flex',
     alignItems: 'center',
@@ -146,10 +141,10 @@ export default function RecommendationCard({
         {t('b4_reco.cta')}
       </button>
 
-      {/* 關閉：稍後再提醒我（熱區 ≥44px，僅本地淡出，不呼叫 API）*/}
+      {/* 關閉：稍後再提醒我（熱區 ≥44px；onClick 委派 onDismiss，由頁面層呼叫 feedRepository.dismissReco）*/}
       <button
         style={dismissStyle}
-        onClick={handleDismiss}
+        onClick={onDismiss}
         aria-label={t('b4_reco.dismiss')}
       >
         {t('b4_reco.dismiss')}

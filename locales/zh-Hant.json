@@ -193,6 +193,8 @@
     "post_img_alt": "{{name}}發布的相片",
     "avatar_alt": "{{name}}的頭像",
     "comment_avatar_alt": "{{name}}的頭像",
+    "comment_placeholder": "輸入您的留言…",
+    "comment_submit": "送出留言",
 
     "post1_author": "陳美玲",
     "post1_time": "2 小時前",

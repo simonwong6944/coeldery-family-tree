@@ -2,8 +2,8 @@
   "name": "@coeldery/post-card",
   "label": "家庭圈動態卡片",
   "category": "ui",
-  "version": "1.0.0",
-  "description": "顯示家庭圈單則動態：頭像、名、時間、關於 pill、大相、內文、讚好名單、留言區、互動掣。純接資料，mock data 由頁面層提供。",
+  "version": "1.1.0",
+  "description": "顯示家庭圈單則動態：頭像、名、時間、關於 pill、大相、內文、讚好名單、留言區、互動掣。v1.1.0 接駁 feedRepository：讚好/留言由頁面層持久化（postId/isLiked/onToggleLike/onAddComment props），移除內部 liked useState，新增留言輸入展開 UI。",
   "dependencies": {
     "react": "^19.0.0",
     "react-i18next": "^15.0.0"
@@ -18,5 +18,5 @@
   "localeKeys": "b4.*",
   "derivedFrom": ".coappery/design/B4_family_feed.md §二/§三",
   "sizeLimit": 250,
-  "currentLines": 169
+  "currentLines": 241
 }

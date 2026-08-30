@@ -4,6 +4,7 @@
  * 規格：.coappery/design/B4_family_feed.md §二、§三
  * 顏色：只用 CSS var，禁止 hardcode hex / rgba
  * 文字：全部 via i18n t('key')
+ * v1.1.0：接駁 feedRepository — 讚好/留言由頁面層持久化（rules.md §9）
  */
 
 import { useState } from 'react'
@@ -16,6 +17,8 @@ export interface CommentItem {
 }
 
 export interface PostCardProps {
+  /** 貼文 ID（feedRepository 對應鍵，用於讚好/留言回調）*/
+  postId: string
   /** 發文人名 */
   authorName: string
   /** 發文人頭像 URL */
@@ -34,6 +37,12 @@ export interface PostCardProps {
   likers: string[]
   /** 留言陣列 */
   comments: CommentItem[]
+  /** 目前登入者是否已讚（由 feedRepository.isLikedByMe 計算）*/
+  isLiked: boolean
+  /** 切換讚好回調（頁面層呼叫 feedRepository.toggleLike 並更新 state）*/
+  onToggleLike: () => void
+  /** 新增留言回調（頁面層呼叫 feedRepository.addComment 並更新 state）*/
+  onAddComment: (body: string) => void
 }
 
 /* ── 讚好名單格式化（用名，以頓號連接）── */
@@ -43,11 +52,25 @@ function formatLikers(likers: string[], suffix: string): string {
 }
 
 export default function PostCard({
+  postId: _postId,
   authorName, authorAvatarUrl, timeText, aboutText,
   photoUrl, photoAlt, bodyText, likers, comments,
+  isLiked, onToggleLike, onAddComment,
 }: PostCardProps) {
   const { t } = useTranslation()
-  const [liked, setLiked] = useState(false)
+  /* 留言輸入展開狀態（本地 UI state，非持久資料）*/
+  const [commentOpen, setCommentOpen] = useState(false)
+  /* 留言草稿（本地 UI state，送出後清空）*/
+  const [draft, setDraft] = useState('')
+
+  /* ── 送出留言 ── */
+  const handleSubmitComment = () => {
+    const trimmed = draft.trim()
+    if (!trimmed) return
+    onAddComment(trimmed)
+    setDraft('')
+    setCommentOpen(false)
+  }
 
   /* ── 共用樣式 token ── */
   const avatarStyle: React.CSSProperties = {
@@ -124,22 +147,71 @@ export default function PostCard({
       {/* ── 分隔線 ── */}
       <hr style={{ margin: '0 16px', border: 'none', borderTop: '1px solid var(--color-divider)' }} />
 
-      {/* ── 互動列 ── */}
+      {/* ── 互動列（讚好狀態由 isLiked prop 驅動，onClick 呼叫 onToggleLike 持久化至 feedRepository）── */}
       <div style={{ display: 'flex', padding: '4px 8px' }}>
         <button
-          onClick={() => setLiked(l => !l)}
-          aria-pressed={liked}
+          onClick={onToggleLike}
+          aria-pressed={isLiked}
           style={{
             ...btnStyle,
-            color: liked ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+            color: isLiked ? 'var(--color-accent)' : 'var(--color-text-secondary)',
           }}
         >
-          {liked ? '❤️' : '🤍'} {t('b4.like_btn').replace('❤️ ', '')}
+          {isLiked ? '❤️' : '🤍'} {t('b4.like_btn').replace('❤️ ', '')}
         </button>
-        <button style={btnStyle} aria-label={t('b4.comment_btn')}>
+        <button
+          onClick={() => setCommentOpen(o => !o)}
+          aria-expanded={commentOpen}
+          style={btnStyle}
+        >
           {t('b4.comment_btn')}
         </button>
       </div>
+
+      {/* ── 留言輸入區（點擊「留言」後展開；送出呼叫 onAddComment 持久化）── */}
+      {commentOpen && (
+        <div style={{ padding: '0 16px 12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <textarea
+            value={draft}
+            onChange={e => setDraft(e.target.value)}
+            placeholder={t('b4.comment_placeholder')}
+            rows={2}
+            style={{
+              width: '100%',
+              minHeight: '52px',
+              fontSize: '18px',
+              fontFamily: 'inherit',
+              color: 'var(--color-text)',
+              backgroundColor: 'var(--color-bg)',
+              border: '1.5px solid var(--color-divider)',
+              borderRadius: '10px',
+              padding: '10px 12px',
+              resize: 'vertical',
+              boxSizing: 'border-box',
+              outline: 'none',
+            }}
+          />
+          <button
+            onClick={handleSubmitComment}
+            style={{
+              alignSelf: 'flex-end',
+              minHeight: '44px',
+              minWidth: '120px',
+              padding: '0 20px',
+              borderRadius: '10px',
+              border: 'none',
+              backgroundColor: 'var(--color-primary)',
+              color: 'var(--color-card)',
+              fontSize: '18px',
+              fontWeight: 'bold',
+              fontFamily: 'inherit',
+              cursor: 'pointer',
+            }}
+          >
+            {t('b4.comment_submit')}
+          </button>
+        </div>
+      )}
 
       {/* ── 留言區 ── */}
       {comments.length > 0 && (
