@@ -106,7 +106,7 @@
 
   "entry_card": {
     "activity_title": "查閱動態",
-    "activity_subtitle": "前往家庭圈，可 like／留言",
+    "activity_subtitle": "前往家庭圈，可 讚好／留言",
     "growth_title": "成長相簿",
     "growth_subtitle_person": "{{name}}的成長相簿",
     "growth_subtitle_pet": "{{name}}的成長相簿",
@@ -218,14 +218,14 @@
     "post3_comment1_body": "下次一齊去！"
   },
 
-    "b4_reco": {
+  "b4_reco": {
     "label": "為您推薦",
     "title1": "為您推薦：預約家庭聚會",
     "title2": "下個月有幾位家人生日",
     "cta": "了解更多",
     "dismiss": "稍後再提醒我"
   },
-  
+
   "b5": {
     "reminder_label": "溫馨提示",
     "send_blessing_btn": "送上祝福",
