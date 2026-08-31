@@ -10,7 +10,7 @@
 - 本專案係「家庭樹」——CoEldery 85（老有卡）生態內嘅一個 sub-app。
 - 目標用戶:香港 60 歲以上長者及其家人。
 - 用 CoAppery 方法論開發，但唔用 CoAppery 平台本身（未成熟）。
-- 開發階段:登入與儲存一律先 mock，接口預留將來接真 SSO / R2。
+- 開發階段:家庭樹核心(成員／家庭／關係／世代)採真後端落地(Cloudflare D1),透過 API 接 CoEldery85 會員身份。家庭圈、成長相簿之 D1 化屬後續階段,介面預留。會員身份不使用 JWT SSO;改以 member_no 為錨,經 CoEldery85 API(附 FAMILY_TREE_API_KEY)驗證。詳見第 10、17、18 條。
 
 ---
 
@@ -50,6 +50,7 @@
 
 ## 6. 模組化與慳 token（源自 CoAppery 規範二）
 - 家庭樹係獨立 repo（`coeldery-family-tree`），同其他 sub-app 分開，AI 一次只讀一個 repo。
+- 【跨 repo 例外】家庭樹與 CoEldery85 會員系統之整合(B2 架構)屬跨 repo 協作,須分兩條 track 順序進行:先擴充 CoEldery85 會員系統(track 甲),後接家庭樹(track 乙)。每條 track 內部仍守「一次只讀一個 repo」。
 - repo 內部核心功能拆成獨立微模組，放 `/packages`。禁止大型單體檔案。
 - 共用嘢（design token、i18n、layout 殼、上傳 component、券引擎）做成獨立模組，各處引用，唔重複。
 - 每個模組跟 CoAppery manifest 習慣，寫 `module.json`（name / label / category / version / dependencies / derivedFrom / docs），方便將來搬入 CoAppery。
@@ -75,7 +76,7 @@
 - PWA:支援離線快取、加到主畫面。
 - 將來部署:Cloudflare Pages（push + verify 模式）。
 - SPA 必須加 `_redirects`（`/* /index.html 200`），避免直開子路由 404。
-- 登入:將來用 JWT SSO 接 CoEldery 85 會員系統。今次 mock。
+- 登入／身份:接 CoEldery85 會員系統。CoEldery85 現行機制為 member_no(格式 CE85-XXXXXX)+ localStorage,無 JWT、無密碼。家庭樹以 member_no 為會員錨;需驗證 ACTIVE 狀態時,呼叫 CoEldery85 POST /api/member/verify(Bearer FAMILY_TREE_API_KEY) 或 GET /api/members/{member_no} 檢查 status === 'ACTIVE'。API key 依第 8 條存 Cloudflare Secret,永不入 code/git。
 
 ## 11. 開發紀律（源自「一次全給會中伏」教訓）
 - 一次只做一個可驗證嘅細步，禁止一次過掟多個階段。
@@ -84,7 +85,7 @@
 - NBP 出圖:文字多嘅頁面禁止用「局部編輯」，一律完整 prompt 重新生成整張圖。
 
 ## 12. Out-of-Scope（第一版唔做）
-- 任何付款 / 金流 / 交易 / 抽佣 / 退款 / 發票。【待定/矛盾提醒】老有樹商業模式將包含增值收費(見 product_decisions.md 第四節);將來實作收費功能時,本規則需修訂並處理矛盾。
+- 任何付款 / 金流 / 交易 / 抽佣 / 退款 / 發票。【待定/矛盾提醒】老有樹商業模式將包含增值收費(見 product_decisions.md 第四節);將來實作收費功能時,本規則需修訂並處理矛盾。（補充: B2 schema 已預留 Freemium 相關欄位/層級位,但收費 UI、金流仍屬 out of scope,不得實作收費介面。）
 - 平台通用券 / 預售券（涉及金流，backlog，待法律財務評估）。
 - 完整電商落單流程、複雜權限、貼文轉發、AI 短劇、智能稱謂、自動深度家族探索。
 - 家庭聚會平台只做廣告/引流:用戶睇商家 → 領券 → WhatsApp 聯絡商家。app 唔掂金流。
@@ -119,3 +120,22 @@
 （b）每個 icon 的觸控熱區不得小於 44×44 px，確保長者可輕易點擊。
 
 （c）本例外**僅限**頂欄此三個次要輔助功能圖示，不適用於底部 Tab Bar、主要 CTA 按鈕、表單按鈕或任何主流程操作——上述元素一律仍須 icon + 文字標籤並排。
+
+---
+
+## 17. 會員與成員模型（細步 make-real 新增）
+
+- 家庭樹人類成員分兩類:(a) 連結會員 — 對應真實 CoEldery85 會員,member_no 必填,可登入互動;(b) 純節點成員 — 先人、初生嬰兒、高齡或未／不能自行註冊者,member_no 可空,僅為樹上顯示節點,不可登入,由家人代管。
+- 寵物為第三類:無 member_no,另表(pets)管理。
+- 代管:每個成員可設 managed_by(代管人之 member_no)。
+- 加入在世人類成員之流程須先成為 CoEldery85 會員;純節點成員亦須在會員系統留記錄(以 member_type 區分),確保生態人頭可統計(見第 18 條)。
+- 世代推移與離世狀態一律由家人手動輸入觸發,系統絕不自行推斷。
+
+---
+
+## 18. 成員資料單一事實來源（B2 架構，細步 make-real 新增）
+
+- 所有家庭樹人類成員之「人身資料」一律存於 CoEldery85 members 表,為單一事實來源,確保人頭可統計。
+- 家庭樹 D1 僅存「樹結構」:families、family_members、pets。以 member_no 為外鍵,不得複製會員資料。
+- 跨系統寫入／讀取一律經 CoEldery85 API,附 FAMILY_TREE_API_KEY。
+- 寵物不入會員系統,存於家庭樹 pets 表。
