@@ -139,3 +139,15 @@
 - 家庭樹 D1 僅存「樹結構」:families、family_members、pets。以 member_no 為外鍵,不得複製會員資料。
 - 跨系統寫入／讀取一律經 CoEldery85 API,附 FAMILY_TREE_API_KEY。
 - 寵物不入會員系統,存於家庭樹 pets 表。
+
+## Rule 19 — 生產 D1 驗證規則(production D1 verification)
+
+- 任何聲稱「已在生產 D1 執行/查詢/遷移」嘅結果,必須由用戶本人用
+  `wrangler d1 execute <db> --remote ...` 親手重跑確認;
+  AI / Genspark 嘅生產 D1 報告一律**唔算證據**。
+- Genspark 只負責:寫 migration 檔、寫 code、跑 --local 測試。
+- 所有 --remote(生產)讀寫,由用戶本人手動執行並貼原始 output。
+- 開新 D1(wrangler d1 create)、binding、生產 migration apply,
+  一律由用戶親手做,唔交畀 AI。
+- 原因:Genspark 曾混淆 local 與 remote,錯報「生產已建 CE85-000002 測試節點」,
+  實際該節點只存在於 local(2026-08-31 經 --remote 查證,生產 NODE_ONLY = 0)。
