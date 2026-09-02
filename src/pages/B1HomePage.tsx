@@ -1,8 +1,8 @@
 /**
  * B1HomePage — 家庭樹主頁
- * 細步 4b：完全移除 mock，改用 /api/tree 真實資料渲染分代家庭樹。
- * 空狀態 → 引導按鈕。有資料 → 按 marriage/parent_child 邊排代渲染。
- * SVG Icons 及 TopBarRightSlot 為 B1 專用，留在頁面層。
+ * 細步 4c：通用分代演算法（BFS），支援多子女、向上長輩代、任意結構。
+ * 使用 packages/family-tree-engine 計算 level，渲染每代全部成員。
+ * 頁面 ≤ 200 行。
  */
 
 import { useState, useEffect } from 'react'
@@ -13,14 +13,18 @@ import type { TabId } from '../../packages/bottom-tab-bar'
 import HouseholdCard from '../../packages/household-card'
 import type { MemberInfo, PetInfo } from '../../packages/household-card'
 import ConnectionLine from '../../packages/connection-line'
-import { GenLabel, Gen3Member, GenSection } from '../../packages/gen-section'
+import { GenLabel } from '../../packages/gen-section'
+import { buildLevels, buildTreeLevels } from '../../packages/family-tree-engine'
+import type { ApiMember, ApiRel, Household, TreeLevel } from '../../packages/family-tree-engine'
 
-interface ApiMember { id: string; display_name: string; member_kind: string; birth_date: string | null; avatar_url: string | null }
-interface ApiRel { id: string; from_member: string; to_member: string; edge_type: string; status: string | null }
 interface TreeData { members: ApiMember[]; relationships: ApiRel[] }
 
 function toMemberInfo(m: ApiMember, relation: string): MemberInfo {
   return { name: m.display_name, relation, avatarUrl: m.avatar_url ?? undefined }
+}
+
+function toPetInfo(p: ApiMember, ownerRelation: string): PetInfo {
+  return { name: p.display_name, petType: '寵物', ownerRelation, avatarUrl: p.avatar_url ?? undefined }
 }
 
 function IconAddMember({ size = 22 }: { size?: number }) {
@@ -50,37 +54,67 @@ function TopBarRightSlot() {
   </>
 }
 
-/** 從 tree 資料解析出各代成員 ID 集合 */
-function buildGenerations(data: TreeData) {
-  const byId = new Map(data.members.map(m => [m.id, m]))
-  const marriages = data.relationships.filter(r => r.edge_type === 'marriage')
-  const parentChild = data.relationships.filter(r => r.edge_type === 'parent_child')
-  const petOwner = data.relationships.filter(r => r.edge_type === 'pet_owner')
+/** 根據 level 數值返回對應的 i18n label key */
+function levelLabelKey(level: number): string {
+  const map: Record<number, string> = {
+    [-3]: 'gen.layer_label_minus3',
+    [-2]: 'gen.layer_label_minus2',
+    [-1]: 'gen.layer_label_minus1',
+    [0]:  'gen.layer_label_0',
+    [1]:  'gen.layer_label_1',
+    [2]:  'gen.layer_label_2',
+    [3]:  'gen.layer_label_3',
+  }
+  return map[level] ?? 'gen.layer_label_other'
+}
 
-  // Gen1：第一條 marriage 邊的兩人；若無 marriage 邊，Gen1 = 第一個人成員（單人）
-  const firstMarriage = marriages[0]
-  const gen1Ids: string[] = firstMarriage
-    ? [firstMarriage.from_member, firstMarriage.to_member]
-    : data.members.filter(m => m.member_kind === 'person').slice(0, 1).map(m => m.id)
+/** 渲染單一 Household Card，根據有無配偶/寵物決定 variant */
+function HouseholdBlock({ household, avatarSize }: { household: Household; avatarSize: number }) {
+  const { t } = useTranslation()
+  const primary = toMemberInfo(household.primary, t('gen.member_relation_person'))
+  const secondary = household.spouse ? toMemberInfo(household.spouse, t('gen.member_relation_person')) : undefined
+  const firstPet = household.pets[0]
+  const petInfo: PetInfo | undefined = firstPet ? toPetInfo(firstPet, primary.name) : undefined
 
-  const gen1Set = new Set(gen1Ids)
+  const variant = secondary
+    ? (petInfo ? 'couple_with_pet' : 'couple')
+    : 'single'
 
-  // Gen2：parent_child 中 from_member 在 Gen1 的子女 (to_member)
-  const gen2Ids = [...new Set(parentChild.filter(r => gen1Set.has(r.from_member)).map(r => r.to_member))]
-  const gen2Set = new Set(gen2Ids)
+  return (
+    <HouseholdCard
+      variant={variant}
+      primaryMember={primary}
+      secondaryMember={secondary}
+      pet={petInfo}
+      avatarSize={avatarSize}
+      isFocused={false}
+      width="auto"
+    />
+  )
+}
 
-  // Gen3：parent_child 中 from_member 在 Gen2 的子女 (to_member)
-  const gen3Ids = [...new Set(parentChild.filter(r => gen2Set.has(r.from_member)).map(r => r.to_member))]
+/** 渲染一個代層橫帶 */
+function LevelBand({ treeLevel, avatarSize, hasChildrenBelow }: { treeLevel: TreeLevel; avatarSize: number; hasChildrenBelow: boolean }) {
+  const { t } = useTranslation()
+  const labelKey = levelLabelKey(treeLevel.level)
+  const labelText = labelKey === 'gen.layer_label_other'
+    ? t(labelKey, { level: treeLevel.level })
+    : t(labelKey)
 
-  // 寵物：pet_owner 邊的 to_member
-  const petIds = [...new Set(petOwner.map(r => r.to_member))]
-
-  // 已分配 ID 集合（排除未分類）
-  const assigned = new Set([...gen1Ids, ...gen2Ids, ...gen3Ids, ...petIds])
-  // 未分類的 person（尚無關係邊）→ 加入 Gen1 顯示
-  const unclassifiedPersons = data.members.filter(m => m.member_kind === 'person' && !assigned.has(m.id))
-
-  return { byId, gen1Ids: [...gen1Ids, ...unclassifiedPersons.map(m => m.id)], gen2Ids, gen3Ids, petIds, firstMarriage }
+  return (
+    <section
+      aria-label={labelText}
+      style={{ width:'100%', padding:'16px 16px 0', display:'flex', flexDirection:'column', alignItems:'center', boxSizing:'border-box' }}
+    >
+      <GenLabel labelKey={labelKey}/>
+      <div style={{ display:'flex', flexWrap:'wrap', gap:'12px', justifyContent:'center', width:'100%' }}>
+        {treeLevel.households.map((hh, idx) => (
+          <HouseholdBlock key={hh.primary.id + idx} household={hh} avatarSize={avatarSize}/>
+        ))}
+      </div>
+      {hasChildrenBelow && <div style={{ marginTop:'8px' }}><ConnectionLine height={24}/></div>}
+    </section>
+  )
 }
 
 export default function B1HomePage() {
@@ -113,10 +147,10 @@ export default function B1HomePage() {
 
   const members = tree?.members ?? []
   const relationships = tree?.relationships ?? []
-  const hasMembers = members.length > 0
+  const hasPersons = members.some(m => m.member_kind === 'person')
 
   // ── 空狀態 ──
-  if (!hasMembers) return wrap(
+  if (!hasPersons) return wrap(
     <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'16px', padding:'48px 24px', textAlign:'center' }}>
       <span style={{ fontSize:'64px' }}>🌱</span>
       <h2 style={{ fontSize:'20px', fontWeight:'bold', color:'var(--color-text)', margin:0 }}>家庭樹尚無成員</h2>
@@ -127,55 +161,28 @@ export default function B1HomePage() {
     </div>
   )
 
-  // ── 有成員：解析並渲染 ──
-  const { byId, gen1Ids, gen2Ids, gen3Ids, petIds } = buildGenerations({ members, relationships })
+  // ── BFS 分代 ──
+  const levelMap = buildLevels(members, relationships)
+  const treeLevels: TreeLevel[] = buildTreeLevels(members, relationships, levelMap)
 
-  const gen1Primary = byId.get(gen1Ids[0])
-  const gen1Secondary = byId.get(gen1Ids[1])
-  const gen2Members = gen2Ids.map(id => byId.get(id)).filter(Boolean) as ApiMember[]
-  const gen3Members = gen3Ids.map(id => byId.get(id)).filter(Boolean) as ApiMember[]
-  const petMembers = petIds.map(id => byId.get(id)).filter(Boolean) as ApiMember[]
-
-  // 配合 Gen2 的第一個 household（含可能的 marriage 邊配對）
-  const gen2Marriages = relationships.filter(r => r.edge_type === 'marriage' && gen2Ids.includes(r.from_member) && gen2Ids.includes(r.to_member))
-  const gen2Couple = gen2Marriages[0] ? [gen2Marriages[0].from_member, gen2Marriages[0].to_member] : []
-  const gen2FocPrimary: MemberInfo | undefined = gen2Members[0] ? toMemberInfo(gen2Members[0], gen2Couple.includes(gen2Members[0].id) ? t('gen2.member_eldest_son_relation') : '') : undefined
-  const gen2FocSecondary: MemberInfo | undefined = gen2Members[1] && gen2Couple.length > 0 ? toMemberInfo(gen2Members[1], t('gen2.member_eldest_daughter_in_law_relation')) : undefined
-  const firstPet = petMembers[0]
-  const petInfo: PetInfo | undefined = firstPet ? { name: firstPet.display_name, petType: '寵物', ownerRelation: '', avatarUrl: firstPet.avatar_url ?? undefined } : undefined
-
-  const gen2Variant = gen2FocSecondary ? (petInfo ? 'couple_with_pet' : 'couple') : 'single'
+  // 判斷每個 level 是否在下方有子代（用於是否顯示 ConnectionLine）
+  const levelSet = new Set(treeLevels.map(tl => tl.level))
 
   return wrap(<>
-    {/* ─── GEN 1 ─── */}
-    {gen1Primary && <section aria-label={t('gen1.layer_label')} style={{ width:'100%', padding:'24px 16px 0', display:'flex', flexDirection:'column', alignItems:'center', boxSizing:'border-box' }}>
-      <GenLabel labelKey="gen1.layer_label"/>
-      <HouseholdCard variant={gen1Secondary ? 'couple' : 'single'} primaryMember={toMemberInfo(gen1Primary, t('gen1.member_self_relation'))} secondaryMember={gen1Secondary ? toMemberInfo(gen1Secondary, t('gen1.member_spouse_relation')) : undefined} avatarSize={80} isFocused={false} width="100%"/>
-      {(gen2Members.length > 0 || petMembers.length > 0) && <ConnectionLine height={24}/>}
-    </section>}
-
-    {/* ─── GEN 2 ─── */}
-    {gen2FocPrimary && <section aria-label={t('gen2.layer_label')} style={{ width:'100%', padding:'0 16px', display:'flex', flexDirection:'column', alignItems:'center', boxSizing:'border-box' }}>
-      <GenLabel labelKey="gen2.layer_label"/>
-      <HouseholdCard variant={gen2Variant} primaryMember={gen2FocPrimary} secondaryMember={gen2FocSecondary} pet={petInfo} avatarSize={64} isFocused={false} width="100%"/>
-      {gen3Members.length > 0 && <><div style={{ marginTop:'8px' }}><ConnectionLine height={24}/></div></>}
-    </section>}
-
-    {/* ─── GEN 3 ─── */}
-    {gen3Members.length > 0 && <GenSection labelKey="gen3.layer_label" dotsTotal={gen3Members.length} dotsActive={0} bottomSpacer={32}>
-      {gen3Members.map(m => <Gen3Member key={m.id} member={toMemberInfo(m, t('gen3.member_grandson_relation'))} size={64}/>)}
-    </GenSection>}
-
-    {/* ─── 孤立成員（有成員但無關係邊）─── */}
-    {!gen2FocPrimary && !gen1Primary && members.filter(m=>m.member_kind==='person').length > 0 && (
-      <section style={{ width:'100%', padding:'24px 16px 0', boxSizing:'border-box' }}>
-        <GenLabel labelKey="gen1.layer_label"/>
-        <div style={{ display:'flex', flexWrap:'wrap', gap:'12px', justifyContent:'center' }}>
-          {members.filter(m=>m.member_kind==='person').map(m => (
-            <HouseholdCard key={m.id} variant="single" primaryMember={toMemberInfo(m, '')} avatarSize={72} isFocused={false} width="160px"/>
-          ))}
-        </div>
-      </section>
-    )}
+    {treeLevels.map((tl, idx) => {
+      const hasChildrenBelow = levelSet.has(tl.level + 1)
+      // 下一層距目前層 level 差是否恰好 1（連接線只在直接父子代之間）
+      const nextLevel = treeLevels[idx + 1]
+      const isDirectParent = nextLevel !== undefined && nextLevel.level === tl.level + 1
+      const avatarSize = tl.level === 0 ? 80 : 64
+      return (
+        <LevelBand
+          key={tl.level}
+          treeLevel={tl}
+          avatarSize={avatarSize}
+          hasChildrenBelow={hasChildrenBelow && isDirectParent}
+        />
+      )
+    })}
   </>)
 }

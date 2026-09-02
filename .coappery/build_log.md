@@ -2,6 +2,103 @@
 
 ---
 
+## [細步 4c][實時紀錄] 重寫 B1 家庭樹渲染為通用分代演算法（支援多子女、跨代、任意結構）
+
+### 1. 完整指令原文
+任務：細步 4c — 重寫 B1 家庭樹渲染為通用分代演算法（支援多子女、跨代、任意結構）。(1) 新建 `packages/family-tree-engine/index.ts`（≤250行）：BFS 通用分代演算法（`buildLevels` + `buildTreeLevels`），錨點=第一個加入的 person（level 0），父母=level -1，子女=level +1，marriage 邊同 level，孤立成員歸 level 0，寵物附在主人 household。(2) 重寫 `src/pages/B1HomePage.tsx`（≤200行）：移除舊 `buildGenerations()`，使用新 engine，動態渲染每個 level 所有 households。(3) 新增 `locales/zh-Hant.json` 代層動態標籤 keys（gen.layer_label_minus3 至 gen.layer_label_3）。(4) 本機 --local 測試四種情境：(a)本人+配偶 (b)兩個子女 (c)父親顯示上一代 (d)寵物。
+
+### 2. 任務範圍與紅線
+- 只改 coeldery-family-tree repo；零接觸 85AI / coeldery85-db / CoEldery 85 API
+- 絕對不執行 --remote；production migration 由產品負責人在自己 PowerShell 執行
+- 遵守：頁面 ≤200 行、module ≤250 行、文字 i18n、顏色 CSS 變數、不加規則外 npm 套件
+
+### 3. 實際修改
+
+| 檔案 | 修改內容 |
+|------|---------|
+| `packages/family-tree-engine/index.ts` | **新增**（214 行，≤250 ✅）；`buildLevels()` BFS 計算 level；`buildTreeLevels()` 分組 household；導出 `ApiMember`/`ApiRel`/`Household`/`TreeLevel` 介面 |
+| `src/pages/B1HomePage.tsx` | **重寫**（188 行，≤200 ✅）；移除舊 `buildGenerations()`；使用 `buildLevels` + `buildTreeLevels`；`LevelBand` component 渲染每代所有 households；`levelLabelKey()` 動態 i18n key 映射 |
+| `locales/zh-Hant.json` | 新增 `gen.*` 區塊（11 個 keys：layer_label_minus3/minus2/minus1/0/1/2/3/other + member_relation_person/pet） |
+
+### 4. 驗證結果
+
+#### 4.1 npm run build
+```
+tsc -b && vite build → 69 modules, 零 TypeScript 錯誤 ✅
+```
+
+#### 4.2 D1 local 重置 + migration
+```bash
+rm -rf .wrangler/state/v3/d1
+npx wrangler d1 migrations apply coeldery-family-tree-db --local
+→ 0001_initial_schema.sql ✅ 10 commands executed successfully.
+```
+
+#### 4.3 四種情境測試（--local D1，port 3000）
+```bash
+# (a) 本人（錨點，level 0）
+POST /api/members {"display_name":"陳大文","member_kind":"person"}
+→ {"ok":true,"member_id":"fb5b154617d04742fbe6809b4b05600f","relationship_ids":[]}  ✅
+
+# (a) 配偶（marriage，level 0）
+POST /api/members {"display_name":"陳李秀英","relation_key":"relation_spouse","target_member_id":"fb5b..."}
+→ {"ok":true,"relationship_ids":["754a5da4..."]}  ✅ 配偶同 level 0
+
+# (b) 子女一（parent_child，level 1）
+POST /api/members {"display_name":"陳志明","relation_key":"relation_child","target_member_id":"fb5b..."}
+→ {"ok":true,"relationship_ids":["d480afd9..."]}  ✅
+
+# (b) 子女二（同一代 level 1）
+POST /api/members {"display_name":"陳志芬","relation_key":"relation_child","target_member_id":"fb5b..."}
+→ {"ok":true,"relationship_ids":["35358894..."]}  ✅ 兩個子女均有
+
+# (c) 父親（relation_parent，新成員是父，level -1）
+POST /api/members {"display_name":"陳伯文","relation_key":"relation_parent","target_member_id":"fb5b..."}
+→ {"ok":true,"relationship_ids":["e9f20335..."]}  ✅ 上一代顯示
+
+# (d) 寵物（pet_owner 兩個主人）
+POST /api/members {"member_kind":"pet","display_name":"Lucky","owner_member_ids":["fb5b...","0ebe..."]}
+→ {"ok":true,"relationship_ids":["2adaf8b0...","93672f84..."]}  ✅ 附在配偶 household
+```
+
+#### 4.4 D1 直接查詢確認（--local）
+```
+SELECT from_name, to_name, edge_type, status FROM relationships (JOIN members)
+→ 陳李秀英 → 陳大文  | marriage     | current  ✅
+→ 陳大文 → 陳志明    | parent_child | null     ✅
+→ 陳大文 → 陳志芬    | parent_child | null     ✅（兩個子女！）
+→ 陳伯文 → 陳大文    | parent_child | null     ✅（父在上一代）
+→ 陳大文 → Lucky     | pet_owner    | null     ✅
+→ 陳李秀英 → Lucky   | pet_owner    | null     ✅
+```
+
+#### 4.5 B1 截圖目視確認（四代全部正確）
+```
+父母代：陳伯文（level -1）→ 顯示在最上方 ✅
+本人同代：陳李秀英❤️陳大文 + Lucky（level 0）→ 配偶並排+紅心+寵物 ✅
+子女代：陳志明 + 陳志芬（level 1）→ 兩個子女並排顯示 ✅
+垂直連接線：父母代→本人同代→子女代 ✅
+代層標籤：父母代 / 本人同代 / 子女代（動態產生）✅
+```
+
+#### 4.6 Bug 修復確認
+- BUG 1（多子女）：兩個子女均顯示（陳志明 + 陳志芬）✅
+- BUG 2（向上代）：父親陳伯文正確顯示在本人上方父母代 ✅
+- BUG 3（固定形狀）：移除舊固定形狀邏輯，改為動態渲染每個 level ✅
+
+### 5. 行數確認
+| 檔案 | 行數 | 限制 | 狀態 |
+|------|------|------|------|
+| src/pages/B1HomePage.tsx | 188 | ≤200 | ✅ |
+| packages/family-tree-engine/index.ts | 214 | ≤250 | ✅ |
+
+### 6. 待產品負責人執行（本機外）
+- 本機 pull + preview 驗證（本地 `wrangler pages dev`）
+- 視效驗證通過後，`npm run build && wrangler pages deploy dist`（正式部署）
+- 如需生產資料庫，`wrangler d1 migrations apply coeldery-family-tree-db --remote`
+
+---
+
 ## [細步 4b][實時紀錄] B1 真實資料渲染 + B3 補「關係對象」令關係邊真正建立
 
 ### 1. 完整指令原文

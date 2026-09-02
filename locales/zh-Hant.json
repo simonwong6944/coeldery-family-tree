@@ -36,6 +36,19 @@
     "notification_dot_label": "有新動態"
   },
 
+  "gen": {
+    "layer_label_minus3": "曾祖父母代",
+    "layer_label_minus2": "祖父母代",
+    "layer_label_minus1": "父母代",
+    "layer_label_0": "本人同代",
+    "layer_label_1": "子女代",
+    "layer_label_2": "孫兒代",
+    "layer_label_3": "曾孫代",
+    "layer_label_other": "第 {{level}} 代",
+    "member_relation_person": "家庭成員",
+    "member_relation_pet": "寵物"
+  },
+
   "gen1": {
     "layer_label": "第一代",
     "member_self": "本人",
