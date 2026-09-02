@@ -68,7 +68,7 @@ function levelLabelKey(level: number): string {
   return map[level] ?? 'gen.layer_label_other'
 }
 
-/** 渲染單一 Household Card，根據有無配偶/寵物決定 variant */
+/** 渲染單一 Household Card，點擊進入成員詳情頁 */
 function HouseholdBlock({ household, avatarSize }: { household: Household; avatarSize: number }) {
   const { t } = useTranslation()
   const primary = toMemberInfo(household.primary, t('gen.member_relation_person'))
@@ -81,15 +81,21 @@ function HouseholdBlock({ household, avatarSize }: { household: Household; avata
     : 'single'
 
   return (
-    <HouseholdCard
-      variant={variant}
-      primaryMember={primary}
-      secondaryMember={secondary}
-      pet={petInfo}
-      avatarSize={avatarSize}
-      isFocused={false}
-      width="auto"
-    />
+    <button
+      aria-label={`${primary.name} 成員詳情`}
+      onClick={() => { window.location.hash = `#/member/${household.primary.id}` }}
+      style={{ background:'none', border:'none', padding:0, cursor:'pointer', display:'block', flexShrink:0 }}
+    >
+      <HouseholdCard
+        variant={variant}
+        primaryMember={primary}
+        secondaryMember={secondary}
+        pet={petInfo}
+        avatarSize={avatarSize}
+        isFocused={false}
+        width="auto"
+      />
+    </button>
   )
 }
 
@@ -104,10 +110,12 @@ function LevelBand({ treeLevel, avatarSize, hasChildrenBelow }: { treeLevel: Tre
   return (
     <section
       aria-label={labelText}
-      style={{ width:'100%', padding:'16px 16px 0', display:'flex', flexDirection:'column', alignItems:'center', boxSizing:'border-box' }}
+      style={{ width:'100%', padding:'16px 16px 0', display:'flex', flexDirection:'column', alignItems:'center', boxSizing:'border-box', overflowX:'hidden' }}
     >
       <GenLabel labelKey={labelKey}/>
-      <div style={{ display:'flex', flexWrap:'wrap', gap:'12px', justifyContent:'center', width:'100%' }}>
+      {/* 每代恆定一行，可左右橫向捲動，不換行 */}
+      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+      <div style={{ display:'flex', flexWrap:'nowrap', overflowX:'auto', gap:'12px', paddingBottom:'4px', width:'100%' } as any}>
         {treeLevel.households.map((hh, idx) => (
           <HouseholdBlock key={hh.primary.id + idx} household={hh} avatarSize={avatarSize}/>
         ))}

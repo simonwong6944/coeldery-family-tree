@@ -21,6 +21,7 @@ export interface ApiMember {
   display_name: string
   member_kind: string
   birth_date: string | null
+  deceased_date?: string | null
   avatar_url: string | null
 }
 

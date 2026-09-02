@@ -1463,3 +1463,66 @@ gen-carousel/index.tsx：183 行（≤250 ✅）
 下一步認知：靜態 mockup ≠ 完成品。靈魂功能（成長相簿 calendar、動態 12 月過期、遺言、跨代繼承）屬真後端（登入 / 儲存 / 上傳 / 資料庫）,為另一段長路。現階段先以 demo 驗證需求。
 
 戰略定位：老有卡 + CoFilmery = 兩個試驗場,用於提煉 CoAppery 平台之方法論。
+
+---
+
+## [細步 4d] 成員/關係管理 + 同代橫向排列修正
+
+日期：2026-09-02
+
+### 完成項目
+
+**任務一：同代橫向排列修正**
+- `src/pages/B1HomePage.tsx`：LevelBand households 容器改 `flexWrap:'nowrap'` + `overflowX:'auto'`
+- 外層 `<section>` 加 `overflowX:'hidden'` 讓每代橫帶獨立橫向捲動
+- 每個 HouseholdBlock 外層加 `<button>` wrapper，點擊 → `#/member/:id`
+- 行數：196 行（≤200 ✅）
+
+**Migration 0002**
+- 新建 `migrations/0002_add_deceased_date.sql`：`ALTER TABLE members ADD COLUMN deceased_date TEXT`
+- `npx wrangler d1 migrations apply coeldery-family-tree-db --local` → 0001 + 0002 全部 ✅
+
+**新 API 函數（4 個）**
+- `functions/api/members/[id].ts`：DELETE（cascade 清邊+刪成員）+ PATCH（只准改 deceased_date，守紅線 4）
+- `functions/api/relationships/[id].ts`：PATCH status（current/divorced/separated/widowed，守 Rule 19）
+- `functions/api/relationships.ts`：POST 建現有成員間新邊（帶重複檢查，409 if exists）
+- `functions/api/tree.ts`：SELECT 新增 `deceased_date` 欄
+
+**新頁面**
+- `src/pages/MemberAddRelPanel.tsx`：補關係子面板（76 行，≤250 ✅）
+- `src/pages/MemberDetail.tsx`：成員詳情+管理頁（159 行，≤200 ✅）
+  - 顯示姓名、生日（唯讀）、deceased_date（可設定）
+  - 所有關係邊列表 + 婚姻 status 下拉改
+  - 補充關係面板（MemberAddRelPanel）
+  - 刪除成員（二次確認，Rule 19 警告）
+
+**路由 + i18n**
+- `src/App.tsx`：新增 `#/member/:id` 路由分支
+- `locales/zh-Hant.json`：新增 `member_detail.*` 29 個 keys
+
+**packages/family-tree-engine/index.ts**
+- `ApiMember` interface 加 `deceased_date?: string | null`
+
+### 驗證情境（--local）
+
+```
+情境 (a)：3 個子女（陳志明/志芬/志豪）→ 子女代一行橫向排列，無換行 ✅
+          D1：5 members + 4 relationships（1 marriage + 3 parent_child）
+
+情境 (b)：補 marriage 邊（陳志明 + 陳美玲）→ B1 顯示紅心並排 ✅
+          重複測試 → {"ok":false,"error":"此關係邊已存在，不可重複建立"} ✅
+
+情境 (c)：PATCH /api/relationships/17f10794... → status:'divorced' ✅
+          D1 query：status='divorced'，記錄仍在（無 DELETE，守 Rule 19）✅
+
+情境 (d)：DELETE /api/members/1ff910e1...（AAA錯誤輸入）
+          D1 query：成員已清走，邊由 6 → 5（cascade 正確）✅
+          其他 6 個成員不受影響 ✅
+```
+
+### Build 結果
+- `npm run build` → ✅（71 modules → 71 modules，零 TypeScript 錯誤，vite build 603ms）
+
+### Git
+- Commit：細步 4d（message 見 git log）
+- Push：`git push origin main`

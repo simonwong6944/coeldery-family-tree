@@ -312,6 +312,36 @@
     "chevron": "›"
   },
 
+  "member_detail": {
+    "page_title": "成員詳情",
+    "name_label": "姓名",
+    "birth_label": "出生日期",
+    "deceased_label": "離世日期",
+    "set_deceased_btn": "記錄離世日期",
+    "rels_title": "所有關係",
+    "no_rels": "此成員尚無任何關係邊",
+    "edge_marriage": "婚姻",
+    "edge_parent_child": "親子",
+    "edge_pet_owner": "寵物主人",
+    "status_current": "現任",
+    "status_divorced": "已離婚",
+    "status_separated": "分居中",
+    "status_widowed": "喪偶",
+    "add_rel_title": "補充關係",
+    "add_rel_target": "選擇現有成員",
+    "add_rel_target_placeholder": "請選擇一位成員",
+    "add_rel_type": "關係類型",
+    "add_rel_submit": "建立關係",
+    "add_rel_ok": "關係建立成功 ✅",
+    "add_rel_fail": "建立失敗，請重試",
+    "add_rel_no_target": "請先選擇一位成員",
+    "delete_zone_title": "刪除成員（僅限錯誤輸入）",
+    "delete_btn": "刪除此成員",
+    "delete_warning": "⚠️ 此操作將永久移除，只應用於輸入錯誤。此成員所有關係邊將一併清除，此動作不可撤回。",
+    "delete_confirm_btn": "確認永久刪除",
+    "delete_cancel_btn": "取消"
+  },
+
   "a11y": {
     "avatar_alt": "{{name}}的頭像",
     "couple_heart_alt": "配偶關係心形",
