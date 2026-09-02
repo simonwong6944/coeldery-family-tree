@@ -1,10 +1,11 @@
 /**
  * B1HomePage — 家庭樹主頁
  * 細步 4c/4e：通用分代演算法（BFS），支援多子女、向上長輩代、任意結構。
+ * 細步 4f：整合 TreeConnectors SVG overlay（動態父子連線）。
  * 頁面 ≤ 200 行。
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import TopBar from '../../packages/top-bar'
 import BottomTabBar from '../../packages/bottom-tab-bar'
@@ -12,6 +13,8 @@ import type { TabId } from '../../packages/bottom-tab-bar'
 import { buildLevels, buildTreeLevels } from '../../packages/family-tree-engine'
 import type { ApiMember, ApiRel, TreeLevel } from '../../packages/family-tree-engine'
 import { LevelBand } from '../components/TreeBand'
+import TreeConnectors, { buildConnectorEdges } from '../components/TreeConnectors'
+import type { ConnectorEdge } from '../components/TreeConnectors'
 
 interface TreeData { members: ApiMember[]; relationships: ApiRel[] }
 
@@ -47,6 +50,14 @@ export default function B1HomePage() {
   const [tree, setTree] = useState<TreeData | null>(null)
   const [loading, setLoading] = useState(true)
 
+  // 整棵樹容器 ref（TreeConnectors SVG overlay 的定位基準）
+  const treeContainerRef = useRef<HTMLDivElement | null>(null)
+
+  // 各代 scrollWrapper 的 ref 陣列（每個代的橫捲容器）
+  // 用 Map<level, HTMLElement> 確保同一代的 ref 只保留最新
+  const scrollRefMap = useRef<Map<number, HTMLElement>>(new Map())
+  const scrollRefList = useRef<React.RefObject<HTMLElement | null>[]>([])
+
   useEffect(() => {
     fetch('/api/tree').then(r => r.ok ? r.json() : { members: [], relationships: [] })
       .then((d: TreeData) => { setTree(d); setLoading(false) })
@@ -58,11 +69,14 @@ export default function B1HomePage() {
     window.location.hash = r[tab]
   }
 
-  const wrap = (children: React.ReactNode) => (
+  const wrap = (children: React.ReactNode, withTree = false) => (
     <div style={{ minHeight:'100svh', backgroundColor:'var(--color-bg)', display:'flex', flexDirection:'column' }}>
       <TopBar titleKey="top_bar.title" rightSlot={<TopBarRightSlot/>}/>
       <main role="main" aria-label={t('app_name')} style={{ flex:1, overflowY:'auto', overflowX:'hidden', paddingTop:'56px', paddingBottom:'80px', display:'flex', flexDirection:'column', alignItems:'center' }}>
-        {children}
+        {withTree
+          ? <div ref={treeContainerRef} style={{ position:'relative', width:'100%', display:'flex', flexDirection:'column', alignItems:'center' }}>{children}</div>
+          : children
+        }
       </main>
       <BottomTabBar current="family_tree" onTabChange={tabNav}/>
     </div>
@@ -91,6 +105,66 @@ export default function B1HomePage() {
   const treeLevels: TreeLevel[] = buildTreeLevels(members, relationships, levelMap)
   const levelSet = new Set(treeLevels.map(tl => tl.level))
 
+  return <TreeContent
+    treeLevels={treeLevels}
+    levelSet={levelSet}
+    relationships={relationships}
+    treeContainerRef={treeContainerRef}
+    scrollRefMap={scrollRefMap}
+    scrollRefList={scrollRefList}
+    wrap={wrap}
+    t={t}
+  />
+}
+
+/* ── TreeContent — 分離以避免 hooks-in-conditional 問題 ── */
+function TreeContent({
+  treeLevels, levelSet, relationships, treeContainerRef, scrollRefMap, scrollRefList, wrap,
+}: {
+  treeLevels: TreeLevel[]
+  levelSet: Set<number>
+  relationships: ApiRel[]
+  treeContainerRef: React.RefObject<HTMLDivElement | null>
+  scrollRefMap: React.MutableRefObject<Map<number, HTMLElement>>
+  scrollRefList: React.MutableRefObject<React.RefObject<HTMLElement | null>[]>
+  wrap: (children: React.ReactNode, withTree?: boolean) => React.ReactNode
+  t: ReturnType<typeof useTranslation>['t']
+}) {
+  // 建立 householdMemberRoles Map（memberId → 'primary' | 'spouse'）
+  // 只有配偶模式的成員才進 Map；光身成員不在 Map，side=undefined
+  const householdMemberRoles = useMemo(() => {
+    const map = new Map<string, 'primary' | 'spouse'>()
+    for (const tl of treeLevels) {
+      for (const hh of tl.households) {
+        if (hh.spouse) {
+          map.set(hh.primary.id, 'primary')
+          map.set(hh.spouse.id, 'spouse')
+        }
+        // 光身 primary 不加入 map → side=undefined → getMemberCenter 用整塊 div
+      }
+    }
+    return map
+  }, [treeLevels])
+
+  // 建立 ConnectorEdge[]
+  const edges: ConnectorEdge[] = useMemo(
+    () => buildConnectorEdges(relationships, householdMemberRoles),
+    [relationships, householdMemberRoles],
+  )
+
+  // 收集各代 scrollWrapper ref：每次 LevelBand mount/unmount 時更新
+  const handleScrollRef = useCallback((level: number, el: HTMLElement | null) => {
+    if (el) {
+      scrollRefMap.current.set(level, el)
+    } else {
+      scrollRefMap.current.delete(level)
+    }
+    // 重建 scrollRefList（ref 物件陣列）
+    scrollRefList.current = Array.from(scrollRefMap.current.values()).map(dom => ({
+      current: dom,
+    }))
+  }, [scrollRefMap, scrollRefList])
+
   return wrap(<>
     {treeLevels.map((tl, idx) => {
       const hasChildrenBelow = levelSet.has(tl.level + 1)
@@ -103,8 +177,14 @@ export default function B1HomePage() {
           treeLevel={tl}
           avatarSize={avatarSize}
           hasChildrenBelow={hasChildrenBelow && isDirectParent}
+          onScrollRef={(el) => handleScrollRef(tl.level, el)}
         />
       )
     })}
-  </>)
+    <TreeConnectors
+      containerRef={treeContainerRef}
+      edges={edges}
+      scrollRefs={scrollRefList.current}
+    />
+  </>, true)
 }

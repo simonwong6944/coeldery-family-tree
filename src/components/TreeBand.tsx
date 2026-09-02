@@ -5,10 +5,10 @@
  * module ≤ 250 行。
  */
 
+import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import HouseholdCard from '../../packages/household-card'
 import type { MemberInfo, PetInfo } from '../../packages/household-card'
-import ConnectionLine from '../../packages/connection-line'
 import { GenLabel } from '../../packages/gen-section'
 import type { ApiMember, Household, TreeLevel } from '../../packages/family-tree-engine'
 
@@ -39,6 +39,7 @@ export function levelLabelKey(level: number): string {
  *  - 光身：整張卡可點入 primary
  *  - 配偶：透明左/右半按鈕各自可點
  *  - 本人標記：is_self=1 顯示「本人」細標籤
+ *  - data-member-id / data-member-side：供 TreeConnectors SVG overlay 定位
  */
 export function HouseholdBlock({ household, avatarSize }: { household: Household; avatarSize: number }) {
   const { t } = useTranslation()
@@ -63,9 +64,13 @@ export function HouseholdBlock({ household, avatarSize }: { household: Household
   )
 
   // 光身 / 無配偶
+  // data-member-id 掛在外層 div，供 TreeConnectors 用無 side 查詢定位整個 block 中心
   if (!secondary) {
     return (
-      <div style={{ position:'relative', flexShrink:0 }}>
+      <div
+        data-member-id={household.primary.id}
+        style={{ position:'relative', flexShrink:0 }}
+      >
         <button
           aria-label={`${primary.name} 成員詳情`}
           onClick={() => { window.location.hash = `#/member/${household.primary.id}` }}
@@ -80,24 +85,29 @@ export function HouseholdBlock({ household, avatarSize }: { household: Household
   }
 
   // 配偶模式：疊加透明左/右半按鈕
+  // data-member-id + data-member-side 分別掛在左/右半按鈕上，供 TreeConnectors 精確定位各半邊
   return (
     <div style={{ position:'relative', flexShrink:0, display:'inline-block' }}>
       <HouseholdCard
         variant={variant} primaryMember={primary} secondaryMember={secondary}
         pet={petInfo} avatarSize={avatarSize} isFocused={false} width="auto"
       />
-      {/* 左半：primary */}
+      {/* 左半：primary — data-member-side="primary" */}
       <button
         aria-label={`${primary.name} 成員詳情`}
+        data-member-id={household.primary.id}
+        data-member-side="primary"
         onClick={() => { window.location.hash = `#/member/${household.primary.id}` }}
         style={{
           position:'absolute', top:0, left:0, width:'48%', height:'100%',
           background:'transparent', border:'none', cursor:'pointer', padding:0,
         }}
       />
-      {/* 右半：spouse */}
+      {/* 右半：spouse — data-member-side="spouse" */}
       <button
         aria-label={`${secondary.name} 成員詳情`}
+        data-member-id={household.spouse!.id}
+        data-member-side="spouse"
         onClick={() => { window.location.hash = `#/member/${household.spouse!.id}` }}
         style={{
           position:'absolute', top:0, right:0, width:'52%', height:'100%',
@@ -118,15 +128,29 @@ export function HouseholdBlock({ household, avatarSize }: { household: Household
   )
 }
 
-/* ── LevelBand ── 渲染一個代層橫帶 */
-export function LevelBand({ treeLevel, avatarSize, hasChildrenBelow }: {
-  treeLevel: TreeLevel; avatarSize: number; hasChildrenBelow: boolean
+/* ── LevelBand ── 渲染一個代層橫帶
+ *
+ * onScrollRef: 可選 callback，在 scrollWrapper div mount/unmount 時被呼叫，
+ *   B1HomePage 用此收集各代 scrollWrapper 的 ref，傳給 TreeConnectors 監聽 scroll。
+ */
+export function LevelBand({ treeLevel, avatarSize, onScrollRef }: {
+  treeLevel: TreeLevel
+  avatarSize: number
+  hasChildrenBelow?: boolean   // 保留 prop 但不再 render 舊 ConnectionLine
+  onScrollRef?: (el: HTMLElement | null) => void
 }) {
   const { t } = useTranslation()
   const labelKey = levelLabelKey(treeLevel.level)
   const labelText = labelKey === 'gen.layer_label_other'
     ? t(labelKey, { level: treeLevel.level })
     : t(labelKey)
+
+  // scrollWrapper ref callback：mount 時回報元素，unmount 時回報 null
+  const scrollWrapperRef = useRef<HTMLDivElement | null>(null)
+  const scrollRefCallback = (el: HTMLDivElement | null) => {
+    scrollWrapperRef.current = el
+    onScrollRef?.(el)
+  }
 
   return (
     <section
@@ -135,14 +159,14 @@ export function LevelBand({ treeLevel, avatarSize, hasChildrenBelow }: {
     >
       <GenLabel labelKey={labelKey}/>
       {/* 外層負責橫捲；內層 inline-flex + min-width:100% 少量時置中，多量時可捲 */}
-      <div style={{ overflowX:'auto', width:'100%', paddingBottom:'4px' }}>
+      <div ref={scrollRefCallback} style={{ overflowX:'auto', width:'100%', paddingBottom:'4px' }}>
         <div style={{ display:'inline-flex', flexWrap:'nowrap', gap:'12px', minWidth:'100%', justifyContent:'center', alignItems:'flex-start' }}>
           {treeLevel.households.map((hh, idx) => (
             <HouseholdBlock key={hh.primary.id + idx} household={hh} avatarSize={avatarSize}/>
           ))}
         </div>
       </div>
-      {hasChildrenBelow && <div style={{ marginTop:'8px' }}><ConnectionLine height={24}/></div>}
+      {/* 舊 ConnectionLine 已移除，由 TreeConnectors SVG overlay 取代 */}
     </section>
   )
 }

@@ -1602,3 +1602,143 @@ gen-carousel/index.tsx：183 行（≤250 ✅）
 ### Git
 - Commit：細步 4e（message 見 git log）
 - Push：`git push origin main`
+
+---
+
+## [細步 4f][實時紀錄] 動態 SVG 父子連線（TreeConnectors + data-member-id/side + rAF 節流 + scroll/resize 重算）
+
+### 時間
+2026-09-02
+
+### 紅線確認
+- ✅ 只在 coeldery-family-tree repo 工作
+- ✅ 無 --remote；所有 D1 操作均 --local
+- ✅ 無 wrangler pages deploy
+- ✅ 不改 `functions/api/*`；不改 D1 schema（純顯示層）
+- ✅ 不引入新 npm 套件（禁 d3/react-flow）
+- ✅ Rule 19：無 DELETE 達成「唔顯示」
+
+### 任務說明
+將 `packages/connection-line`（一條固定高度垂直綠線，純裝飾）替換為按真實 `parent_child` 邊動態繪製的 SVG 折線連線。每條邊由父母頭像中心（配偶卡左/右半邊分別定位）連線至子女頭像中心，監聽各代 scroll + ResizeObserver + rAF 節流即時重算。
+
+### 修改檔案
+
+| 檔案 | 動作 | 說明 |
+|------|------|------|
+| `src/components/TreeConnectors.tsx` | **新建**（198 行） | SVG overlay 動態連線 module：`getMemberCenter()`、`elbowPath()`、`TreeConnectors` component（useEffect + ResizeObserver + scroll + rAF）、`buildConnectorEdges()` utility；`ConnectorEdge` / `TreeConnectorsProps` interface |
+| `src/components/TreeBand.tsx` | **修改**（172 行） | `HouseholdBlock` 單身模式：`data-member-id` 掛外層 div；配偶模式：透明左右半按鈕各加 `data-member-id` + `data-member-side="primary|spouse"`；移除 `ConnectionLine` 導入與使用；`LevelBand` 新增 `onScrollRef` callback prop，導出各代 scrollWrapper ref |
+| `src/pages/B1HomePage.tsx` | **修改**（190 行） | 拆分為 `B1HomePage` + `TreeContent` 兩個 component（解決 hooks-in-conditional 問題）；整棵樹容器加 `position:relative` + `treeContainerRef`；收集各代 scrollRef（`scrollRefMap`）；建立 `householdMemberRoles` Map（useMemo）；呼叫 `buildConnectorEdges()` 建立 edges（useMemo）；render `<TreeConnectors>` SVG overlay |
+| `seed_4f.sql` | **新建** | 驗證用樣本樹（7 members + 8 relationships）：曾祖父→祖父婚祖母→Simon婚Cindy→孫女Lily + 姑媽（兄弟姊妹分叉）；marriage: from=cindy001 to=simon001 |
+
+### SOP 行數檢查
+| 檔案 | 行數 | 限制 | 狀態 |
+|------|------|------|------|
+| `src/components/TreeConnectors.tsx` | 198 | ≤250 | ✅ |
+| `src/components/TreeBand.tsx` | 172 | ≤250 | ✅ |
+| `src/pages/B1HomePage.tsx` | 190 | ≤200 | ✅ |
+
+### 核心技術細節
+
+**DOM 定位策略**：
+- `getMemberCenter(memberId, containerEl, side?)` — 用 `getBoundingClientRect()` 量度頭像中心，轉換為相對 overlay 容器的座標
+- Selector 策略：`[data-member-id="${id}"][data-member-side="${side}"]`（配偶模式）/ `[data-member-id="${id}"]`（單身模式）
+
+**Elbow 折線公式**：
+```
+M px py  L px midY  L cx midY  L cx cy
+（midY = py + (cy - py) / 2）
+```
+
+**householdMemberRoles Map**：
+- 只有配偶模式的成員才進 Map（`primary` / `spouse`）
+- 單身成員 side=undefined，連線自動用 `[data-member-id]` 精確選取
+- 配偶判斷依 `buildTreeLevels()`：marriage 邊 `from_member` 為 primary，`to_member` 為 spouse
+
+**rAF 節流**：
+```typescript
+rafRef.current = requestAnimationFrame(() => { /* 重算 paths */ })
+```
+防止 scroll 事件密集觸發造成卡頓
+
+**監聽機制**：
+- `ResizeObserver`：監聽整棵樹容器尺寸變化
+- `scroll`（passive: true）：監聽每個代 scrollWrapper（由 `scrollRefs` 陣列傳入）
+- `window resize`：全域視窗 resize 觸發重算
+
+### D1 Migration
+```
+0001_initial_schema.sql    ✅
+0002_add_deceased_date.sql ✅
+0003_add_is_self.sql       ✅
+（4f 無新 migration）
+```
+
+### seed_4f.sql 樣本樹結構
+```
+曾祖父 Great（單身，level -2）
+    └── 祖父 Grandpa ──婚── 祖母 Grandma（配偶卡，level -1）
+              ├── Simon（is_self=1）──婚── Cindy（配偶卡，level 0）
+              │           └── 孫女 Lily（level +1）
+              └── 姑媽 Aunt（單身，level 0，兄弟姊妹）
+
+Marriage 邊：from=cindy001 to=simon001
+→ buildTreeLevels 以 Cindy 為 primary（左半），Simon 為 spouse（右半）
+```
+
+### SVG 連線驗證（6 條 paths）
+| # | 父節點 | 子節點 | 父側 |
+|---|--------|--------|------|
+| 0 | Great（single） | Grandpa（primary） | undefined |
+| 1 | Grandpa（primary） | Simon（spouse） | primary |
+| 2 | Grandma（spouse） | Simon（spouse） | spouse |
+| 3 | Grandpa（primary） | Aunt（single） | primary |
+| 4 | Grandma（spouse） | Aunt（single） | spouse |
+| 5 | Simon（spouse） | Lily（single） | spouse |
+
+全部 `stroke="var(--color-primary)"` ✅
+
+### 驗證情境（--local）
+
+```
+(a) Simon/Cindy/Grandpa/Grandma 各自獨立連線 → 截圖 shot_full_tree.png ✅
+    Simon spouse半邊 → Lily，起點正確落右半邊 ✅
+    Grandpa/Grandma → Simon（分叉2條）；Grandpa/Grandma → Aunt（分叉2條）✅
+
+(b) 兄弟姊妹分叉：Grandpa+Grandma 兩位父母各自一條線落 Simon + 一條落 Aunt
+    → 4 條線表達 Simon 與 Aunt 是兄弟姊妹 ✅
+
+(c) 配偶卡連線起點：Simon 在 spouse 半邊，連線由右半邊出發落 Lily ✅
+
+(d) 某代橫向 scroll 後截圖（shot_d_after_scroll.png）→ 連線即時重算對準 ✅
+
+(e) 縮放至 768px 後截圖（shot_e_after_resize.png）→ ResizeObserver 重算對準 ✅
+
+(f) F12 Console 零錯誤（shot_f_console_clean.png）✅
+
+DOM 驗證：
+  - 7 個 [data-member-id] 元素 ✅
+  - SVG overlay：6 條 paths，全部 stroke=var(--color-primary) ✅
+```
+
+### Build 結果
+```
+npm run build → ✅（72 modules，零 TypeScript 錯誤，vite build 435ms）
+```
+
+### 已知限制
+
+1. **兄弟姊妹孤立問題**：若 target 成員無父母，新加入的兄弟/姊妹為孤立同代（level=0），無 parent_child 邊，SVG 無連線。此屬 4e 已知限制，4f 純顯示層不作修改。
+
+2. **Cindy/Simon 左右位置**：因 marriage 邊方向（from=cindy to=simon），Cindy 成為 primary（左半），Simon 成為 spouse（右半）。連線語義完全正確（Simon spouse半邊 → Lily），但視覺上 Simon 在右側，如需調整需修改 seed 的 marriage 方向。
+
+3. **極端 layout 近似處理**：
+   - 各代 scroll offset 各自獨立計算，SVG overlay 使用 `containerRef` 的 `getBoundingClientRect()` 作為座標原點，當祖先元素有 CSS transform 時可能有 1-2px 誤差。
+   - 連線計算使用 rAF 單次節流，scroll 加速度極快時偶有單幀落後，下一幀即修正。
+
+4. **SVG overflow:visible**：overlay SVG 設 `overflow:visible`，確保 elbow 折線不被裁切；但在極端多代（>6代）佈局下，折線可能短暫延伸至卡片區域邊界外（視覺上無影響，pointerEvents:none 不阻礙互動）。
+
+5. **配偶卡未加父母**：若配偶卡的 primary/spouse 無各自父母資料，則無連線連入（資料層問題，非顯示層 bug）。
+
+### Git
+- Commit：`細步 4f: 動態 SVG 父子連線（TreeConnectors + data-member-id/side + rAF 節流 + scroll/resize 重算）`
+- Push：`git push origin main`
