@@ -1526,3 +1526,79 @@ gen-carousel/index.tsx：183 行（≤250 ✅）
 ### Git
 - Commit：細步 4d（message 見 git log）
 - Push：`git push origin main`
+
+---
+
+## [細步 4e] 五項修正（置中 / 本人 / 配偶可點 / 返回掣 / 兄弟歸同代）
+
+### 時間
+2026-09-02
+
+### 紅線確認
+- ✅ 只在 coeldery-family-tree repo 工作
+- ✅ 無 --remote；所有 D1 操作均 --local
+- ✅ 無 wrangler pages deploy
+- ✅ 不改 ConnectionLine 連線演算法
+- ✅ 不加姓名/生日編輯功能
+- ✅ Rule 19：無 DELETE 達成「唔顯示」
+
+### 修改檔案
+
+| 檔案 | 動作 | 說明 |
+|------|------|------|
+| `migrations/0003_add_is_self.sql` | 已存在（4e 前期完成） | `ALTER TABLE members ADD COLUMN is_self INTEGER NOT NULL DEFAULT 0` |
+| `functions/api/tree.ts` | 已存在（4e 前期完成） | SELECT 加 `is_self` |
+| `functions/api/members/[id].ts` | 已存在（4e 前期完成） | PATCH 支援 `is_self=1`（先清全 family 再設） |
+| `packages/family-tree-engine/index.ts` | **已修改** | `ApiMember` 加 `is_self?: number`；`buildLevels()` 錨點改為 `persons.find(p => p.is_self === 1) ?? persons[0]` |
+| `src/pages/MemberDetail.tsx` | **已修改**（159→192行） | 加「設為本人」按鈕（PATCH is_self:1）；加明確「‹ 返回家庭樹」按鈕（Task 4） |
+| `src/components/TreeBand.tsx` | **新建**（148行） | 拆分自 B1HomePage：`HouseholdBlock`（配偶透明左右半按鈕各自可點 + 本人標記）、`LevelBand` |
+| `src/pages/B1HomePage.tsx` | **已修改**（246→110行） | 導入 TreeBand，精簡至 110 行；本人卡加視覺標記（細標籤） |
+| `functions/api/members.ts` | **已修改** | `relation_sibling` 改為獨立路徑：查 target 父母 → 為每個父母建 parent_child 邊；target 無父時不建邊（孤立同代，此限制已知） |
+| `locales/zh-Hant.json` | **已修改** | 新增 `gen.self_badge`、`member_detail.set_self_btn`、`member_detail.is_self_label`、`member_detail.back_to_tree` |
+
+### SOP 行數檢查
+- `src/pages/B1HomePage.tsx`：110 行 ≤200 ✅
+- `src/components/TreeBand.tsx`：148 行 ≤250 ✅
+- `src/pages/MemberDetail.tsx`：192 行 ≤200 ✅
+- `functions/api/members.ts`：148 行 ≤250 ✅
+- `packages/family-tree-engine/index.ts`：216 行 ≤250 ✅
+
+### D1 Migration
+```
+0001_initial_schema.sql    ✅
+0002_add_deceased_date.sql ✅
+0003_add_is_self.sql       ✅
+```
+
+### 驗證情境（--local）
+
+```
+(a) 5 個孤立同代成員（陳大文/二文/三文/四文/五文）→ 少量時橫向置中（inline-flex+min-width:100%+justify-content:center）；
+    概念上多量時外層 overflowX:auto 啟動可捲。
+
+(b) PATCH 陳大文 is_self=1 → D1 確認：大文 is_self=1，其餘全0 ✅
+    再 PATCH 陳三文 is_self=1 → D1 確認：只有三文 is_self=1，大文已被清除 ✅
+    API 返回：{"ok":true,"member_id":"...","is_self":1}
+
+(c) 建立陳大文-陳二文 marriage 邊 → household 有 spouse
+    HouseholdBlock 配偶模式：透明左半按鈕（primary → #/member/M1）+ 透明右半按鈕（spouse → #/member/M2）
+    各自可點入各自詳情頁（代碼層面確認：position:absolute 左右各48%/52%）✅
+
+(d) MemberDetail.tsx 中有：
+    - TopBar onBack={goHome}（頂部箭嘴返回）
+    - 明確按鈕：‹ 返回家庭樹（t('member_detail.back_to_tree')）✅
+
+(e) 陳大強（M1 兄弟，M1 無父母）→ relationship_ids:[] 不建邊，孤立同代 ✅
+    陳四強（M4 兄弟，M4 有父母陳老爺）→ relationship_ids:[{relId}] 建立 parent_child 邊 ✅
+    D1 query：陳老爺 → 陳四文（parent_child）、陳老爺 → 陳四強（parent_child）
+    即兩兄弟共享同一父母，BFS 計算後同代 ✅
+```
+
+**已知限制（兄弟姊妹）**：若 target 尚無父母，新成員為孤立同代（level=0），無 parent_child 邊連接，待 4f 孤立同代演算法處理。
+
+### Build 結果
+- `npm run build` → ✅（72 modules，零 TypeScript 錯誤，vite build 553ms）
+
+### Git
+- Commit：細步 4e（message 見 git log）
+- Push：`git push origin main`

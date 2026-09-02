@@ -23,6 +23,7 @@ export interface ApiMember {
   birth_date: string | null
   deceased_date?: string | null
   avatar_url: string | null
+  is_self?: number  // 1 = 本人，0 = 一般；全 family 最多一個 is_self=1
 }
 
 export interface ApiRel {
@@ -63,8 +64,8 @@ export function buildLevels(
   const persons = members.filter(m => m.member_kind === 'person')
   if (persons.length === 0) return new Map()
 
-  // 錨點 = 第一個 person（依 members 陣列順序，即加入順序）
-  const anchor = persons[0]
+  // 錨點 = 優先取 is_self=1 的成員；若無則 fallback 第一個 person（加入順序）
+  const anchor = persons.find(p => p.is_self === 1) ?? persons[0]
 
   const levelMap = new Map<string, number>()
   levelMap.set(anchor.id, 0)

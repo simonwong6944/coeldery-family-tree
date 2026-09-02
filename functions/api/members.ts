@@ -36,7 +36,7 @@ const RELATION_TO_EDGE: Record<string, { edge: string; direction: 'from_target' 
   relation_spouse:     { edge: 'marriage',     direction: 'marriage'     },
   relation_child:      { edge: 'parent_child', direction: 'to_target'   }, // target → 新成員（target 是父，新成員是子）
   relation_parent:     { edge: 'parent_child', direction: 'from_target'  }, // 新成員 → target（新成員是父，target 是子）
-  relation_sibling:    { edge: 'parent_child', direction: 'to_target'   }, // 階段一簡化
+  // relation_sibling 有獨立處理路徑（共享父母），不在此表
   relation_grandchild: { edge: 'parent_child', direction: 'to_target'   },
   relation_other:      { edge: 'parent_child', direction: 'to_target'   },
 }
@@ -78,29 +78,53 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
   const relationshipIds: string[] = []
 
   if (member_kind === 'person' && relation_key && target_member_id) {
-    const mapping = RELATION_TO_EDGE[relation_key]
-    if (mapping) {
-      // 驗證 target_member_id 屬於此 family
+    // ── 兄弟姊妹：共享父母邏輯（獨立路徑）──
+    if (relation_key === 'relation_sibling') {
       const target = await ctx.env.DB.prepare(
         'SELECT id FROM members WHERE id = ? AND family_id = ?'
       ).bind(target_member_id, familyId).first<{ id: string }>()
 
       if (target) {
-        const relId = genId()
-        let fromId: string, toId: string
-        if (mapping.direction === 'marriage') {
-          ;[fromId, toId] = target.id < memberId ? [target.id, memberId] : [memberId, target.id]
-        } else if (mapping.direction === 'to_target') {
-          // target 是父/長輩 → from, 新成員 → to
-          fromId = target.id; toId = memberId
-        } else {
-          // from_target: 新成員是父 → from, target → to
-          fromId = memberId; toId = target.id
+        // 查出 target 的所有父母（target 是 to_member 的 parent_child 邊之 from_member）
+        const parentRows = await ctx.env.DB.prepare(
+          "SELECT from_member FROM relationships WHERE family_id = ? AND edge_type = 'parent_child' AND to_member = ?"
+        ).bind(familyId, target.id).all<{ from_member: string }>()
+
+        if (parentRows.results.length > 0) {
+          // 為每個父母建立 parent_child 邊（parent → 新成員）
+          for (const row of parentRows.results) {
+            const relId = genId()
+            await ctx.env.DB.prepare(
+              "INSERT INTO relationships (id, family_id, from_member, to_member, edge_type) VALUES (?, ?, ?, ?, 'parent_child')"
+            ).bind(relId, familyId, row.from_member, memberId).run()
+            relationshipIds.push(relId)
+          }
         }
-        await ctx.env.DB.prepare(
-          'INSERT INTO relationships (id, family_id, from_member, to_member, edge_type, status) VALUES (?, ?, ?, ?, ?, ?)'
-        ).bind(relId, familyId, fromId, toId, mapping.edge, mapping.edge === 'marriage' ? 'current' : null).run()
-        relationshipIds.push(relId)
+        // 若 target 尚無父母：不建邊，孤立同代（build_log 已記錄此限制）
+      }
+    } else {
+      // ── 一般關係處理 ──
+      const mapping = RELATION_TO_EDGE[relation_key]
+      if (mapping) {
+        const target = await ctx.env.DB.prepare(
+          'SELECT id FROM members WHERE id = ? AND family_id = ?'
+        ).bind(target_member_id, familyId).first<{ id: string }>()
+
+        if (target) {
+          const relId = genId()
+          let fromId: string, toId: string
+          if (mapping.direction === 'marriage') {
+            ;[fromId, toId] = target.id < memberId ? [target.id, memberId] : [memberId, target.id]
+          } else if (mapping.direction === 'to_target') {
+            fromId = target.id; toId = memberId
+          } else {
+            fromId = memberId; toId = target.id
+          }
+          await ctx.env.DB.prepare(
+            'INSERT INTO relationships (id, family_id, from_member, to_member, edge_type, status) VALUES (?, ?, ?, ?, ?, ?)'
+          ).bind(relId, familyId, fromId, toId, mapping.edge, mapping.edge === 'marriage' ? 'current' : null).run()
+          relationshipIds.push(relId)
+        }
       }
     }
   }

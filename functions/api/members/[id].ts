@@ -45,26 +45,43 @@ export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
   try { body = await ctx.request.json() as Record<string, unknown> }
   catch { return Response.json({ ok: false, error: '無效的 JSON 格式' }, { status: 400 }) }
 
-  // 守紅線 4：只允許改 deceased_date，禁改姓名/生日
-  const allowedKeys = ['deceased_date']
+  // 守紅線 4：只允許改 deceased_date 或 is_self，禁改姓名/生日
+  const allowedKeys = ['deceased_date', 'is_self']
   const bodyKeys = Object.keys(body)
   const forbidden = bodyKeys.filter(k => !allowedKeys.includes(k))
   if (forbidden.length > 0)
-    return Response.json({ ok: false, error: `不允許修改欄位：${forbidden.join(', ')}（只可改 deceased_date）` }, { status: 400 })
-
-  if (!('deceased_date' in body))
-    return Response.json({ ok: false, error: '缺少 deceased_date 欄位' }, { status: 400 })
-
-  const deceasedDate = body.deceased_date as string | null
-  // 若有值則驗證格式（YYYY-MM-DD）
-  if (deceasedDate !== null && !/^\d{4}-\d{2}-\d{2}$/.test(deceasedDate))
-    return Response.json({ ok: false, error: 'deceased_date 格式須為 YYYY-MM-DD' }, { status: 400 })
+    return Response.json({ ok: false, error: `不允許修改欄位：${forbidden.join(', ')}` }, { status: 400 })
 
   // 確認成員存在
   const member = await ctx.env.DB.prepare(
-    'SELECT id FROM members WHERE id = ?'
-  ).bind(memberId).first<{ id: string }>()
+    'SELECT id, family_id FROM members WHERE id = ?'
+  ).bind(memberId).first<{ id: string; family_id: string }>()
   if (!member) return Response.json({ ok: false, error: '找不到此成員' }, { status: 404 })
+
+  // ── 處理 is_self ──
+  if ('is_self' in body) {
+    const isSelf = body.is_self
+    if (isSelf !== 0 && isSelf !== 1)
+      return Response.json({ ok: false, error: 'is_self 只接受 0 或 1' }, { status: 400 })
+    if (isSelf === 1) {
+      // 先將同 family 所有成員設回 0
+      await ctx.env.DB.prepare(
+        'UPDATE members SET is_self = 0 WHERE family_id = ?'
+      ).bind(member.family_id).run()
+    }
+    await ctx.env.DB.prepare(
+      'UPDATE members SET is_self = ? WHERE id = ?'
+    ).bind(isSelf, memberId).run()
+    return Response.json({ ok: true, member_id: memberId, is_self: isSelf })
+  }
+
+  // ── 處理 deceased_date ──
+  if (!('deceased_date' in body))
+    return Response.json({ ok: false, error: '缺少可更新的欄位（deceased_date 或 is_self）' }, { status: 400 })
+
+  const deceasedDate = body.deceased_date as string | null
+  if (deceasedDate !== null && !/^\d{4}-\d{2}-\d{2}$/.test(deceasedDate))
+    return Response.json({ ok: false, error: 'deceased_date 格式須為 YYYY-MM-DD' }, { status: 400 })
 
   await ctx.env.DB.prepare(
     'UPDATE members SET deceased_date = ? WHERE id = ?'

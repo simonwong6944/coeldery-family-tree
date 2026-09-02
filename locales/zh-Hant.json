@@ -46,7 +46,8 @@
     "layer_label_3": "曾孫代",
     "layer_label_other": "第 {{level}} 代",
     "member_relation_person": "家庭成員",
-    "member_relation_pet": "寵物"
+    "member_relation_pet": "寵物",
+    "self_badge": "本人"
   },
 
   "gen1": {
@@ -339,7 +340,10 @@
     "delete_btn": "刪除此成員",
     "delete_warning": "⚠️ 此操作將永久移除，只應用於輸入錯誤。此成員所有關係邊將一併清除，此動作不可撤回。",
     "delete_confirm_btn": "確認永久刪除",
-    "delete_cancel_btn": "取消"
+    "delete_cancel_btn": "取消",
+    "set_self_btn": "設為本人",
+    "is_self_label": "本人",
+    "back_to_tree": "返回家庭樹"
   },
 
   "a11y": {

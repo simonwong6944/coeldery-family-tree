@@ -4,10 +4,12 @@
  *
  * 功能：
  *   - 顯示姓名、生日（唯讀）、deceased_date（可設定）
+ *   - 「設為本人」：PATCH is_self=1（全 family 僅一個本人）
  *   - 列出所有關係邊（對象姓名 + 類型 + status）
  *   - 婚姻邊可改 status（current / divorced / separated / widowed）
  *   - 真・刪除成員（二次確認，Rule 19）
  *   - 補關係面板（MemberAddRelPanel）
+ *   - 明確「返回家庭樹」掣（Task 4）
  *
  * 頁面 ≤ 200 行。
  */
@@ -35,6 +37,7 @@ export default function MemberDetail({ memberId }: { memberId: string }) {
   const [deceasedInput, setDeceasedInput] = useState('')
   const [saving, setSaving] = useState(false)
   const [statusBusy, setStatusBusy] = useState('')
+  const [selfBusy, setSelfBusy] = useState(false)
 
   const fetchTree = useCallback(() => {
     setLoading(true)
@@ -47,8 +50,6 @@ export default function MemberDetail({ memberId }: { memberId: string }) {
 
   const member = tree?.members.find(m => m.id === memberId)
   const allRels = tree?.relationships ?? []
-
-  // 找此成員的所有關係邊
   const myRels = allRels.filter(r => r.from_member === memberId || r.to_member === memberId)
 
   function getPeerName(rel: ApiRel): string {
@@ -75,22 +76,38 @@ export default function MemberDetail({ memberId }: { memberId: string }) {
     setSaving(false); fetchTree()
   }
 
+  async function handleSetSelf() {
+    setSelfBusy(true)
+    await fetch(`/api/members/${memberId}`, {
+      method: 'PATCH', headers: { 'Content-Type':'application/json' },
+      body: JSON.stringify({ is_self: 1 }),
+    })
+    setSelfBusy(false); fetchTree()
+  }
+
   async function handleDelete() {
     await fetch(`/api/members/${memberId}`, { method: 'DELETE' })
     window.location.hash = '#/'
   }
+
+  const goHome = () => { window.location.hash = '#/' }
 
   const card: React.CSSProperties = { backgroundColor:'var(--color-card)', borderRadius:'12px', padding:'16px', marginBottom:'12px' }
   const label: React.CSSProperties = { fontSize:'13px', color:'var(--color-text-secondary)', marginBottom:'4px', display:'block' }
   const val: React.CSSProperties = { fontSize:'16px', color:'var(--color-text)', fontWeight:'500' }
   const dangerBtn: React.CSSProperties = { minHeight:'44px', padding:'0 20px', borderRadius:'22px', fontSize:'15px', fontWeight:'bold', fontFamily:'inherit', cursor:'pointer', border:'none', backgroundColor:'#ef4444', color:'#fff' }
   const smallBtn: React.CSSProperties = { minHeight:'36px', padding:'0 14px', borderRadius:'18px', fontSize:'14px', fontFamily:'inherit', cursor:'pointer', border:'1.5px solid var(--color-primary)', backgroundColor:'transparent', color:'var(--color-primary)' }
+  const primaryBtn: React.CSSProperties = { minHeight:'44px', padding:'0 20px', borderRadius:'22px', fontSize:'15px', fontWeight:'bold', fontFamily:'inherit', cursor:'pointer', border:'none', backgroundColor:'var(--color-primary)', color:'var(--color-card)' }
   const select: React.CSSProperties = { minHeight:'36px', padding:'0 8px', borderRadius:'8px', border:'1.5px solid var(--color-border)', fontSize:'14px', fontFamily:'inherit', color:'var(--color-text)', backgroundColor:'var(--color-card)' }
 
   const wrap = (children: React.ReactNode) => (
     <div style={{ minHeight:'100svh', backgroundColor:'var(--color-bg)', display:'flex', flexDirection:'column' }}>
-      <TopBar titleKey="member_detail.page_title" onBack={() => { window.location.hash='#/' }}/>
+      <TopBar titleKey="member_detail.page_title" onBack={goHome}/>
       <main style={{ flex:1, overflowY:'auto', paddingTop:'56px', paddingBottom:'40px', padding:'72px 16px 40px' }}>
+        {/* 明確返回掣（Task 4）*/}
+        <button onClick={goHome} style={{ ...smallBtn, marginBottom:'16px', display:'flex', alignItems:'center', gap:'6px' }}>
+          ‹ {t('member_detail.back_to_tree')}
+        </button>
         {children}
       </main>
     </div>
@@ -99,24 +116,40 @@ export default function MemberDetail({ memberId }: { memberId: string }) {
   if (loading) return wrap(<p style={{ color:'var(--color-text-secondary)' }}>載入中⋯</p>)
   if (!member) return wrap(<p style={{ color:'var(--color-danger,#dc2626)' }}>找不到此成員</p>)
 
+  const isSelf = member.is_self === 1
   const statusOpts = ['current','divorced','separated','widowed']
 
   return wrap(<>
     {/* 基本資料 */}
     <section style={card}>
-      <span style={label}>{t('member_detail.name_label')}</span>
-      <p style={{ ...val, fontSize:'20px', margin:'0 0 12px' }}>{member.display_name}</p>
+      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:'12px', flexWrap:'wrap', marginBottom:'12px' }}>
+        <div>
+          <span style={label}>{t('member_detail.name_label')}</span>
+          <p style={{ ...val, fontSize:'20px', margin:0 }}>{member.display_name}</p>
+        </div>
+        {isSelf && (
+          <span style={{ fontSize:'12px', fontWeight:'bold', color:'var(--color-primary)', border:'1.5px solid var(--color-primary)', borderRadius:'12px', padding:'2px 10px', whiteSpace:'nowrap', alignSelf:'flex-start' }}>
+            {t('member_detail.is_self_label')}
+          </span>
+        )}
+      </div>
       <span style={label}>{t('member_detail.birth_label')}</span>
       <p style={{ ...val, margin:'0 0 12px' }}>{member.birth_date ?? '—'}</p>
       <span style={label}>{t('member_detail.deceased_label')}</span>
       <p style={{ ...val, margin:'0 0 8px' }}>{member.deceased_date ?? '—'}</p>
-      <div style={{ display:'flex', gap:'8px', alignItems:'center', flexWrap:'wrap' }}>
+      <div style={{ display:'flex', gap:'8px', alignItems:'center', flexWrap:'wrap', marginBottom:'12px' }}>
         <input type="date" value={deceasedInput} onChange={e => setDeceasedInput(e.target.value)}
           style={{ minHeight:'36px', padding:'0 8px', borderRadius:'8px', border:'1.5px solid var(--color-border)', fontSize:'14px', fontFamily:'inherit', color:'var(--color-text)' }}/>
         <button style={smallBtn} disabled={saving || !deceasedInput} onClick={handleSetDeceased}>
           {saving ? t('b3.btn_submitting') : t('member_detail.set_deceased_btn')}
         </button>
       </div>
+      {/* 設為本人掣（只有非本人的 person 成員才顯示）*/}
+      {member.member_kind === 'person' && !isSelf && (
+        <button style={primaryBtn} disabled={selfBusy} onClick={handleSetSelf}>
+          {selfBusy ? t('b3.btn_submitting') : t('member_detail.set_self_btn')}
+        </button>
+      )}
     </section>
 
     {/* 關係邊 */}
