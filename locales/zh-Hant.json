@@ -170,7 +170,12 @@
 
     "btn_next": "下一步",
     "btn_prev": "上一步",
-    "btn_finish": "完成加入"
+    "btn_finish": "完成加入",
+
+    "btn_submitting": "正在提交⋯",
+    "error_heading": "提交失敗",
+    "error_sub": "請稍後再試，或聯絡技術支援。",
+    "btn_retry": "重試"
   },
 
   "placeholder": {

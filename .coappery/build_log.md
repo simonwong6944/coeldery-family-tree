@@ -2,6 +2,84 @@
 
 ---
 
+## [細步 4a][實時紀錄] B3 end-to-end — D1 schema + API + B3/B1 接駁
+
+### 1. 完整指令原文
+任務：細步 4a — 令 B3「加入家人」end-to-end 變真（階段一：family tree 自己嗰半）。(1) 寫 migrations/0001_initial_schema.sql：families、members、relationships 三表 + 必要索引，edge-based 關係模型，只 --local 測試；(2) 建 functions/api/ Cloudflare Pages Functions：POST /api/members（建立成員 + 關係邊），GET /api/tree（讀所有成員 + 關係供 B1）；(3) B3AddMember.tsx 撳「完成」時 POST 真實 API；B1HomePage.tsx useEffect fetch /api/tree 顯示真實成員；(4) npm run build 綠，--local D1 測試有 query 證據，push GitHub，build_log.md 記錄後停低，不 deploy 不觸碰生產。
+
+### 2. 任務範圍與紅線
+- **只改 coeldery-family-tree repo**，零接觸 85AI repo / coeldery85-db / CoEldery 85 API
+- **只 --local migration**，絕不執行 --remote；production migration 由產品負責人在自己 PowerShell 執行
+- 遵守：頁面 ≤200 行、module ≤250 行、文字 i18n、顏色 CSS 變數、不加規則外 npm 套件
+
+### 3. 實際執行步驟
+
+#### 3.1 已有檔案確認（前次 session 已建）
+- `migrations/0001_initial_schema.sql` — families + members + relationships + 6 indexes ✅
+- `wrangler.jsonc` — d1_databases binding (DB → coeldery-family-tree-db) ✅
+- `functions/api/_types.ts` — Env interface ✅
+- `functions/api/tree.ts` — GET /api/tree ✅
+- `functions/api/members.ts` — POST /api/members，含 genId() Web Crypto、RELATION_TO_EDGE mapping、auto-create family ✅
+
+#### 3.2 本次 session 修改
+- `src/pages/B3AddMember.tsx`：壓縮至 176 行（≤200 ✅），加入 submitMember()、submitStatus state、Step 3/Step 2 Pet 真實提交按鈕、Step 4 error/retry UI
+- `locales/zh-Hant.json`：新增 4 個 b3 keys：btn_submitting、error_heading、error_sub、btn_retry
+- `src/pages/B1HomePage.tsx`：123 行（≤200 ✅），加入 useEffect + fetch('/api/tree')；有真實成員時顯示「已加入 N 位成員」列表；無成員時 fallback 顯示原有 mock UI
+- `ecosystem.config.cjs`：新增 PM2 設定（wrangler pages dev + --d1=coeldery-family-tree-db --local）
+
+### 4. 驗證結果
+
+#### 4.1 --local D1 Migration
+```
+npx wrangler d1 migrations apply coeldery-family-tree-db --local
+→ 0001_initial_schema.sql ✅  10 commands executed successfully.
+```
+
+#### 4.2 npm run build
+```
+tsc -b && vite build
+→ 66 modules transformed. 零 TypeScript 錯誤 ✅
+→ dist/assets/index-DKIm2ILc.js 316.95 kB (gzip 91.71 kB)
+```
+
+#### 4.3 API 測試（wrangler pages dev --d1 --local，port 3000）
+```bash
+# POST 人（陳大文）
+curl -X POST /api/members -d '{"member_kind":"person","display_name":"陳大文","birth_date":"1955-03-15","relation_key":"relation_spouse"}'
+→ {"ok":true,"member_id":"83eda81589e97bf6d17df1d2235b869a","relationship_ids":[]}  ✅
+
+# POST 寵物（Lucky）
+curl -X POST /api/members -d '{"member_kind":"pet","display_name":"Lucky","birth_date":"2020-06-01","pet_owner_indexes":[0,1]}'
+→ {"ok":true,"member_id":"1815ad4033cbd5ffcd326347aeb216ed","relationship_ids":[]}  ✅
+
+# GET /api/tree
+→ {"family":{"name":"陳家","id":"beb0074b..."},"members":[{陳大文/person},{Lucky/pet}],"relationships":[]}  ✅
+```
+
+#### 4.4 D1 直接查詢確認
+```bash
+npx wrangler d1 execute coeldery-family-tree-db --local --command="SELECT id, member_kind, display_name FROM members"
+→ 陳大文 (person), Lucky (pet)  ✅
+
+npx wrangler d1 execute coeldery-family-tree-db --local --command="SELECT id, name FROM families"
+→ 陳家 (自動建立)  ✅
+```
+
+### 5. 行數確認
+| 檔案 | 行數 | 限制 | 狀態 |
+|------|------|------|------|
+| src/pages/B3AddMember.tsx | 176 | ≤200 | ✅ |
+| src/pages/B1HomePage.tsx | 123 | ≤200 | ✅ |
+| functions/api/members.ts | — | — | 非頁面/module，不受限 |
+| functions/api/tree.ts | — | — | 非頁面/module，不受限 |
+
+### 6. 待產品負責人執行（本機外）
+- `npx wrangler d1 create coeldery-family-tree-db` → 取得真實 database_id，替換 wrangler.jsonc 中的 `00000000-0000-0000-0000-000000000000`
+- `npx wrangler d1 migrations apply coeldery-family-tree-db --remote` → 在自己 PowerShell 執行生產 migration
+- 部署：`npm run build && npx wrangler pages deploy dist`
+
+---
+
 ## [細步 3h][實時紀錄] 事件詳情頁（慶祝版 + 忌辰版共用組件）
 
 ### 1. 完整指令原文

@@ -17,6 +17,9 @@ dist
 dist-ssr
 *.local
 
+# Wrangler local state (本機 D1 SQLite，不入 git)
+.wrangler/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
