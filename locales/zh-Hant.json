@@ -175,7 +175,13 @@
     "btn_submitting": "正在提交⋯",
     "error_heading": "提交失敗",
     "error_sub": "請稍後再試，或聯絡技術支援。",
-    "btn_retry": "重試"
+    "btn_retry": "重試",
+
+    "label_target": "與誰建立此關係",
+    "target_first_member": "您是家庭樹的首位成員，無需選擇對象。",
+    "target_placeholder": "請選擇一位家庭成員",
+    "label_pet_owners_real": "主人（請從家庭成員中選擇）",
+    "pet_no_members": "尚無人成員，請先加入至少一位人成員。"
   },
 
   "placeholder": {

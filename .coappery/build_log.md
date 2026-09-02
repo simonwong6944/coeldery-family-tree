@@ -2,6 +2,75 @@
 
 ---
 
+## [細步 4b][實時紀錄] B1 真實資料渲染 + B3 補「關係對象」令關係邊真正建立
+
+### 1. 完整指令原文
+任務：細步 4b — B1 家庭樹改用真實資料渲染 + B3 補「關係對象」令關係邊真正建立。(1) B3 人版填資料步加入「與誰建立此關係」下拉，列出現有 person 成員；首個成員無需揀對象；提交時傳 target_member_id 給 API 建立真實關係邊。寵物版主人改從真實 API 成員選取（非 hardcode OWNER_KEYS）。(2) functions/api/members.ts 更新：接收 target_member_id，以正確方向寫入 relationships 表。(3) B1 完全移除 mock data，改用 /api/tree 真實 members + relationships 渲染分代結構；空狀態顯示引導按鈕；marriage 邊 → Gen1 夫婦；parent_child 邊 → Gen2/Gen3 子女。(4) 本機 --local 測試三個成員流程，D1 query 確認 relationships 表有 marriage + parent_child 邊。
+
+### 2. 任務範圍與紅線
+- 只改 coeldery-family-tree repo；零接觸 85AI / coeldery85-db / CoEldery 85 API
+- 絕對不執行 --remote；production migration 由產品負責人在自己 PowerShell 執行
+- 遵守：頁面 ≤200 行、module ≤250 行、文字 i18n、顏色 CSS 變數
+
+### 3. 實際修改
+
+| 檔案 | 修改內容 |
+|------|---------|
+| `functions/api/members.ts` | 新增接收 `target_member_id`；RELATION_TO_EDGE 方向改為以「新成員視角」定義；驗證 target 屬此 family；以正確 from/to 寫入 relationships；寵物改接 `owner_member_ids`（真實 ID 陣列） |
+| `src/pages/B3AddMember.tsx` | 195 行（≤200 ✅）；新增 `existingPersons` state（useEffect fetch /api/tree 取 person 列表）；Step 2 Person 加「與誰建立此關係」select；首個成員顯示「您是首位成員」提示；Step 2 Pet 主人從真實 API 成員 toggle 選取（替換 hardcode OWNER_KEYS）；提交時傳 `target_member_id` / `owner_member_ids` |
+| `src/pages/B1HomePage.tsx` | 181 行（≤200 ✅）；完全移除所有 mock（AVATAR_* / gen1Primary / gen2FocPrimary 等）；新增 `TreeData` / `ApiRel` 介面；`buildGenerations()` 函數解析 marriage→Gen1、parent_child→Gen2/3、pet_owner→pets；空狀態顯示 🌱 引導加入；有資料則渲染 Gen1 HouseholdCard + ConnectionLine + Gen2/3 |
+| `locales/zh-Hant.json` | 新增 5 個 b3 keys：`label_target`、`target_first_member`、`target_placeholder`、`label_pet_owners_real`、`pet_no_members` |
+
+### 4. 驗證結果
+
+#### 4.1 npm run build
+```
+tsc -b && vite build → 68 modules, 零 TypeScript 錯誤 ✅
+```
+
+#### 4.2 完整測試流程（--local D1，port 3000）
+```bash
+# 加第一個成員（本人/根節點，無 target_member_id）
+POST /api/members {"member_kind":"person","display_name":"陳大文","birth_date":"1950-01-15"}
+→ {"ok":true,"member_id":"790627bc...","relationship_ids":[]}  ✅
+
+# 加第二個成員（配偶，target=陳大文）
+POST /api/members {"relation_key":"relation_spouse","target_member_id":"790627bc..."}
+→ {"ok":true,"member_id":"8c23a4f1...","relationship_ids":["38e30838..."]}  ✅ 邊建立！
+
+# 加第三個成員（子女，target=陳大文）
+POST /api/members {"relation_key":"relation_child","target_member_id":"790627bc..."}
+→ {"ok":true,"member_id":"a7b87a27...","relationship_ids":["a6200365..."]}  ✅ 邊建立！
+```
+
+#### 4.3 D1 直接查詢確認（--local）
+```
+SELECT from_name, to_name, edge_type, status FROM relationships (JOIN members)
+→ 陳大文 → 陳李秀英  | marriage    | current  ✅
+→ 陳大文 → 陳志明    | parent_child | null     ✅
+（relationship_ids 不再空，兩條邊均正確寫入）
+```
+
+#### 4.4 GET /api/tree 確認 B1 解析邏輯
+```
+Gen1 成員: [陳大文, 陳李秀英]（marriage 邊）→ variant='couple' HouseholdCard
+Gen2 成員: [陳志明]（parent_child 邊 from Gen1）→ variant='single' HouseholdCard
+Gen3: 空（無更深一代）
+```
+
+### 5. 行數確認
+| 檔案 | 行數 | 限制 | 狀態 |
+|------|------|------|------|
+| src/pages/B3AddMember.tsx | 195 | ≤200 | ✅ |
+| src/pages/B1HomePage.tsx | 181 | ≤200 | ✅ |
+| functions/api/members.ts | 109 | 非頁面/module | — |
+
+### 6. 待產品負責人執行（本機外）
+- `wrangler d1 migrations apply coeldery-family-tree-db --remote`（已於細步 4a 叮囑，schema 無變化，無需重跑）
+- `npm run build && wrangler pages deploy dist`（正式部署）
+
+---
+
 ## [細步 4a][實時紀錄] B3 end-to-end — D1 schema + API + B3/B1 接駁
 
 ### 1. 完整指令原文

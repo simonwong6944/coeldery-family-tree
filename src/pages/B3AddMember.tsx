@@ -1,9 +1,9 @@
 /**
  * B3AddMember — 加入家人精靈（4 步人版 / 3 步寵物版）
  * 路由：#/b3-add  規格：.coappery/design/B2_B3.md §3–§7
- * 細步 4a：加入真實 API 提交邏輯（POST /api/members）
+ * 細步 4b：加入「關係對象」選擇，從真實 API 成員建立關係邊
  */
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import TopBar from '../../packages/top-bar'
 import BottomTabBar from '../../packages/bottom-tab-bar'
@@ -12,30 +12,41 @@ import WizardStepIndicator from '../../packages/wizard-step-indicator'
 
 type MemberType = 'person' | 'pet' | null
 type SubmitStatus = 'idle' | 'submitting' | 'done' | 'error'
+interface ExistingMember { id: string; display_name: string; member_kind: string }
 const RELATION_CHIPS = ['relation_spouse','relation_child','relation_parent','relation_sibling','relation_grandchild','relation_other']
-const OWNER_KEYS = ['gen1.member_self_name','gen1.member_spouse_name','gen2.member_eldest_son_name','gen2.member_eldest_daughter_in_law_name']
 
 export default function B3AddMember() {
   const { t } = useTranslation()
   const [memberType, setMemberType] = useState<MemberType>(null)
   const [step, setStep] = useState(1)
   const [relation, setRelation] = useState<string | null>(null)
-  const [petOwners, setPetOwners] = useState<Set<number>>(new Set([0, 3]))
-  const [petName, setPetName] = useState('Lucky')
+  const [targetId, setTargetId] = useState<string | null>(null)
+  const [petOwnerIds, setPetOwnerIds] = useState<Set<string>>(new Set())
+  const [petName, setPetName] = useState('')
   const [personName, setPersonName] = useState('')
   const [birthDate, setBirthDate] = useState('')
   const [submitStatus, setSubmitStatus] = useState<SubmitStatus>('idle')
+  const [existingPersons, setExistingPersons] = useState<ExistingMember[]>([])
+
+  useEffect(() => {
+    fetch('/api/tree').then(r => r.ok ? r.json() : { members: [] })
+      .then((d: { members?: ExistingMember[] }) => {
+        const persons = (d.members ?? []).filter(m => m.member_kind === 'person')
+        setExistingPersons(persons)
+      }).catch(() => {})
+  }, [])
 
   const isPet = memberType === 'pet'
   const totalDots = isPet ? 3 : 4
   const dotStep = isPet && step === 4 ? 3 : step
+  const isFirstMember = existingPersons.length === 0
 
   async function submitMember(): Promise<void> {
     setSubmitStatus('submitting')
     try {
       const body: Record<string, unknown> = { member_kind: memberType, display_name: isPet ? petName.trim() : personName.trim(), birth_date: birthDate || undefined }
-      if (!isPet && relation) body.relation_key = relation
-      if (isPet) body.pet_owner_indexes = Array.from(petOwners)
+      if (!isPet && relation) { body.relation_key = relation; if (targetId) body.target_member_id = targetId }
+      if (isPet) body.owner_member_ids = Array.from(petOwnerIds)
       const res = await fetch('/api/members', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setSubmitStatus('done')
@@ -56,7 +67,8 @@ export default function B3AddMember() {
       <button onClick={next} disabled={dis} style={{ ...pill(dis), flex:2 }}>{t('b3.btn_next')}</button>
     </div>
   )
-  const toggleOwner = (i: number) => setPetOwners(p => { const n=new Set(p); n.has(i)?n.delete(i):n.add(i); return n })
+
+  const step2PersonValid = !!personName.trim() && (isFirstMember || !!targetId)
 
   /* ─── Step 1 ─── */
   if (step === 1) return <Shell onBack={() => { window.location.hash='#/' }} totalDots={totalDots} dotStep={dotStep}>
@@ -79,50 +91,57 @@ export default function B3AddMember() {
 
   /* ─── Step 2 Person ─── */
   if (step === 2 && !isPet) return <Shell onBack={() => setStep(1)} totalDots={totalDots} dotStep={dotStep}>
-    <h2 style={{ fontSize:'20px', fontWeight:'bold', margin:'0 0 20px' }}>{t('b3.step2_person_title')}</h2>
+    <h2 style={{ fontSize:'20px', fontWeight:'bold', margin:'0 0 16px' }}>{t('b3.step2_person_title')}</h2>
     {lbl('b3.label_name')}
-    <input type="text" placeholder={t('b3.placeholder_name')} value={personName} onChange={e=>setPersonName(e.target.value)} style={{ ...input, marginBottom:'20px' }} />
+    <input type="text" placeholder={t('b3.placeholder_name')} value={personName} onChange={e=>setPersonName(e.target.value)} style={{ ...input, marginBottom:'16px' }} />
     {lbl('b3.label_relation')}
-    <div style={{ display:'flex', flexWrap:'wrap', gap:'10px', marginBottom:'20px' }}>
+    <div style={{ display:'flex', flexWrap:'wrap', gap:'8px', marginBottom:'16px' }}>
       {RELATION_CHIPS.map(k => (
         <button key={k} onClick={() => setRelation(k)} style={{
-          minHeight:'44px', padding:'0 18px', borderRadius:'22px', fontSize:'18px', fontFamily:'inherit', cursor:'pointer',
+          minHeight:'44px', padding:'0 16px', borderRadius:'22px', fontSize:'18px', fontFamily:'inherit', cursor:'pointer',
           fontWeight:relation===k?'bold':'normal', backgroundColor:relation===k?'var(--color-primary)':'var(--color-card)',
           color:relation===k?'var(--color-card)':'var(--color-text)', border:relation===k?'none':'1.5px solid var(--color-divider)',
         }}>{t(`b3.${k}`)}</button>
       ))}
     </div>
-    {lbl('b3.label_birthdate')}
+    {lbl('b3.label_target')}
+    {isFirstMember
+      ? <p style={{ fontSize:'18px', color:'var(--color-text-secondary)', margin:'0 0 16px', padding:'12px', backgroundColor:'var(--color-card)', borderRadius:'12px' }}>{t('b3.target_first_member')}</p>
+      : <select value={targetId ?? ''} onChange={e=>setTargetId(e.target.value||null)} style={{ ...input, marginBottom:'16px', appearance:'auto' }}>
+          <option value="">{t('b3.target_placeholder')}</option>
+          {existingPersons.map(m => <option key={m.id} value={m.id}>{m.display_name}</option>)}
+        </select>}
     <input type="date" value={birthDate} onChange={e=>setBirthDate(e.target.value)} style={{ ...input, marginBottom:'8px' }} />
-    <p style={{ margin:'0 0 24px', fontSize:'18px', color:'var(--color-text-secondary)' }}>{t('b3.birthdate_helper')}</p>
-    {nav2(() => setStep(1), () => setStep(3), !personName.trim())}
+    <p style={{ margin:'0 0 20px', fontSize:'18px', color:'var(--color-text-secondary)' }}>{t('b3.birthdate_helper')}</p>
+    {nav2(() => setStep(1), () => setStep(3), !step2PersonValid)}
   </Shell>
 
   /* ─── Step 2 Pet ─── */
   if (step === 2 && isPet) return <Shell onBack={() => setStep(1)} totalDots={totalDots} dotStep={dotStep}>
-    <h2 style={{ fontSize:'20px', fontWeight:'bold', margin:'0 0 20px' }}>{t('b3.step2_pet_title')}</h2>
+    <h2 style={{ fontSize:'20px', fontWeight:'bold', margin:'0 0 16px' }}>{t('b3.step2_pet_title')}</h2>
     {lbl('b3.label_pet_name')}
-    <div style={{ position:'relative', marginBottom:'20px' }}>
+    <div style={{ position:'relative', marginBottom:'16px' }}>
       <span style={{ position:'absolute', left:'16px', top:'50%', transform:'translateY(-50%)', fontSize:'20px' }}>🐾</span>
       <input type="text" value={petName} onChange={e=>setPetName(e.target.value)} style={{ ...input, paddingLeft:'44px' }} />
     </div>
-    {lbl('b3.label_pet_birthdate')}
     <input type="date" value={birthDate} onChange={e=>setBirthDate(e.target.value)} style={{ ...input, marginBottom:'8px' }} />
-    <p style={{ margin:'0 0 20px', fontSize:'18px', color:'var(--color-text-secondary)' }}>{t('b3.pet_birthdate_helper')}</p>
-    {lbl('b3.label_pet_owners')}
-    <div style={{ display:'flex', flexWrap:'wrap', gap:'10px', marginBottom:'8px' }}>
-      {OWNER_KEYS.map((k,i) => (
-        <button key={i} onClick={() => toggleOwner(i)} style={{
-          minHeight:'52px', padding:'0 20px', borderRadius:'26px', fontSize:'18px', fontFamily:'inherit', fontWeight:'bold', cursor:'pointer',
-          backgroundColor:petOwners.has(i)?'var(--color-primary)':'var(--color-card)',
-          color:petOwners.has(i)?'var(--color-card)':'var(--color-primary)', border:petOwners.has(i)?'none':'2px solid var(--color-primary)',
-        }}>{t(k)}</button>
-      ))}
-    </div>
-    <p style={{ margin:'0 0 24px', fontSize:'18px', color:'var(--color-text-secondary)' }}>{t('b3.pet_owners_hint')}</p>
+    <p style={{ margin:'0 0 16px', fontSize:'18px', color:'var(--color-text-secondary)' }}>{t('b3.pet_birthdate_helper')}</p>
+    {lbl('b3.label_pet_owners_real')}
+    {existingPersons.length === 0
+      ? <p style={{ fontSize:'18px', color:'var(--color-text-secondary)', margin:'0 0 16px' }}>{t('b3.pet_no_members')}</p>
+      : <div style={{ display:'flex', flexWrap:'wrap', gap:'8px', marginBottom:'8px' }}>
+          {existingPersons.map(m => {
+            const sel = petOwnerIds.has(m.id)
+            return <button key={m.id} onClick={() => setPetOwnerIds(p => { const n=new Set(p); sel?n.delete(m.id):n.add(m.id); return n })} style={{
+              minHeight:'52px', padding:'0 20px', borderRadius:'26px', fontSize:'18px', fontFamily:'inherit', fontWeight:'bold', cursor:'pointer',
+              backgroundColor:sel?'var(--color-primary)':'var(--color-card)', color:sel?'var(--color-card)':'var(--color-primary)', border:sel?'none':'2px solid var(--color-primary)',
+            }}>{m.display_name}</button>
+          })}
+        </div>}
+    <p style={{ margin:'0 0 20px', fontSize:'18px', color:'var(--color-text-secondary)' }}>{t('b3.pet_owners_hint')}</p>
     <div style={{ display:'flex', gap:'12px' }}>
       <button onClick={() => setStep(1)} style={{ ...pillGhost, flex:1 }}>{t('b3.btn_prev')}</button>
-      <button disabled={petOwners.size===0||submitStatus==='submitting'} onClick={async()=>{ await submitMember(); setStep(4) }} style={{ ...pill(petOwners.size===0||submitStatus==='submitting'), flex:2 }}>{submitStatus==='submitting'?t('b3.btn_submitting'):t('b3.btn_finish')}</button>
+      <button disabled={!petName.trim()||petOwnerIds.size===0||submitStatus==='submitting'} onClick={async()=>{ await submitMember(); setStep(4) }} style={{ ...pill(!petName.trim()||petOwnerIds.size===0||submitStatus==='submitting'), flex:2 }}>{submitStatus==='submitting'?t('b3.btn_submitting'):t('b3.btn_finish')}</button>
     </div>
   </Shell>
 
@@ -134,7 +153,7 @@ export default function B3AddMember() {
     </div>
     <p style={{ textAlign:'center', margin:'0 0 20px', fontSize:'18px', color:'var(--color-text-secondary)' }}>{t('b3.qr_helper')}</p>
     <button style={{ ...pill(), width:'100%', marginBottom:'16px' }}>{t('b3.whatsapp_invite_btn')}</button>
-    <p style={{ textAlign:'center', margin:'0 0 24px', fontSize:'18px', color:'var(--color-text-secondary)' }}>{t('b3.invite_footnote')}</p>
+    <p style={{ textAlign:'center', margin:'0 0 20px', fontSize:'18px', color:'var(--color-text-secondary)' }}>{t('b3.invite_footnote')}</p>
     <div style={{ display:'flex', gap:'12px' }}>
       <button onClick={() => setStep(2)} style={{ ...pillGhost, flex:1 }}>{t('b3.btn_prev')}</button>
       <button disabled={submitStatus==='submitting'} onClick={async()=>{ await submitMember(); setStep(4) }} style={{ ...pill(submitStatus==='submitting'), flex:2 }}>{submitStatus==='submitting'?t('b3.btn_submitting'):t('b3.btn_finish')}</button>
@@ -149,7 +168,7 @@ export default function B3AddMember() {
       {isErr ? circle('var(--color-accent)', <span style={{ fontSize:'40px', color:'var(--color-card)' }}>！</span>)
               : circle('var(--color-primary)', <svg width="52" height="52" viewBox="0 0 52 52" fill="none" aria-hidden="true"><path d="M10 28L22 40L42 14" stroke="white" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"/></svg>)}
       <h2 style={{ fontSize:'22px', fontWeight:'bold', color:isErr?'var(--color-accent)':'var(--color-primary)', margin:0 }}>{t(isErr?'b3.error_heading':'b3.success_heading')}</h2>
-      <p style={{ fontSize:'18px', color:'var(--color-text-secondary)', margin:0, textAlign:'center' }}>{isErr?t('b3.error_sub'):t('b3.success_sub',{name:isPet?petName:(personName||t('gen2.member_eldest_son'))})}</p>
+      <p style={{ fontSize:'18px', color:'var(--color-text-secondary)', margin:0, textAlign:'center' }}>{isErr?t('b3.error_sub'):t('b3.success_sub',{name:isPet?petName:personName})}</p>
       {isErr
         ? <button onClick={() => { setSubmitStatus('idle'); setStep(isPet?2:3) }} style={{ ...pillGhost, marginTop:'8px' }}>{t('b3.btn_retry')}</button>
         : <button onClick={() => { window.location.hash='#/' }} style={{ ...pill(), marginTop:'8px' }}>{t('b3.btn_back_home')}</button>}
@@ -165,7 +184,7 @@ function Shell({ onBack, totalDots, dotStep, children }:{ onBack:()=>void; total
       <TopBar titleKey="b3.page_title" onBack={onBack} />
       <div style={{ paddingTop:'56px', paddingBottom:'80px', flex:1, overflowY:'auto' }}>
         <WizardStepIndicator totalSteps={totalDots} currentStep={dotStep} />
-        <div style={{ padding:'24px 16px', animation:'b3fade 0.25s ease' }}>{children}</div>
+        <div style={{ padding:'20px 16px', animation:'b3fade 0.25s ease' }}>{children}</div>
       </div>
       <BottomTabBar current="family_tree" onTabChange={(tab: TabId) => {
         const r: Record<TabId,string> = { family_tree:'#/', family_circle:'#/family-feed', family_gathering:'#/family-gather', my_recommendations:'#/my-recommend' }
