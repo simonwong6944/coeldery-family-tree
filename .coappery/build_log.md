@@ -2341,3 +2341,71 @@ dist/assets/index-BS8OiTUe.js  338.27 kB │ gzip: 98.06 kB
 
 - Commit：`git commit -m "細步 4j: FocusCarousel 改為 80vw snap carousel，FocusChildLayer align() 改為對正 wrapRef 容器中心"`
 - Push：`git push origin main`
+
+---
+
+## 細步 4k — carousel 修三樣：兩端有盡頭、必 snap 到正中、下層準確對正
+
+**日期**：2025-09-03
+
+### 目標
+
+修正 4j carousel 的三個手感問題：
+1. **兩端有盡頭**：首/末張置中時 scrollLeft 剛好到盡頭，不能再撥出吉位
+2. **必 snap 到正中**：`scroll-snap-type: x mandatory`，放手後必定 snap 到一張，不卡中間
+3. **下層準確對正**：移除 carousel scroll 事件觸發，改為只在 `selectedIdx` 更新後才 align（snap 完成後），消除途中量到中間值的偏差
+
+### 問題根源分析
+
+| 問題 | 根源 |
+|------|------|
+| over-swipe / 計算偏差 | `scrollPaddingInline: 10vw` 與 spacer(10vw) 並用：前者告訴 snap engine 縮進量，後者是物理擋位，兩者重複，在某些情況下令 snap range 超出 spacer 終點 |
+| snap 後 selectedIdx 更新失準 | `onScroll` closure 依賴 `selectedIdx`，stale closure 導致比較錯誤；改用 `selectedIdxRef` 讀最新值 |
+| 下層對位偏差 | `carouselRef.scroll` 在 snap 途中觸發 `scheduleAlign`，量到中間值；正確時機是 snap 完成 → React re-render → `selectedIdx` 更新後才 align |
+
+### 改動摘要
+
+**`src/components/FocusTree.tsx`（237 行，≤250 ✅）**
+- 移除 `scrollPaddingInline: '10vw'`（只靠 spacer div 確保首/末卡置中）
+- `overflowX: 'scroll'`（替代 `'auto'`，在 iOS 上更穩定）
+- 新增 `selectedIdxRef`，`onScroll` 從 ref 讀最新值，避免 stale closure
+- 新增 `prevScrollIdx`，避免 `selectedIdx` 未改變時重複觸發 programmatic scroll
+- `onScroll` deps 移除 `selectedIdx`（改由 ref 讀）
+- `useEffect` scroll 目標改為 `slice(1, -1)` 精確取 cards（跳過首末 spacer）
+- scroll stop 偵測 timeout 從 120ms 改為 150ms（給 snap engine 更多時間完成）
+
+**`src/components/FocusChildLayer.tsx`（210 行，≤250 ✅）**
+- 移除 carousel `scroll` 事件監聽（`carouselRef.addEventListener('scroll', scheduleAlign)`）
+- `align()` 改為 double RAF 確保 DOM 穩定後再量度
+- `carouselRef` prop 保留（向下相容），加 `_carouselRef` alias 消除 TS unused 警告
+- `doAlign()` 邏輯不變：先歸零 transform，計一次性絕對 delta，不累加
+
+**紅線遵守**：未改 engine、上下 scroll、頭像點擊、連線樣式；未加 npm package；未 deploy；截圖不入 repo。
+
+### Build 結果
+
+```
+> tsc -b && vite build
+✓ 73 modules transformed.
+dist/assets/index-VVzxtf7c.js  338.35 kB │ gzip: 98.08 kB
+✓ built in 436ms
+```
+零 TypeScript 錯誤。
+
+### Playwright 驗證（iPhone 12 模擬）
+
+```
+(a) ✅ 首張 delta=0px (scrollLeft=0)；末張 delta=0px (scrollLeft=maxScroll=312)
+(b) ✅ scrollSnapType=x mandatory，放手後必定 snap 到一張
+(c) ✅ child willChange track 找到，group[0] cx=195=wrapCx，delta=0px
+(d) ✅ firstCard cx=195=container cx，delta=0px（highlight 卡在正中）
+(e) ✅ touchAction=pan-x（縱向不被吃）
+(f) ✅ console errors=0
+```
+
+截圖存 `/tmp/4k_first_card.png`、`/tmp/4k_last_card.png`（不入 repo）。
+
+### Git
+
+- Commit：`git commit -m "細步 4k: 修 carousel over-swipe/snap/下層對正（移 scrollPaddingInline, selectedIdxRef, double-RAF align）"`
+- Push：`git push origin main`

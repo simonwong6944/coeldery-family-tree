@@ -1,13 +1,12 @@
 /**
- * FocusChildLayer — 下層子女區（4j）
+ * FocusChildLayer — 下層子女區（4k）
  *
- * 4j 對正策略改動：
- *   - 不再追隨 carousel DOM 的 selectedIdx 卡座標（4h-fix-2 舊策略），
- *     因為中層卡現在是 80vw 寬、snap 到容器正中，
- *     highlight 父母卡永遠在容器水平正中心。
- *   - 新策略：align() 直接把 groups[selectedIdx] 的 group 元素
- *     移到 wrap 容器的水平正中心。
- *   - 依然用絕對 translateX（每次先歸零再算），不累加，不漂移。
+ * 4k 對正修正：
+ *   - 移除 carousel scroll 事件觸發 scheduleAlign：
+ *     scroll 途中量度座標不準（snap 尚未完成），只在 selectedIdx 更新後才 align。
+ *   - align() 時機：selectedIdx / groups 變化後 → double RAF 確保 DOM 穩定。
+ *   - group index 對應：跳過空 group（groups[i].households.length===0）的邏輯保持正確。
+ *   - ResizeObserver 保留：應對視窗大小改變。
  *
  * module ≤ 250 行。
  */
@@ -16,7 +15,7 @@ import { useRef, useEffect, useCallback } from 'react'
 import type { ChildGroup } from '../../packages/family-tree-engine'
 import { HouseholdChip } from './FocusTreeParts'
 
-/* ── 子女 group 渲染（線簡化版）── */
+/* ── 子女 group 渲染 ── */
 function ChildGroup_({
   group, focusedMemberId, setFocusId,
 }: {
@@ -33,7 +32,6 @@ function ChildGroup_({
       flexShrink: 0, minWidth: 0,
     }}>
       {households.length > 1 ? (
-        /* 多子女：純橫線（純範圍指示，不駁父母、不駁子女），下方橫排子女卡 */
         <>
           <div aria-hidden="true" style={{
             height: '2px', backgroundColor: 'var(--color-primary)',
@@ -56,7 +54,6 @@ function ChildGroup_({
           </div>
         </>
       ) : (
-        /* 單子女：直接放卡，無線 */
         <HouseholdChip
           hh={households[0]} size={64}
           isFocus={focusedMemberId === households[0].primary.id || focusedMemberId === households[0].spouse?.id}
@@ -79,42 +76,56 @@ export interface FocusChildLayerProps {
 }
 
 export default function FocusChildLayer({
-  groups, selectedIdx, carouselRef, focusedMemberId, setFocusId,
+  groups, selectedIdx, carouselRef: _carouselRef, focusedMemberId, setFocusId,
 }: FocusChildLayerProps) {
-  const wrapRef = useRef<HTMLDivElement>(null)
+  const wrapRef  = useRef<HTMLDivElement>(null)
   const trackRef = useRef<HTMLDivElement>(null)
-  const rafId = useRef<number | null>(null)
+  const raf1Ref  = useRef<number | null>(null)
+  const raf2Ref  = useRef<number | null>(null)
 
   const hasAnyChildren = groups.some(g => g.households.length > 0)
 
   /**
-   * 4j align 策略：
-   *   highlight 父母卡永遠 snap 到中層容器正中心（80vw 卡 + snap）。
-   *   因此下層直接把 groups[selectedIdx] 的 group 移到 wrap 容器水平正中心。
+   * 4k align 策略：
+   *   snap 完成後（selectedIdx 已更新），把 groups[selectedIdx] 對應的 DOM group
+   *   移到 wrap 容器水平正中心。
    *
    *   步驟：
-   *   1. 歸零 transform（無 transition），取得原始 layout 座標
-   *   2. 計算 wrap 容器水平中心 x（viewport 座標）
-   *   3. 找 groups[selectedIdx] 對應的 trackChildren 元素
-   *   4. 計算 groupEl 中心 x（transform=0，座標可靠）
+   *   1. 歸零 transform（無 transition），讓 browser 重算 layout
+   *   2. double RAF：確保 layout 穩定後再量度（避免量到中間值）
+   *   3. wrap 容器水平中心 x（viewport 座標）
+   *   4. 找 groups[selectedIdx] 在 track DOM 中的真實下標（跳過空 group）
    *   5. delta = wrapCenterX - groupCx（一次性絕對值，不累加）
-   *   6. 加 transition，apply translateX(delta)
+   *   6. 加 transition + apply translateX(delta)
    */
   const align = useCallback(() => {
     const track = trackRef.current
-    const wrap = wrapRef.current
+    const wrap  = wrapRef.current
     if (!track || !wrap) return
 
     /* Step 1: 歸零 transform，不加 transition */
     track.style.transition = 'none'
-    track.style.transform = ''
+    track.style.transform  = ''
 
-    /* Step 2: wrap 容器水平中心（viewport 座標） */
-    const wrapRect = wrap.getBoundingClientRect()
+    /* Step 2: double RAF — 等 browser 完成 paint，layout 穩定後量度 */
+    if (raf1Ref.current !== null) cancelAnimationFrame(raf1Ref.current)
+    raf1Ref.current = requestAnimationFrame(() => {
+      raf1Ref.current = null
+      if (raf2Ref.current !== null) cancelAnimationFrame(raf2Ref.current)
+      raf2Ref.current = requestAnimationFrame(() => {
+        raf2Ref.current = null
+        doAlign(track, wrap)
+      })
+    })
+  }, [selectedIdx, groups])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  function doAlign(track: HTMLDivElement, wrap: HTMLDivElement) {
+    /* Step 3: wrap 容器水平中心 */
+    const wrapRect   = wrap.getBoundingClientRect()
     const wrapCenterX = wrapRect.left + wrapRect.width / 2
 
-    /* Step 3: 找 groups[selectedIdx] 在 trackChildren 中的真實下標
-     *   groups[i].households.length===0 → track 中沒有此 group 的 DOM
+    /* Step 4: 找 groups[selectedIdx] 在 track DOM 的真實下標
+     * track 只 render 非空 group，空 group 跳過
      */
     const trackChildren = Array.from(track.children) as HTMLElement[]
     let trackIdx = 0
@@ -124,69 +135,60 @@ export default function FocusChildLayer({
 
     const groupEl = trackChildren[trackIdx]
     if (!groupEl) {
-      /* 選中的 group 無子女 → 整個 track 相對 wrap 置中 */
+      /* selectedIdx group 無子女 → track 整體相對 wrap 置中 */
       const trackRect = track.getBoundingClientRect()
-      const trackCx = trackRect.left + trackRect.width / 2
-      const delta = wrapCenterX - trackCx
+      const trackCx   = trackRect.left + trackRect.width / 2
+      const delta     = wrapCenterX - trackCx
       requestAnimationFrame(() => {
         track.style.transition = 'transform 0.3s cubic-bezier(0.4,0,0.2,1)'
-        track.style.transform = `translateX(${delta}px)`
+        track.style.transform  = `translateX(${delta}px)`
       })
       return
     }
 
-    /* Step 4: groupEl 中心 x（transform=0，可靠） */
+    /* Step 5: groupEl 中心 x（transform=0，座標可靠） */
     const groupRect = groupEl.getBoundingClientRect()
-    const groupCx = groupRect.left + groupRect.width / 2
+    const groupCx   = groupRect.left + groupRect.width / 2
 
-    /* Step 5: 一次性絕對 delta，不累加 */
+    /* Step 6: 一次性絕對 delta，不累加 */
     const delta = wrapCenterX - groupCx
-
-    /* Step 6: 加回 transition，apply 絕對 translateX */
     requestAnimationFrame(() => {
       track.style.transition = 'transform 0.3s cubic-bezier(0.4,0,0.2,1)'
-      track.style.transform = `translateX(${delta}px)`
+      track.style.transform  = `translateX(${delta}px)`
     })
-  }, [selectedIdx, groups])
+  }
 
-  const scheduleAlign = useCallback(() => {
-    if (rafId.current !== null) cancelAnimationFrame(rafId.current)
-    rafId.current = requestAnimationFrame(() => { rafId.current = null; align() })
-  }, [align])
+  /* selectedIdx 或 groups 改變後觸發 align（snap 完成後才更新 selectedIdx，時機正確）*/
+  useEffect(() => { align() }, [selectedIdx, groups, align])
 
-  useEffect(() => { scheduleAlign() }, [selectedIdx, groups, scheduleAlign])
-
+  /* 視窗大小改變時重新對位 */
   useEffect(() => {
     const wrap = wrapRef.current
     if (!wrap) return
-    const ro = new ResizeObserver(scheduleAlign)
+    const ro = new ResizeObserver(align)
     ro.observe(wrap)
     return () => ro.disconnect()
-  }, [scheduleAlign])
+  }, [align])
 
-  /* carousel scroll 時也重算對位（carousel snap 完成後 selectedIdx 更新前的過渡期） */
-  useEffect(() => {
-    const carousel = carouselRef.current
-    if (!carousel) return
-    carousel.addEventListener('scroll', scheduleAlign, { passive: true })
-    return () => carousel.removeEventListener('scroll', scheduleAlign)
-  }, [carouselRef, scheduleAlign])
+  /* 注意：4k 移除了 carousel scroll 事件監聽。
+   * 理由：scroll 途中 selectedIdx 尚未更新，此時 align() 會量到中間值，造成偏差。
+   * 正確時機是 snap 完成 → onScroll timer 觸發 onSelect → React re-render → selectedIdx 更新 → align()。
+   * carouselRef 仍保留 prop（向下相容），但不再加 scroll listener。
+   */
 
   if (!hasAnyChildren) return null
 
   return (
-    /* 外層：全寬，只截橫向溢出（overflowX:hidden 防橫爆版），
-     * overflowY 必須 visible，讓子女卡高度貢獻到 <main> scrollHeight，
-     * 縱向 scroll 才能正常觸發。overflow:hidden 整體截住會令 scrollHeight 永遠等於 clientHeight。
-     */
-    <div ref={wrapRef} style={{
-      width: '100%',
-      overflowX: 'hidden',
-      overflowY: 'visible',
-      display: 'flex',
-      justifyContent: 'center',   /* flex 置中作 fallback */
-    }}>
-      {/* track：align() 計算後加 translateX，初始無 padding（由 flex 置中） */}
+    <div
+      ref={wrapRef}
+      style={{
+        width: '100%',
+        overflowX: 'hidden',
+        overflowY: 'visible',
+        display: 'flex',
+        justifyContent: 'center',
+      }}
+    >
       <div ref={trackRef} style={{
         display: 'flex', flexDirection: 'row', gap: '24px',
         flexShrink: 0,
