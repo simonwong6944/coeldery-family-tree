@@ -1,5 +1,5 @@
 /**
- * FocusTree — 焦點式家庭樹（4l：一撥跳一張）
+ * FocusTree — 焦點式家庭樹（4m：全層橫線 + 中↔下雙向 swipe 連動）
  * generation < 0 → ParentRow；= 0 → FocusCarousel（swipe-to-step）；> 0 → FocusChildLayer
  * module ≤ 250 行。
  */
@@ -226,6 +226,7 @@ export default function FocusTree({ focusView, selectedIdx, selfId, setFocusId, 
                 carouselRef={level.generation === 1 ? carouselRef : { current: null }}
                 focusedMemberId={focusId}
                 setFocusId={setFocusId}
+                onSelect={level.generation === 1 ? setSelectedIdx : undefined}
               />
             )}
           </div>

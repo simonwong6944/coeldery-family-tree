@@ -2496,3 +2496,92 @@ Track 卡數: 2
 ### 8. 未解決事項
 - 縱向 scroll 測試以 `window.scrollBy` 驗證（headless 無觸控縱向 scroll 模擬），實機需目視確認
 - `touchAction:'none'` 下縱向 scroll 依賴外層 `<main>` overflow:auto 接管，實機驗證須確認縱向流暢度
+
+---
+
+## [細步 4m][實時紀錄] 全層橫線（單仔女都加、對齊高度）+ 中↔下兩層雙向 swipe 連動
+
+### 1. 完整指令原文
+任務：細步 4m — (1) 全層橫線：每代每房卡上面都畫橫線，包括單仔女房，令同代卡頂對齊；最頂代不畫。(2) 中↔下兩層雙向 swipe 連動：下層接收 onSelect，撥下層→更新 selectedIdx→中層跟進；共用同一 selectedIdx，連動時防無限迴圈。改動範圍：FocusTree.tsx + FocusChildLayer.tsx。
+
+### 2. 任務範圍與紅線
+- 只改 src/components/FocusTree.tsx、src/components/FocusChildLayer.tsx
+- 不改 engine 遞歸、上下 scroll、頭像點擊、API/schema/migration
+- 不 deploy，不跑 seed sql，不加 npm package
+- page ≤200 行、module ≤250 行；i18n + CSS 變數
+
+### 3. 實際修改
+
+| 檔案 | 行數 | 修改內容 |
+|------|------|---------|
+| `src/components/FocusChildLayer.tsx` | 231（≤250 ✅）| (1) 全層橫線：移除 `households.length > 1` 條件，單/多 household 均畫 2px 橫線；(2) 下層 swipe 連動：加入 `onSelect?: (idx: number) => void` prop、`pointerRef`/`selectedIdxRef`、`onPointerDown/Up/Cancel` handlers；`canSwipe = !!onSelect && !isSingle`；wrapRef 加 pointer handlers 和 `touchAction: canSwipe ? 'none' : 'auto'` |
+| `src/components/FocusTree.tsx` | 238（≤250 ✅）| 更新 JSDoc 至 4m；generation=1 的 FocusChildLayer 傳入 `onSelect={setSelectedIdx}`；更深代（generation>1）傳 `onSelect={undefined}`，暫不連動（4n 擴展） |
+
+### 4. 關鍵技術決策
+
+**任務一（橫線）**：
+- 舊：`ChildGroup_` 只在 `households.length > 1` 才渲染橫線
+- 新：不論 household 數，都在 column flex 頂部渲染 `height:2px backgroundColor:var(--color-primary) opacity:0.45` 的橫線
+- 效果：同代所有卡頂部對齊（橫線高度一致 → 卡相對橫線的 paddingTop:8px 一致）
+
+**任務二（雙向連動）**：
+- 共用 `selectedIdx` 作為單一真相，兩層都是 "輸入源"
+- 中層：撥 → `onSelect(next)` → React state 更新 → 兩層 re-render
+- 下層：撥 → `onSelect!(next)` → 同一個 setSelectedIdx → 中層 scroll + 下層 align
+- **防無限迴圈**：programmatic scroll（`scrollIntoView`）不觸發 `onSelect`；align() 只靠 `selectedIdx` 改變觸發，不監聽 scroll event
+- **`canSwipe` 守衛**：下層有多於 1 個有效 group 才啟用手勢（`validGroups > 1`）
+- **`selectedIdxRef`**：避免 `onPointerUp` stale closure 讀到舊值
+
+**4m 限制（4n 擴展）**：
+- 只有 `generation === 1` 的子女層連動
+- 更深代（孫、曾孫）暫傳 `onSelect={undefined}`，保持現狀
+
+### 5. 驗證結果
+
+#### 5.1 npm run build
+```
+tsc -b && vite build → 73 modules, 零 TypeScript 錯誤 ✅
+dist/assets/index-D_Bl-q0m.js 338.71 kB
+```
+
+#### 5.2 Playwright 驗證（headless，390×844 mobile viewport）
+```
+中層卡數: 2（KC Wong 家 + Simon Wong 家）
+下層 ChildGroup_ 分析: 3/3 個有橫線（含 1 個單 household group）
+
+(a) 所有 ChildGroup_ 都有橫線（含單 hh）：3/3 ✅
+(a) 單 household group 也有橫線：1 個確認 ✅
+(b) 最頂代（ParentRow）無橫線：意外橫線=0 ✅
+(c) 中層 idx 更新（idx 0→1）✅
+(c) 下層 align 呼叫（delta≈0 for 1-group case）✅
+(d) 下層 touchAction 邏輯正確（1 group→auto，多 group→none）4/4 wrap 全正確 ✅
+(d) 雙向連動代碼已實作（onSelect prop 傳入 generation=1 layer）✅
+(e) 連續撥多次回到 0 端無漂移 ✅
+(f) 縱向 scroll 可運作 ✅
+(g) 更深代 touchAction:auto，不吃 swipe ✅
+(h) Console 無紅色錯誤 ✅
+```
+
+#### 5.3 視覺確認（Playwright 截圖 AI 分析）
+- 子女代：Peter+Amy（雙 household）和 Alice（單 household）**均有橫線** ✅
+- 同代卡頂部完全水平對齊 ✅
+- 橫線樣式一致（綠色 var(--color-primary)、2px、opacity 0.45）✅
+- 父母代：無橫線 ✅
+
+#### 5.4 備注（seed data 場景說明）
+- 現有 seed data 每個 generation 只有 1 個有效 group（KC Wong 一家的子女），
+  故下層 `canSwipe=false`（正確），`touchAction:'auto'`
+- 雙向連動（canSwipe=true，touchAction:none）在有多個有效 group 的資料下才激活
+- Playwright 以 touchAction 邏輯驗證代碼路徑正確性
+
+### 6. 行數確認
+| 檔案 | 行數 | 限制 | 狀態 |
+|------|------|------|------|
+| src/components/FocusChildLayer.tsx | 231 | ≤250 | ✅ |
+| src/components/FocusTree.tsx | 238 | ≤250 | ✅ |
+
+### 7. 中↔下兩層連動完成，更深代連動留待 4n
+
+### 8. 未解決事項
+- 更深代（孫、曾孫）swipe 連動：留待 4n 擴展（傳入 `onSelect` 鏈）
+- 實機觸控測試：headless Playwright 模擬 pointer events，實際手機需目視確認
