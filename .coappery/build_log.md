@@ -2753,7 +2753,7 @@ FocusCarousel（gen=0）：KC+Simon 兩張，touchAction='none'，可 swipe ✅
 | src/components/FocusChildLayer.tsx | 30 | ≤250 | ✅ |
 
 ### 5. Commit 資訊
-- commit: TBD（待填）
+- commit: c47189c
 - branch: main
 - repo: https://github.com/simonwong6944/coeldery-family-tree
 
