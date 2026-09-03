@@ -1,6 +1,5 @@
 {
   "app_name": "家庭樹",
-
   "top_bar": {
     "back": "← 老有卡 App",
     "title": "老有樹",
@@ -8,14 +7,12 @@
     "share": "分享",
     "notifications": "通知"
   },
-
   "bottom_tab_bar": {
     "family_tree": "家庭樹",
     "family_circle": "家庭圈",
     "family_gathering": "家庭聚會",
     "my_recommendations": "我的推薦"
   },
-
   "upload_panel": {
     "button_label": "＋ 上傳相片／短片",
     "panel_title": "上傳相片／短片",
@@ -29,13 +26,11 @@
     "state_db_write": "儲存紀錄",
     "state_completed": "完成"
   },
-
   "household_card": {
     "couple_connector_label": "配偶",
     "pet_label": "{{petName}} · {{ownerRelation}}的{{petType}}",
     "notification_dot_label": "有新動態"
   },
-
   "gen": {
     "layer_label_minus3": "曾祖父母代",
     "layer_label_minus2": "祖父母代",
@@ -47,9 +42,17 @@
     "layer_label_other": "第 {{level}} 代",
     "member_relation_person": "家庭成員",
     "member_relation_pet": "寵物",
-    "self_badge": "本人"
+    "self_badge": "本人",
+    "back_to_self": "返回本人",
+    "no_parents": "（無上一代資料）",
+    "no_children": "（無子女資料）",
+    "focus_layer_label": "本人同代",
+    "parent_layer_label": "父母代",
+    "child_layer_label": "子女代",
+    "tap_to_explore": "點擊成員換焦點",
+    "sibling_more_left": "← 還有兄弟姊妹",
+    "sibling_more_right": "還有兄弟姊妹 →"
   },
-
   "gen1": {
     "layer_label": "第一代",
     "member_self": "本人",
@@ -59,7 +62,6 @@
     "member_spouse_relation": "妻子",
     "member_spouse_name": "陳李秀英"
   },
-
   "gen2": {
     "layer_label": "第二代",
     "family_label": "{{headName}}一家",
@@ -78,7 +80,6 @@
     "pet_type": "寵物犬",
     "pet_owner_relation": "長媳"
   },
-
   "gen3": {
     "layer_label": "第三代",
     "member_grandson": "孫兒",
@@ -89,18 +90,15 @@
     "member_granddaughter_name": "陳嘉欣",
     "dots_label": "第 {{current}} 個，共 {{total}} 個成員"
   },
-
   "common": {
     "indicator_position": "第 {{active}} 個，共 {{total}} 個"
   },
-
   "empty_state": {
     "heading": "開始建立您的家庭樹吧！",
     "subtext": "新增您的家人，一同記錄成長。",
     "cta": "＋ 新增第一位家人",
     "self_label": "本人"
   },
-
   "member_header": {
     "section_label": "{{name}}的成員資料",
     "owners_prefix": "主人：",
@@ -108,7 +106,6 @@
     "birthday_prefix": "🐾 出生：",
     "birthday_label": "寵物生日：{{date}}"
   },
-
   "photo_album_grid": {
     "default_title": "相簿",
     "quota_label": "配額：{{quota}}",
@@ -117,7 +114,6 @@
     "grid_label": "相片縮圖列表",
     "empty_text": "尚未上傳相片或短片。"
   },
-
   "entry_card": {
     "activity_title": "查閱動態",
     "activity_subtitle": "前往家庭圈，可 讚好／留言",
@@ -127,77 +123,64 @@
     "growth_subtitle_zhiming": "陳志明的成長相簿",
     "growth_subtitle_lucky": "Lucky的成長相簿"
   },
-
   "b2": {
     "page_title": "成員詳情",
     "edit_label": "編輯成員資料",
     "pet_relation_label": "長媳的寵物犬",
     "lucky_birthday": "2020年3月15日"
   },
-
   "b3": {
     "page_title": "加入家人",
     "step_indicator_label": "第 {{current}} 步，共 {{total}} 步",
     "step_dots_label": "步驟進度圓點",
     "step_dot_label": "第 {{step}} 步",
     "step_text": "第 {{current}} 步 / 共 {{total}} 步",
-
     "type_card_person_title": "家庭成員（人）",
     "type_card_person_desc": "為家人建立專屬成員檔案",
     "type_card_pet_title": "寵物",
     "type_card_pet_desc": "為毛孩建立專屬寵物檔案",
-
     "step1_title": "請選擇成員類型",
     "step2_person_title": "填寫成員資料",
     "step3_invite_title": "發送邀請",
     "step4_done_title": "加入成功",
     "step2_pet_title": "填寫寵物資料",
-
     "label_name": "姓名",
     "placeholder_name": "請輸入姓名",
     "label_relation": "與您的關係",
     "label_birthdate": "出生日期",
     "birthdate_helper": "用於自動提醒其生日 💝",
-
     "relation_spouse": "配偶",
     "relation_child": "子女",
     "relation_parent": "父母",
     "relation_sibling": "兄弟姊妹",
     "relation_grandchild": "孫子女",
     "relation_other": "其他",
-
     "label_pet_name": "寵物名稱",
     "placeholder_pet_name": "Lucky",
     "label_pet_birthdate": "出生日期",
     "pet_birthdate_helper": "用於自動提醒牠的生日 🐾",
     "label_pet_owners": "主人",
     "pet_owners_hint": "請至少選擇一位主人",
-
     "qr_placeholder_label": "邀請二維碼",
     "qr_helper": "以 WhatsApp 掃碼發送邀請",
     "whatsapp_invite_btn": "用 WhatsApp 邀請",
     "invite_footnote": "寵物成員將跳過此步驟",
-
     "success_heading": "成功加入！",
     "success_sub": "{{name}} 現已加入您的家庭樹 🌳",
     "btn_back_home": "返回家庭樹",
-
     "btn_next": "下一步",
     "btn_prev": "上一步",
     "btn_finish": "完成加入",
-
     "btn_submitting": "正在提交⋯",
     "error_heading": "提交失敗",
     "error_sub": "請稍後再試，或聯絡技術支援。",
     "btn_retry": "重試",
-
     "label_target": "與誰建立此關係",
     "target_first_member": "您是家庭樹的首位成員，無需選擇對象。",
     "target_placeholder": "請選擇一位家庭成員",
     "label_pet_owners_real": "主人（請從家庭成員中選擇）",
     "pet_no_members": "尚無人成員，請先加入至少一位人成員。"
   },
-
   "placeholder": {
     "family_feed_title": "家庭圈",
     "family_feed_msg": "家庭圈即將推出 🌳 即將可在此查看全家人的動態",
@@ -207,7 +190,6 @@
     "my_recommend_msg": "我的推薦即將推出 ⭐",
     "coming_soon": "即將推出"
   },
-
   "b4": {
     "page_title": "家庭圈",
     "about_prefix": "關於：",
@@ -220,7 +202,6 @@
     "comment_avatar_alt": "{{name}}的頭像",
     "comment_placeholder": "輸入您的留言…",
     "comment_submit": "送出留言",
-
     "post1_author": "陳美玲",
     "post1_time": "2 小時前",
     "post1_about": "Lucky",
@@ -228,14 +209,12 @@
     "post1_liker1": "陳大文",
     "post1_comment1_author": "陳大文",
     "post1_comment1_body": "好得意！",
-
     "post2_author": "陳志明",
     "post2_time": "今日",
     "post2_about": "陳嘉俊",
     "post2_body": "兒子今日考試取得 A 🎉",
     "post2_liker1": "陳大文",
     "post2_liker2": "陳美玲",
-
     "post3_author": "陳大文",
     "post3_time": "昨日",
     "post3_about": "本人",
@@ -244,7 +223,6 @@
     "post3_comment1_author": "陳志明",
     "post3_comment1_body": "下次一齊去！"
   },
-
   "b4_reco": {
     "label": "為您推薦",
     "title1": "為您推薦：預約家庭聚會",
@@ -252,7 +230,6 @@
     "cta": "了解更多",
     "dismiss": "稍後再提醒我"
   },
-
   "b5": {
     "reminder_label": "溫馨提示",
     "send_blessing_btn": "送上祝福",
@@ -265,7 +242,6 @@
     "mock_modal_headline": "{{name}} 明天生日 🎂",
     "mock_modal_warm": "記得向他送上生日祝福 💚"
   },
-
   "b5_detail": {
     "page_title": "事件詳情",
     "celebration_h1": "{{name}} 的生日",
@@ -312,7 +288,6 @@
     "memorial_msg3_body": "阿媽，您安息 🙏",
     "chevron": "›"
   },
-
   "member_detail": {
     "page_title": "成員詳情",
     "name_label": "姓名",
@@ -345,7 +320,6 @@
     "is_self_label": "本人",
     "back_to_tree": "返回家庭樹"
   },
-
   "a11y": {
     "avatar_alt": "{{name}}的頭像",
     "couple_heart_alt": "配偶關係心形",

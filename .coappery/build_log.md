@@ -1742,3 +1742,121 @@ npm run build → ✅（72 modules，零 TypeScript 錯誤，vite build 435ms）
 ### Git
 - Commit：`細步 4f: 動態 SVG 父子連線（TreeConnectors + data-member-id/side + rAF 節流 + scroll/resize 重算）`
 - Push：`git push origin main`
+
+---
+
+## [細步 4g] B1 互動核心重寫為焦點式（ego-centric）家庭樹
+
+### 1. 指令原文（摘要）
+重寫 B1 家庭樹主頁為焦點式展開，取代全局分代顯示：
+- **任務一**：`packages/family-tree-engine/focus-view.ts` 新增 `buildFocusView(members, relationships, focusId, selectedHouseholdIdx)` — 輸出局部三層（parentLayer / focusLayer / childLayer）
+- **任務二**：重寫 `src/pages/B1HomePage.tsx` — `focusId` state（初始=`is_self=1` 成員）、中層 scroll-snap carousel、點擊任何成員換焦點、返回本人掣、本人恆在 primary（左）
+- **任務三**：簡化連線 — 純 CSS/JSX 垂直線（永遠置中）+ sibling bar（橫線貫穿代層），不再用 `getBoundingClientRect`
+
+### 2. 任務範圍與紅線
+- 只改 coeldery-family-tree repo；零接觸 85AI / coeldery85-db / CoEldery 85 API
+- 不執行 --remote；不部署；不掂生產
+- 頁面 ≤200 行、module ≤250 行（超出拆分）；文字 i18n；顏色 CSS 變數；不加規則外 npm 套件
+
+### 3. 實際修改
+
+| 檔案 | 狀態 | 說明 |
+|------|------|------|
+| `packages/family-tree-engine/focus-view.ts` | **新建**（202 行，≤250 ✅） | `buildFocusView()`、`FocusView`/`FocusLayer` interface、`makeHousehold()`（is_self 恆 primary）、`buildMarriageMap()`、`buildPetsByOwner()` |
+| `packages/family-tree-engine/index.ts` | **修改**（215 行，≤250 ✅） | 檔頭 comment 說明 4g 新增；末尾加 `export type { FocusView, FocusLayer }` + `export { buildFocusView }` |
+| `locales/zh-Hant.json` | **修改** | 新增 9 個 `gen.*` keys：`back_to_self`、`no_parents`、`no_children`、`focus_layer_label`、`parent_layer_label`、`child_layer_label`、`tap_to_explore`、`sibling_more_left`、`sibling_more_right` |
+| `src/components/FocusTreeParts.tsx` | **新建**（130 行，≤250 ✅） | 子組件：`HouseholdChip`（點擊換焦點+本人標記）、`SiblingBar`（position:absolute -100vw/-100vw 橫線）、`VerticalConnector`（2px 垂直線 margin:0 auto）、`ChildrenRow`、`ParentRow`、`toInfo`/`toPet` |
+| `src/components/FocusTree.tsx` | **新建**（173 行，≤250 ✅） | `FocusCarousel`（scroll-snap carousel + 150ms scroll 停止偵測）、`FocusTree` 主組件（3層布局+返回本人掣+sibling bar） |
+| `src/pages/B1HomePage.tsx` | **重寫**（177 行，≤200 ✅） | `B1HomePage`（loading/empty/tree 分支）+ `FocusContent`（hooks-in-conditional 拆分，useMemo buildFocusView）+ `Shell`（TopBar + main + BottomTabBar） |
+| `seed_4g.sql` | **新建** | 4g 驗證用樣本資料：祖父母代（陳榮光+梁玉蘭）、本人同代（陳大文 is_self=1 + 李秀英 + 陳大雄 + 陳大偉）、子女代（陳志明+王美玲 + 陳嘉儀）、孫輩（陳嘉俊）、寵物（Lucky），17 條 relationships |
+
+**注意**：`TreeBand.tsx`、`TreeConnectors.tsx` 未修改（4g 新架構不再 import，留原檔備查）。
+
+### 4. 設計決策
+
+#### 4.1 行數超限問題 → 拆分
+`FocusTree.tsx` 初版 262 行超出 250 行限制，拆分為：
+- `FocusTreeParts.tsx`（130行）— 子組件
+- `FocusTree.tsx`（173行）— carousel + 主組件
+
+#### 4.2 hooks-in-conditional 解法
+`B1HomePage` 有 loading/empty/tree 三分支條件渲染，不能在條件語句內呼叫 hooks → 拆分 `B1HomePage`（最外層，管理 state + fetch）+ `FocusContent`（內層，useMemo `buildFocusView`）
+
+#### 4.3 連線設計：捨棄 SVG，改用 CSS
+因為焦點永遠居中，垂直線永遠在畫面水平正中，無需動態量測座標：
+- `VerticalConnector`：`width: 2px; margin: 0 auto`，固定不動
+- `SiblingBar`：`position: absolute; left: -100vw; right: -100vw; height: 2px`，貫穿整個代層，提示「仲有兄弟姊妹」
+
+#### 4.4 is_self 恆排 primary（左）
+`makeHousehold()` 內部檢查：若 spouse.is_self=1 且 primary.is_self≠1，自動交換，確保本人在左側。
+
+#### 4.5 階段一焦點策略
+**初始 focusId = is_self=1 成員**。程式碼已加 comment 說明：「階段一：以 is_self=1 為焦點；將來 SSO 接入後改用登入者。」
+
+### 5. Build 結果
+```
+npm run build → ✅（71 modules，零 TypeScript 錯誤，vite build 829ms）
+```
+
+### 6. D1 & 服務驗證
+```
+D1 reset → apply migrations (0001+0002+0003) ✅
+seed_4g.sql → 11 members (含 is_self=1 陳大文)，17 relationships ✅
+npx wrangler d1 execute … SELECT id, display_name, is_self → 全部正確 ✅
+pm2 start ecosystem.config.cjs → online ✅
+curl http://localhost:3000/api/tree → members: 11, rels: 17 ✅
+```
+
+### 7. Playwright 截圖驗證
+
+#### (a) 開機畫面對準本人
+- 上層：陳榮光+梁玉蘭（父母代）
+- 中層：陳大文+李秀英+Lucky（本人標記顯示，本人 household 在最左/snap center）
+- 下層：陳志明+王美玲、陳嘉儀（子女代）
+- **結果**：✅ 三層清晰，卡片固定大細，本人標記可見
+
+#### (b) 中層 scroll → 切換兄弟
+- scroll 後焦點切到陳大雄，snap 置中；下層空（陳大雄無子女）
+- 再 scroll → 陳大偉
+- **結果**：✅ carousel scroll-snap 正常，下層正確跟隨
+
+#### (c) sibling bar 貫穿代層
+- 中層代有 SiblingBar（position:absolute -100vw/-100vw），可見橫線
+- **結果**：✅ 橫線可見，伸出畫面兩邊
+
+#### (d) 點擊父母/子女 → 換焦點
+- d1：點父母（陳榮光）→ 焦點換成陳榮光，中層顯示陳榮光夫妻，子女代顯示大文+大雄+大偉，頂部出現「返回本人」掣 ✅
+- d2：點子女（陳嘉儀）→ 焦點換成陳志明（同 household），父母代顯示大文+秀英，子女代顯示陳嘉俊 ✅
+
+#### (e) 返回本人掣
+- 焦點換到陳嘉儀後，頂部顯示「返回本人」掣
+- 點擊 → 回到陳大文視角（三層恢復正常，掣消失）
+- **結果**：✅
+
+#### (f) 卡片固定大細、無 zoom、一屏 ≤3 層
+- viewport 390×844px（iPhone 14 尺寸，2x DPR）
+- 卡片大小固定（父母代 size=64，中層 size=80，子女代 size=64）
+- **結果**：✅ 無 zoom，一屏最多 3 層，無卡片被截邊
+
+#### (g) F12 Console 無錯誤
+```
+console errors: NONE ✅
+```
+
+### 8. 已知限制
+
+1. **雙祖線切換未實現**：若父母各有不同家族（非夫妻）→ 上層只顯示第一個 household，另一支祖先無法在同一上層顯示（留待後續）
+
+2. **孤立兄弟姊妹**：與 focusId 共享父母，但父母資料不在 DB 時，孤立兄弟無法出現在中層（因以 parent_child 邊計算共同父母）
+
+3. **孤立成員（無父母、無子女、無婚姻）**：成為 focusId 時，三層全空（只有本人卡，上下層空）。此屬正常 edge case，無 UI 崩潰。
+
+4. **中層 scroll 偵測時機**：150ms timeout 方式，在極快速 scroll 後偶有 1 次偵測落後；下一次 scroll 即修正。
+
+5. **寵物卡不可設焦點**：`HouseholdChip.onClick` 觸發 `setFocusId(hh.primary.id)`，因為 `makeHousehold` 只接受 `member_kind === 'person'` 作為 primary，寵物不會成為 focusId（正確設計）。
+
+6. **SSO 未接入**：初始焦點固定為 is_self=1 成員（`m-self`）。階段二接入 CoEldery 85 SSO 後將改用登入者 id。
+
+### 9. Git
+- Commit：`細步 4g: 焦點式家庭樹 (buildFocusView + FocusTree carousel + B1HomePage 重寫)`
+- Push：`git push origin main`

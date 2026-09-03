@@ -2,16 +2,11 @@
  * @coeldery/family-tree-engine
  * 通用分代演算法 — BFS 從錨點計算每個成員的 generation level，
  * 並按 marriage 邊分組 household。
- *
- * 規則：
- *   - 錨點（第一個加入的 person 成員）= level 0
- *   - parent_child 向上（from → to，to 是子女）：parent level = child level - 1
- *   - parent_child 向下（from → to，from 是父母）：child level = parent level + 1
- *   - marriage 邊：雙方同 level
- *   - 孤立 person（無任何關係邊）→ level 0
- *   - pet 成員不參與分代，附在其 owner 的 household
+ * 細步 4g 新增：buildFocusView() 焦點式局部三層視圖。
  *
  * SOP 規則 B：≤ 250 行。
+ * 超出時拆分：本檔保留原有 buildLevels/buildTreeLevels；
+ * buildFocusView 邏輯拆至 focus-view.ts 並於此重新 export。
  */
 
 /* ── Type Definitions ── */
@@ -214,3 +209,7 @@ export function buildTreeLevels(
   }
   return result
 }
+
+/* ── Re-export 焦點視圖（細步 4g）── */
+export type { FocusView, FocusLayer } from './focus-view'
+export { buildFocusView } from './focus-view'
