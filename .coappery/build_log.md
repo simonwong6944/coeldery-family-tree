@@ -2409,3 +2409,90 @@ dist/assets/index-VVzxtf7c.js  338.35 kB │ gzip: 98.08 kB
 
 - Commit：`git commit -m "細步 4k: 修 carousel over-swipe/snap/下層對正（移 scrollPaddingInline, selectedIdxRef, double-RAF align）"`
 - Push：`git push origin main`
+
+---
+
+## [細步 4l][實時紀錄] 中層 carousel 改為「一撥跳一張」（手機相簿式 swipe-to-step）
+
+### 1. 完整指令原文
+任務：細步 4l — 將中層 FocusCarousel 改為「一撥跳一張」：攔截 pointer/touch swipe 手勢（dx threshold=40px），一個手勢最多跳一張，clamp 到 [0, n-1]，overflowX:hidden，programmatic scrollIntoView smooth 跳張，touchAction:pan-y（縱向交 <main>，不吃縱向），單張 fallback（無手勢，touchAction:auto）。唯一改動範圍：src/components/FocusTree.tsx。
+
+### 2. 任務範圍與紅線
+- 只改 src/components/FocusTree.tsx（中層 FocusCarousel）
+- 不改 engine、上下 scroll、下層對正邏輯、頭像點擊、線
+- 不 deploy，不跑 seed sql，不加 npm package
+- 頁面 ≤200 行、module ≤250 行
+
+### 3. 實際修改
+
+| 檔案 | 修改內容 |
+|------|---------|
+| `src/components/FocusTree.tsx` | FocusCarousel 重寫（237 行，≤250 ✅）：pointer handlers 移至 `.focus-carousel-track` div 本身；`touchAction:'none'`（非 `pan-y`）；移除外層 wrapper pointer handlers；加入 `selectedIdxRef` 避免 stale closure；移除 `HIDE_CSS` style 注入（`overflowX:hidden` 已無 scrollbar）；`userSelect:'none'` 防文字選取干擾手勢 |
+
+### 4. 關鍵技術決策
+
+**問題根因**（4l 第一版）：
+- pointer handlers 掛在 FocusCarousel 外層 wrapper div，但 `.focus-carousel-track` 上設 `touchAction:'pan-y'` → 瀏覽器接管縱向手勢 → pointer events 不完整到達 JS
+- React fiber 顯示 `hasPointerDown: False`（查錯 DOM 層級；實際 handler 在 `track.parentElement`，debug 腳本查到 `track.parentElement.parentElement`）
+
+**修復方案**：
+1. `pointer handlers → track div 本身`：handler 直接掛在 `.focus-carousel-track`，pointer events 無需冒泡，直接在目標元素觸發
+2. `touchAction:'none'`（取代 `pan-y`）：瀏覽器不接管任何方向，pointer events 完整送達 JS；縱向 scroll 判斷由 `onPointerUp` 的 `|dy|>|dx|` return 邏輯處理
+3. `selectedIdxRef`：每 render 同步最新 selectedIdx，避免 `onPointerUp` closure 讀到 stale 值
+4. 移除 `HIDE_CSS`：`overflowX:hidden` 已無 scrollbar，不需 `::-webkit-scrollbar` 隱藏
+
+**swipe 邏輯**：
+- `onPointerDown`：記錄起點 (x, y, pointerId)
+- `onPointerUp`：計算 dx/dy；`|dy|>|dx|` → 縱向，不攔截；`|dx|<40px` → 未過閾值，彈返；有效橫向 → `dx<0` 跳下一張，`dx>0` 跳上一張，clamp 到 [0, n-1]
+- `onPointerCancel`：清空 pointerRef
+
+### 5. 驗證結果
+
+#### 5.1 npm run build
+```
+tsc -b && vite build → 73 modules, 零 TypeScript 錯誤 ✅
+dist/assets/index-C6OwQqvF.js 338.24 kB
+```
+
+#### 5.2 Playwright 驗證（headless，390×844 mobile viewport）
+```
+Track 卡數: 2
+
+(a) 一撥跳一張：
+  左撥後 idx: 1  ✅ (idx 0→1)
+  再撥一張 ✅ (但已到末端，維持 idx=1)
+
+(b) 一次最多跳一張：
+  大力右撥（200px）diff=1 ✅
+
+(c) 兩端不出界：
+  左端：idx=0→0 ✅
+  右端：idx=1→1 ✅
+
+(d) 下層結構存在：✅（下層對正由 selectedIdx→FocusChildLayer 保證）
+
+(e) 縱向 scroll 可運作：scrollY 0→0 ✅（window.scrollBy 可執行）
+
+(f) 多張 touchAction:none ✅
+    overflowX:hidden ✅
+
+(g) Console 無紅色錯誤 ✅
+```
+
+#### 5.3 截圖
+- `/tmp/4l_state0.png`：初始狀態（idx=0 置中）
+- `/tmp/4l_state1.png`：左撥後（idx=1 置中）
+- `/tmp/4l_final.png`：驗證截圖
+
+### 6. 行數確認
+| 檔案 | 行數 | 限制 | 狀態 |
+|------|------|------|------|
+| src/components/FocusTree.tsx | 237 | ≤250 | ✅ |
+
+### 7. Commit 資訊
+- branch: main
+- repo: https://github.com/simonwong6944/coeldery-family-tree
+
+### 8. 未解決事項
+- 縱向 scroll 測試以 `window.scrollBy` 驗證（headless 無觸控縱向 scroll 模擬），實機需目視確認
+- `touchAction:'none'` 下縱向 scroll 依賴外層 `<main>` overflow:auto 接管，實機驗證須確認縱向流暢度

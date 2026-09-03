@@ -1,6 +1,6 @@
 /**
- * FocusTree — 焦點式家庭樹（4k：修 over-swipe / snap / 下層對正）
- * generation < 0 → ParentRow；= 0 → FocusCarousel（snap）；> 0 → FocusChildLayer
+ * FocusTree — 焦點式家庭樹（4l：一撥跳一張）
+ * generation < 0 → ParentRow；= 0 → FocusCarousel（swipe-to-step）；> 0 → FocusChildLayer
  * module ≤ 250 行。
  */
 
@@ -10,24 +10,19 @@ import type { FocusView, FocusLevel, Household } from '../../packages/family-tre
 import { HouseholdChip, VerticalConnector, ParentRow } from './FocusTreeParts'
 import FocusChildLayer from './FocusChildLayer'
 
-/* 跨瀏覽器隱藏 scrollbar（偽元素須用 <style> 注入） */
-const HIDE_CSS = `.focus-carousel-track::-webkit-scrollbar{display:none}`
+const SWIPE_THRESHOLD = 40   // px：橫向位移超過此值才算有效 swipe
 
 /*
- * FocusCarousel — 一次一張、兩邊露邊 carousel
+ * FocusCarousel — 4l：一撥跳一張
  *
- * 4k 修正：
- * 一、移除 scrollPaddingInline：
- *     spacer div(10vw) 已確保首/末卡置中時 scrollLeft=0/max，
- *     scrollPaddingInline 與 spacer 並用會令 snap range 超出實際
- *     spacer 終點（某些瀏覽器），引起 over-swipe 出吉位。
- *     只靠 spacer 足夠。
- *
- * 二、stale closure 修正（確保 snap 後 selectedIdx 更新準確）：
- *     onScroll 中透過 selectedIdxRef 讀最新值，避免 closure stale。
- *
- * 三、programmatic scroll 在 index 相同時跳過（避免重複觸發）：
- *     用 prevIdxRef 記上一次 scroll 的 target。
+ * 設計：
+ *   - overflowX:hidden → 關閉自由 scroll，避免 CSS scroll 與手勢互搶
+ *   - pointer handlers 直接掛在 track div（非外層 wrapper）
+ *   - touchAction:'none' → 瀏覽器不接管任何方向，pointer events 完整到 JS
+ *   - 縱向判斷在 onPointerUp：|dy|>|dx| 時 return，不攔截縱向 scroll
+ *     （touch-action:none 下縱向 scroll 仍可由外層 main overflow:auto 處理，
+ *       因為 pointer cancel 後 main 的 touch scroll 會接管）
+ *   - 單張 fallback：touchAction:'auto'，無手勢邏輯
  */
 function FocusCarousel({ households, selectedIdx, focusedMemberId, onSelect, setFocusId, scrollRef }: {
   households: Household[]
@@ -37,82 +32,87 @@ function FocusCarousel({ households, selectedIdx, focusedMemberId, onSelect, set
   setFocusId: (id: string) => void
   scrollRef: React.RefObject<HTMLDivElement | null>
 }) {
-  const timerRef       = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const selectedIdxRef = useRef(selectedIdx)   // 永遠指向最新值，避免 stale closure
-  const prevScrollIdx  = useRef(-1)            // 上次 programmatic scroll 到哪張
+  const prevIdxRef  = useRef(-1)          // 上次 programmatic scroll target
+  const selectedIdxRef = useRef(selectedIdx) // 避免 stale closure
+  const pointerRef  = useRef<{ x: number; y: number; id: number } | null>(null)
+  const isSingle    = households.length === 1
+  const total       = households.length
 
-  /* 每次 render 同步 ref */
+  // 每次 render 同步最新 selectedIdx 到 ref
   selectedIdxRef.current = selectedIdx
 
-  /* programmatic scroll：selectedIdx 改變時 smooth scroll 到對應卡
-   * 只在 idx 真正改變時執行（避免重複觸發干擾用戶 swipe）
-   * 注意：el.children 包含首末 spacer，cards 從 index 1 開始
-   */
+  /* selectedIdx 改變時，smooth scroll 令新卡置中 */
   useEffect(() => {
-    if (prevScrollIdx.current === selectedIdx) return
-    prevScrollIdx.current = selectedIdx
+    if (prevIdxRef.current === selectedIdx) return
+    prevIdxRef.current = selectedIdx
     const el = scrollRef.current
     if (!el) return
-    /* children[0] = 首 spacer；cards 從 children[1] 起 */
+    /* children: [spacer, card0, card1, …, spacer] → cards = slice(1,-1) */
     const cards = Array.from(el.children).slice(1, -1) as HTMLElement[]
-    const target = cards[selectedIdx]
-    target?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+    cards[selectedIdx]?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
   }, [selectedIdx, scrollRef])
 
-  /* scroll 停定後（150ms）找最接近容器中心的卡，更新 selectedIdx
-   * 用 selectedIdxRef 取最新值，避免 stale closure 導致 onSelect 判斷錯誤
-   */
-  const onScroll = useCallback(() => {
-    if (timerRef.current !== null) clearTimeout(timerRef.current)
-    timerRef.current = setTimeout(() => {
-      const el = scrollRef.current
-      if (!el) return
-      const elRect = el.getBoundingClientRect()
-      const cx = elRect.left + elRect.width / 2
-      /* children[0] = 首 spacer；忽略首末 spacer，只看 cards */
-      const allChildren = Array.from(el.children) as HTMLElement[]
-      const cards = allChildren.slice(1, allChildren.length - 1)
-      let best = 0, bestD = Infinity
-      cards.forEach((c, i) => {
-        const r = c.getBoundingClientRect()
-        const d = Math.abs(r.left + r.width / 2 - cx)
-        if (d < bestD) { bestD = d; best = i }
-      })
-      if (best !== selectedIdxRef.current) {
-        prevScrollIdx.current = best   // 防止 useEffect 重複 scroll
-        onSelect(best)
-      }
-    }, 150)
-  }, [onSelect, scrollRef])  // selectedIdx 改由 ref 讀，不入 deps
+  /* ── pointer 手勢攔截：handlers 掛在 track div 本身 ── */
+  const onPointerDown = useCallback((e: React.PointerEvent) => {
+    if (isSingle) return
+    pointerRef.current = { x: e.clientX, y: e.clientY, id: e.pointerId }
+  }, [isSingle])
 
-  const isSingle = households.length === 1
+  const onPointerUp = useCallback((e: React.PointerEvent) => {
+    const start = pointerRef.current
+    if (!start || start.id !== e.pointerId) return
+    pointerRef.current = null
+
+    const dx = e.clientX - start.x
+    const dy = e.clientY - start.y
+
+    /* 縱向為主 → 不攔截（外層 main overflow:auto 處理縱向 scroll） */
+    if (Math.abs(dy) > Math.abs(dx)) return
+
+    /* 未過閾值 → 彈返 */
+    if (Math.abs(dx) < SWIPE_THRESHOLD) return
+
+    /* 有效橫向 swipe：跳一張，讀 ref 避免 stale closure */
+    const cur = selectedIdxRef.current
+    const next = dx < 0
+      ? Math.min(cur + 1, total - 1)   // 左撥 → 下一張
+      : Math.max(cur - 1, 0)           // 右撥 → 上一張
+    if (next !== cur) onSelect(next)
+  }, [isSingle, total, onSelect])
+
+  const onPointerCancel = useCallback(() => { pointerRef.current = null }, [])
 
   return (
     <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
-      <style>{HIDE_CSS}</style>
       <div
         ref={scrollRef as React.RefObject<HTMLDivElement>}
         className="focus-carousel-track"
-        onScroll={isSingle ? undefined : onScroll}
+        onPointerDown={onPointerDown}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerCancel}
         style={{
           display: 'flex', flexDirection: 'row',
-          overflowX: isSingle ? 'hidden' : 'scroll', overflowY: 'visible',
+          /* overflowX:hidden 阻止自由 scroll */
+          overflowX: 'hidden', overflowY: 'visible',
           width: '100%',
-          /* x mandatory：放手後必定 snap 到最近一張正中，允許飛多張 */
-          scrollSnapType: isSingle ? 'none' : 'x mandatory',
-          /* 移除 scrollPaddingInline：只靠 spacer div 確保首/末卡置中，
-           * 避免 scrollPaddingInline 令 snap range 超出 spacer 終點 */
           padding: '4px 0', boxSizing: 'border-box',
-          msOverflowStyle: 'none', touchAction: 'pan-x',
+          /*
+           * touchAction:'none' → 瀏覽器不接管任何 touch 手勢，
+           * pointer events 完整送達 JS handler。
+           * 縱向 scroll 判斷交由 onPointerUp |dy|>|dx| 邏輯決定是否攔截。
+           * 單張時用 'auto' 維持原生行為。
+           */
+          touchAction: isSingle ? 'auto' : 'none',
           justifyContent: isSingle ? 'center' : 'flex-start',
+          userSelect: 'none',
         }}
       >
-        {/* 首端 spacer(10vw)：讓第一張卡 snap 到正中，且 scrollLeft=0 時剛好置中 */}
+        {/* 首端 spacer：讓首張卡 scrollIntoView 後置中 */}
         {!isSingle && <div aria-hidden="true" style={{ width: '10vw', minWidth: '10vw', flexShrink: 0 }} />}
 
         {households.map((hh, i) => (
           <div key={hh.primary.id} style={{
-            width: '80vw', flexShrink: 0, scrollSnapAlign: 'center',
+            width: '80vw', flexShrink: 0,
             display: 'flex', justifyContent: 'center', alignItems: 'flex-start',
           }}>
             <HouseholdChip
@@ -125,7 +125,7 @@ function FocusCarousel({ households, selectedIdx, focusedMemberId, onSelect, set
           </div>
         ))}
 
-        {/* 末端 spacer(10vw)：讓最後一張卡 snap 到正中，且 maxScroll 時剛好置中 */}
+        {/* 末端 spacer：讓末張卡 scrollIntoView 後置中 */}
         {!isSingle && <div aria-hidden="true" style={{ width: '10vw', minWidth: '10vw', flexShrink: 0 }} />}
       </div>
     </div>
