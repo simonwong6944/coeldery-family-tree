@@ -1,16 +1,13 @@
 /**
- * FocusChildLayer — 下層子女區（4h-fix-2）
+ * FocusChildLayer — 下層子女區（4j）
  *
- * 問題二修正（最重要）：
- *   align() 改用絕對定位，消除累積漂移：
- *   1. 先將 track.style.transform = '' 歸零（不帶 transition）
- *   2. 讀 track/groupEl.getBoundingClientRect()（此時 transform=0，座標可靠）
- *   3. 計算 highlight 父母卡中心 x → child group 中心 x 的差
- *   4. 一次性 set translateX(delta)（絕對值，不累加）
- *
- * 問題五修正：
- *   - track 移除寫死 paddingLeft: calc(50% - 90px)
- *   - 初始對齊由 align() 在 mount 時計算，用 flex justifyContent:center 作 fallback
+ * 4j 對正策略改動：
+ *   - 不再追隨 carousel DOM 的 selectedIdx 卡座標（4h-fix-2 舊策略），
+ *     因為中層卡現在是 80vw 寬、snap 到容器正中，
+ *     highlight 父母卡永遠在容器水平正中心。
+ *   - 新策略：align() 直接把 groups[selectedIdx] 的 group 元素
+ *     移到 wrap 容器的水平正中心。
+ *   - 依然用絕對 translateX（每次先歸零再算），不累加，不漂移。
  *
  * module ≤ 250 行。
  */
@@ -91,34 +88,35 @@ export default function FocusChildLayer({
   const hasAnyChildren = groups.some(g => g.households.length > 0)
 
   /**
-   * 絕對定位 align（問題二修正）：
-   * 每次都從 transform=0 的原始 layout 出發，計算一次性絕對 translateX。
-   * 不累加，不漂移。
+   * 4j align 策略：
+   *   highlight 父母卡永遠 snap 到中層容器正中心（80vw 卡 + snap）。
+   *   因此下層直接把 groups[selectedIdx] 的 group 移到 wrap 容器水平正中心。
+   *
+   *   步驟：
+   *   1. 歸零 transform（無 transition），取得原始 layout 座標
+   *   2. 計算 wrap 容器水平中心 x（viewport 座標）
+   *   3. 找 groups[selectedIdx] 對應的 trackChildren 元素
+   *   4. 計算 groupEl 中心 x（transform=0，座標可靠）
+   *   5. delta = wrapCenterX - groupCx（一次性絕對值，不累加）
+   *   6. 加 transition，apply translateX(delta)
    */
   const align = useCallback(() => {
-    const carousel = carouselRef.current
     const track = trackRef.current
     const wrap = wrapRef.current
-    if (!carousel || !track || !wrap) return
+    if (!track || !wrap) return
 
-    /* Step 1: 歸零 transform（不加 transition，避免閃爍），讓 layout 穩定 */
+    /* Step 1: 歸零 transform，不加 transition */
     track.style.transition = 'none'
     track.style.transform = ''
 
-    /* Step 2: 找 carousel 中 selectedIdx 對應的 snap 項 */
-    const snapItems = Array.from(carousel.children) as HTMLElement[]
-    const targetEl = snapItems[selectedIdx] ?? snapItems[0]
-    if (!targetEl) return
+    /* Step 2: wrap 容器水平中心（viewport 座標） */
+    const wrapRect = wrap.getBoundingClientRect()
+    const wrapCenterX = wrapRect.left + wrapRect.width / 2
 
-    /* Step 3: highlight 父母卡中心 x（viewport 座標，transform=0 時可靠） */
-    const targetRect = targetEl.getBoundingClientRect()
-    const parentCx = targetRect.left + targetRect.width / 2
-
-    /* Step 4: 找 groups[selectedIdx] 對應的 trackChildren 元素 */
+    /* Step 3: 找 groups[selectedIdx] 在 trackChildren 中的真實下標
+     *   groups[i].households.length===0 → track 中沒有此 group 的 DOM
+     */
     const trackChildren = Array.from(track.children) as HTMLElement[]
-    // track 的直接子元素 = 非空 group，但保留原始 groups 順序中的空 group null slot
-    // groups[i].households.length===0 → track 中沒有此 group 的 DOM
-    // 需要計算 selectedIdx 在 trackChildren 中的真實下標
     let trackIdx = 0
     for (let i = 0; i < selectedIdx && i < groups.length; i++) {
       if (groups[i].households.length > 0) trackIdx++
@@ -127,9 +125,9 @@ export default function FocusChildLayer({
     const groupEl = trackChildren[trackIdx]
     if (!groupEl) {
       /* 選中的 group 無子女 → 整個 track 相對 wrap 置中 */
-      const wrapRect = wrap.getBoundingClientRect()
       const trackRect = track.getBoundingClientRect()
-      const delta = (wrapRect.left + wrapRect.width / 2) - (trackRect.left + trackRect.width / 2)
+      const trackCx = trackRect.left + trackRect.width / 2
+      const delta = wrapCenterX - trackCx
       requestAnimationFrame(() => {
         track.style.transition = 'transform 0.3s cubic-bezier(0.4,0,0.2,1)'
         track.style.transform = `translateX(${delta}px)`
@@ -137,19 +135,19 @@ export default function FocusChildLayer({
       return
     }
 
-    /* Step 5: transform=0 時 groupEl 的中心 x */
+    /* Step 4: groupEl 中心 x（transform=0，可靠） */
     const groupRect = groupEl.getBoundingClientRect()
     const groupCx = groupRect.left + groupRect.width / 2
 
-    /* Step 6: 一次性絕對 delta（不累加） */
-    const delta = parentCx - groupCx
+    /* Step 5: 一次性絕對 delta，不累加 */
+    const delta = wrapCenterX - groupCx
 
-    /* Step 7: 加回 transition，apply 絕對 translateX */
+    /* Step 6: 加回 transition，apply 絕對 translateX */
     requestAnimationFrame(() => {
       track.style.transition = 'transform 0.3s cubic-bezier(0.4,0,0.2,1)'
       track.style.transform = `translateX(${delta}px)`
     })
-  }, [selectedIdx, groups, carouselRef])
+  }, [selectedIdx, groups])
 
   const scheduleAlign = useCallback(() => {
     if (rafId.current !== null) cancelAnimationFrame(rafId.current)
@@ -166,6 +164,7 @@ export default function FocusChildLayer({
     return () => ro.disconnect()
   }, [scheduleAlign])
 
+  /* carousel scroll 時也重算對位（carousel snap 完成後 selectedIdx 更新前的過渡期） */
   useEffect(() => {
     const carousel = carouselRef.current
     if (!carousel) return

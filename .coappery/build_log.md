@@ -2281,3 +2281,63 @@ Console errors: 0
 
 - Commit：`git commit -m "細步 4i: buildFocusView 改為上下無限遞歸（levels 陣列），FocusTree 依 levels render 所有代"`
 - Push：`git push origin main`
+
+---
+
+## 細步 4j — 中層 FocusCarousel 改為手機式一次一張 carousel
+
+**日期**：2025-09-03
+
+### 目標
+
+將中層焦點代 carousel 改為手機式「一次一張」體驗：
+- 每張卡佔 80vw，左右各露約 10vw 隔籬卡
+- CSS `scroll-snap-type: x mandatory` + `scroll-snap-align: center`
+- 首/末張卡均可 snap 到正中（首末各一個 10vw spacer div）
+- 隱藏橫向 scrollbar（`<style>` 注入 `::-webkit-scrollbar{display:none}` + `msOverflowStyle:none`）
+- `touchAction: pan-x`，不阻縱向 scroll
+- 下層對正改為對正 `wrapRef` 容器中心（絕對 translateX，不累加漂移）
+
+### 改動範圍
+
+| 檔案 | 改動 |
+|------|------|
+| `src/components/FocusTree.tsx` | FocusCarousel 完全重寫（198 行，符合 ≤250 限制） |
+| `src/components/FocusChildLayer.tsx` | align() 改為對正 wrapRef 容器中心（208 行 ✅） |
+
+**紅線遵守**：未改 engine 遞歸邏輯、上下 scroll、頭像點擊、連線樣式；未加 npm package；未 deploy；截圖不入 repo。
+
+### Build 結果
+
+```
+> tsc -b && vite build
+✓ 73 modules transformed.
+dist/assets/index-BS8OiTUe.js  338.27 kB │ gzip: 98.06 kB
+✓ built in 528ms
+```
+零 TypeScript 錯誤。
+
+### Playwright 驗證（iPhone 12 模擬）
+
+```
+(a) ✅ cards:2, spacers:2, firstCardWidth:312px(80vw), scrollSnapType:x mandatory
+(b) ✅ msOverflowStyle:none, style tag 注入 ::-webkit-scrollbar{display:none}
+(c) ✅ snap 後下層 child track transforms 存在，无累積漂移
+(d) ✅ firstCard → center delta:0px（首張完全對正）
+(e) ✅ touchAction:pan-x
+(f) ℹ️  當前資料 2 張卡，single fallback 路徑正確（isSingle=false 時不觸發）
+(g) ✅ console errors:0
+```
+
+截圖存 `/tmp/4j_carousel_initial.png`、`/tmp/4j_carousel_snapped.png`（不入 repo）。
+
+### 重要說明
+
+- **下層對正策略**：不再追隨 carousel DOM 的 selectedIdx 卡座標，改為直接對正 `wrapRef` 容器水平中心。因中層卡永遠 snap 到容器正中，容器中心即 highlight 父母卡中心，對位更穩定。
+- **無累積漂移**：每次 align() 先歸零 `transform=''`，再計算一次性絕對 delta，完全不累加。
+- **行數符合限制**：FocusTree.tsx 從 285 行精簡至 198 行（≤250 ✅）；FocusChildLayer.tsx 208 行（≤250 ✅）。
+
+### Git
+
+- Commit：`git commit -m "細步 4j: FocusCarousel 改為 80vw snap carousel，FocusChildLayer align() 改為對正 wrapRef 容器中心"`
+- Push：`git push origin main`
