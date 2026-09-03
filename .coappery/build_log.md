@@ -1969,3 +1969,58 @@ console errors: NONE ✅
 
 - Commit：`git commit -m "細步 4h: 焦點式家庭樹重構（全房展開+每房橫線+半邊切家族+viewport scroll+點擊行為）"`
 - Push：`git push origin main`
+
+---
+
+## [細步 4h-fix] 焦點式家庭樹修正（2026-09-03）
+
+### 修正範圍
+
+| 任務 | 內容 | 狀態 |
+|-----|------|------|
+| 任務一 | 真·上下 scroll：Shell `height:100svh`，`<main overflowY:auto>` 是 scroll container | ✅ |
+| 任務二 | 全房子女齊出 + `getBoundingClientRect`/`translateX` 對齊 highlight 父母卡 | ✅ |
+| 任務三 | 移除配偶卡左右切割線，改用 `AvatarOverlay`（透明圓形）覆蓋頭像 | ✅ |
+| 任務四 | 線簡化：只保留中央固定垂直基準線 + 純範圍橫線，無多餘垂直線 | ✅ |
+| 任務五 | 每層 `justifyContent: center` 水平置中 | ✅ |
+
+### 改動檔案
+
+- `src/components/FocusChildLayer.tsx`（新建，207 行）：全房子女橫排 + `getBoundingClientRect`/`translateX` + `ResizeObserver` + carousel scroll 事件
+- `src/components/FocusTreeParts.tsx`（重寫，170 行）：`AvatarOverlay`（couple 卡頭像 overlay），`HouseholdChip` if/early-return 模式，移除 `SingleChip`/`ChildGroupRow`/`SiblingBar`
+- `src/components/FocusTree.tsx`（重寫，193 行）：移除 height 限制，`carouselRef` 傳給 `FocusCarousel`+`FocusChildLayer`，`LayerLabel` 單行組件
+- `src/pages/B1HomePage.tsx`（Shell div `minHeight` → `height:100svh`，`overflow:hidden`）：確保 `<main>` 有實際高度限制，`overflowY:auto` 真正生效
+
+### Build 結果
+
+```
+npm run build → ✅ 72 modules，零 TS 錯誤
+```
+
+### 本地驗證（截圖存於 screenshots_4h_fix/）
+
+**(a) 上下 scroll**：Shell `height:100svh` + `<main overflowY:auto>` 正確設置。現有 seed 資料（陳大文家族，3 層）剛好填滿 viewport，不觸發 scroll，但容器已就位——未來家族代數超出 viewport 時 scroll 自動生效 ✅
+
+**(b) 下層全房子女 + 平移對齊**：carousel scroll 後子女層隨 highlight 父母卡平移，陳大雄（無子女）焦點時子女層正確為空 ✅
+
+**(c) 頭像 click**：overlay count = 6，single-click 切焦點 ✅，double-click → `#/member/:id` ✅
+
+**(d) 無難看中線**：配偶卡間無切割視覺，`AvatarOverlay` 取代半邊切割 div ✅
+
+**(e) 線簡化**：每層淨保中央固定垂直基準線 + 純範圍橫線（2+ 子女時才出現），無多餘垂直線 ✅
+
+**(f) 水平置中**：父母層、焦點層、子女層各自 `justifyContent: center` ✅
+
+**(g) console 錯誤**：console errors = 0 ✅
+
+### 已知限制（4h-fix 範圍外）
+
+1. **3 層不需 scroll**：現有 seed 資料（陳大文家族）最多 3 層，不超出 viewport（390×844）。上下 scroll 功能已就位（容器正確），待資料增長或代數超出 viewport 時方可觀察 scroll。
+2. **translateX 初始對齊**：`FocusChildLayer` 初始 `paddingLeft: calc(50% - 90px)` 為概算，可能與 carousel 第一個 snap 項的中心 x 有輕微偏差，第一次 align() 觸發後會修正。
+3. **AvatarOverlay 位置精度**：`CARD_PAD=20, COL_GAP=16, HEART_W=28` 源自 household-card 常數，couple 卡 spouse overlay 位置依賴這些固定值，若 household-card 日後更改需同步更新。
+4. **單人 household 的 spouse overlay**：single 卡整張 wrapper div 可 click（非 overlay），double-click 導航正常，但 click 範圍比 couple 卡更大（整張卡都是觸發區）。
+
+### Git
+
+- Commit：`git commit -m "細步 4h-fix: scroll container fix + FocusChildLayer + AvatarOverlay + 線簡化"`
+- Push：`git push origin main`

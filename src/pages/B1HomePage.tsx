@@ -64,7 +64,7 @@ function Shell({ children }: { children: React.ReactNode }) {
     window.location.hash = r[tab]
   }
   return (
-    <div style={{ minHeight:'100svh', backgroundColor:'var(--color-bg)', display:'flex', flexDirection:'column' }}>
+    <div style={{ height:'100svh', backgroundColor:'var(--color-bg)', display:'flex', flexDirection:'column', overflow:'hidden' }}>
       <TopBar titleKey="top_bar.title" rightSlot={<TopBarRightSlot/>}/>
       <main role="main" aria-label={t('app_name')} style={{ flex:1, overflowY:'auto', overflowX:'hidden', paddingTop:'56px', paddingBottom:'80px' }}>
         {children}
