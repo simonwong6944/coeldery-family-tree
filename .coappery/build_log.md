@@ -2585,3 +2585,102 @@ dist/assets/index-D_Bl-q0m.js 338.71 kB
 ### 8. 未解決事項
 - 更深代（孫、曾孫）swipe 連動：留待 4n 擴展（傳入 `onSelect` 鏈）
 - 實機觸控測試：headless Playwright 模擬 pointer events，實際手機需目視確認
+
+---
+
+## [細步 4n][實時紀錄] 多層連動鏈 — 每代獨立 selectedIdx，孫代對正父母
+
+### 1. 完整指令原文
+把雙向 swipe 連動 + 對正擴展到所有代（多層連動鏈）。每代維持自己的 selected index；層層對正鏈（焦點代→子女代→孫代）；防無限迴圈（多層版）；縱向放行；build 零錯誤；push main；唔 deploy。
+
+### 2. 改動範圍
+| 檔案 | 操作 | 說明 |
+|------|------|------|
+| `src/components/FocusTree.tsx` | **修改** | 194 行（≤250 ✅）；加 `useState<Record<number,number>>` idxByGen；`getIdx(gen)` / `setIdx(gen,next)` helpers；所有 `generation > 0` 的 FocusChildLayer 改為 `selectedIdx={getIdx(gen-1)}` + `onSelect={(i)=>setIdx(gen,i)}`；`useEffect` 在 focusId 改變時重置 idxByGen |
+| `src/components/FocusChildLayer.tsx` | 不改 | 結構已滿足 4n 需求，prop 介面不變 |
+
+### 3. 架構設計
+
+#### 3.1 idxByGen State
+```typescript
+const [idxByGen, setIdxByGen] = useState<Record<number, number>>({})
+```
+- key = generation，value = 該代目前選中的 group index
+- generation 0 由外層 `selectedIdx`/`setSelectedIdx` 管理（不入 idxByGen）
+- 切換 focusId 時 `useEffect(() => setIdxByGen({}), [focusId])` 重置
+
+#### 3.2 getIdx / setIdx helpers
+```typescript
+function getIdx(gen: number): number {
+  return gen === 0 ? safeIdx : (idxByGen[gen] ?? 0)
+}
+function setIdx(gen: number, next: number) {
+  if (gen === 1) setSelectedIdx(next)   // 維持 4m gen 0↔1 雙向
+  setIdxByGen(prev => {
+    const u = { ...prev, [gen]: next }
+    for (const k of Object.keys(prev).map(Number)) { if (k > gen) u[k] = 0 }
+    return u
+  })
+}
+```
+
+#### 3.3 層層對正原理
+每個 `generation > 0` 的 `FocusChildLayer`：
+- `selectedIdx={getIdx(level.generation - 1)}`：由上一代選中 idx 決定本層顯示哪組 + 對正位置
+- `onSelect={(i) => setIdx(level.generation, i)}`：撥本層 → 更新本代 idx → 影響下一代
+
+#### 3.4 防無限迴圈
+- programmatic `align()` 只靠 `selectedIdx` prop 改變觸發（useEffect deps），不掛 scroll listener
+- `setIdx` 重置更深代：確保下游連鎖，不反向成環
+- `if (gen === 1) setSelectedIdx(next)` 是唯一反向同步，不觸發 align 回調
+
+### 4. 驗證結果
+
+#### 4.1 npm run build
+```
+tsc -b && vite build → 73 modules，338.92 kB，零 TypeScript 錯誤 ✅
+```
+
+#### 4.2 PM2 重啟
+```
+pm2 restart coeldery-ft → online ✅
+curl http://localhost:3000/ → HTTP 200 ✅
+```
+
+#### 4.3 Playwright 驗證 (a-g)
+```
+(a) a_grandchild_layer_exists: ✅ PASS — 孫代 ChildLayer 存在
+(a) a_grandchild_aligned:      ✅ PASS — transform='translateX(0px)' align 已執行
+(b) b_layers_recalculated:     ✅ PASS — 撥 gen=0 後 gen=1,2,3 跟隨重算（無 crash）
+(c) c_touch_actions_correct:   ✅ PASS — 各代 touchAction 邏輯正確（1 group→auto）
+(d) d_all_gens_get_onSelect:   ✅ PASS — 所有 gen>0 均傳 onSelect（canSwipe 由 groups 決定）
+(e) e_no_infinite_loop:        ✅ PASS — 連續交替撥無卡死無迴圈
+(f) f_vertical_scroll:         ✅ PASS — 縱向 scroll 順暢
+(g) g_no_console_errors:       ✅ PASS — 零 console 錯誤
+```
+
+#### 4.4 DOM 層結構確認
+```
+seed data：Robert/Helen（gen-1）→ KC/Simon（gen=0）→ Peter/Alice（gen=1）→ Tom/Emma（gen=2）→ Jack（gen=3）
+頁面 ChildLayer：gen=1,2,3 各 1 個有效 group，touchAction='auto'（canSwipe=false，因各代只有 1 個 group）
+FocusCarousel（gen=0）：KC+Simon 兩張，touchAction='none'，可 swipe ✅
+撥 gen=0（KC→Simon）→ gen=1 validGroups=0（Simon 無子女），gen=2,3 消失 ✅
+撥回 gen=0（KC）→ gen=1,2,3 恢復並重新對正 ✅
+```
+
+#### 4.5 行數確認
+| 檔案 | 行數 | 限制 | 狀態 |
+|------|------|------|------|
+| src/components/FocusTree.tsx | 194 | ≤250 | ✅ |
+| src/components/FocusChildLayer.tsx | 231 | ≤250 | ✅ |
+
+### 5. Commit 資訊
+- commit: 待 push 後填入
+- branch: main
+- repo: https://github.com/simonwong6944/coeldery-family-tree
+
+### 6. 備注
+- 現有 seed data 每代只有 1 個有效 group，故各 ChildLayer `canSwipe=false`（touchAction:auto）是正確行為
+- 若未來加入多房家庭資料，各代 canSwipe 自動啟用，無需改碼
+- 中↔下雙向連動（4m）完全保留：gen=1 setIdx 同步 gen=0 setSelectedIdx
+- 孫代對正父母：FocusChildLayer[gen=2].selectedIdx = getIdx(1)（仔女代選中 idx）✅
