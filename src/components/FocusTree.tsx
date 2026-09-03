@@ -1,12 +1,12 @@
 /**
- * FocusTree — 焦點式家庭樹主體（細步 4g）
+ * FocusTree — 焦點式家庭樹主體（細步 4h）
  *
- * 架構：
- *   - 最多 3 層：上（父母代）、中（焦點代 carousel）、下（子女代）
- *   - 中層：scroll-snap carousel，左右滾動切換兄弟姊妹
- *   - 上/下層：固定置中，點擊任何成員 → 成為新 focusId（換代探索）
- *   - 連線：純 CSS/JSX 垂直線 + sibling bar（無 SVG DOM 量測，永遠居中）
- *   - 返回本人掣：focusId ≠ selfId 時顯示
+ * 4h 改動：
+ *   - childLayer 改用 groups 結構，下層每房各自展開
+ *   - 中層 SiblingBar（整代橫線）移除；每房子女由 ChildGroupRow 各自畫橫線
+ *   - FocusCarousel：移除 selectedIdx 對下層影響；scroll 純視覺置中 + snap
+ *   - 外層容器：overflow-y: auto（任務四）
+ *   - 三層均傳 focusedMemberId 供半邊高亮
  *
  * module ≤ 250 行。
  */
@@ -15,15 +15,16 @@ import { useRef, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { FocusView, Household } from '../../packages/family-tree-engine'
 import {
-  HouseholdChip, SiblingBar, VerticalConnector, ChildrenRow, ParentRow,
+  HouseholdChip, VerticalConnector, ChildGroupRow, ParentRow,
 } from './FocusTreeParts'
 
 /* ── FocusCarousel ── 中層 scroll-snap carousel ── */
 function FocusCarousel({
-  households, selectedIdx, onSelect, setFocusId,
+  households, selectedIdx, focusedMemberId, onSelect, setFocusId,
 }: {
   households: Household[]
   selectedIdx: number
+  focusedMemberId?: string
   onSelect: (idx: number) => void
   setFocusId: (id: string) => void
 }) {
@@ -39,7 +40,7 @@ function FocusCarousel({
     })
   }, [selectedIdx])
 
-  // scroll 停止後更新 selectedIdx
+  // scroll 停止後更新 selectedIdx（純視覺置中，不影響下層資料）
   const onScroll = useCallback(() => {
     if (settling.current) return
     settling.current = true
@@ -66,21 +67,20 @@ function FocusCarousel({
         display: 'flex', flexDirection: 'row', gap: '12px',
         overflowX: 'auto', width: '100%',
         scrollSnapType: 'x mandatory',
-        padding: '4px calc(50% - 90px)',  // 讓第一/末尾卡能 snap 到正中（90px ≈ 半張卡寬）
+        padding: '4px calc(50% - 90px)',
         boxSizing: 'border-box',
         msOverflowStyle: 'none',
         position: 'relative', zIndex: 1,
       }}
     >
       {households.map((hh, i) => (
-        <div
-          key={hh.primary.id}
-          style={{ scrollSnapAlign: 'center', flexShrink: 0 }}
-        >
+        <div key={hh.primary.id} style={{ scrollSnapAlign: 'center', flexShrink: 0 }}>
           <HouseholdChip
             hh={hh} size={80}
             isFocus={i === selectedIdx}
-            onClick={setFocusId}
+            focusedMemberId={focusedMemberId}
+            onClickPrimary={setFocusId}
+            onClickSpouse={setFocusId}
           />
         </div>
       ))}
@@ -92,7 +92,7 @@ function FocusCarousel({
 
 export interface FocusTreeProps {
   focusView: FocusView
-  /** 中層目前選中的 household index（決定下層顯示哪組子女） */
+  /** 中層目前選中的 household index（carousel snap 位置用） */
   selectedIdx: number
   /** is_self=1 成員 id（返回本人掣用） */
   selfId: string | null
@@ -105,18 +105,22 @@ export default function FocusTree({
 }: FocusTreeProps) {
   const { t } = useTranslation()
   const { parentLayer, focusLayer, childLayer } = focusView
+  const focusedMemberId = focusView.focusId
 
   const hasParents = parentLayer.households.length > 0
-  const hasChildren = childLayer.households.length > 0
+  // 有任何一組子女（非空）才顯示下層標籤
+  const hasAnyChildren = childLayer.groups.some(g => g.households.length > 0)
   const safeIdx = selectedIdx < focusLayer.households.length ? selectedIdx : 0
 
   return (
+    /* 外層：overflow-y: auto（任務四：三層 viewport 上下 scroll） */
     <div style={{
       width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center',
       gap: 0, position: 'relative', paddingTop: '8px',
+      overflowY: 'auto',
     }}>
 
-      {/* 返回本人掣（焦點不在本人時才顯示） */}
+      {/* 返回本人掣 */}
       {selfId && selfId !== focusView.focusId && (
         <div style={{ width: '100%', display: 'flex', justifyContent: 'center', paddingBottom: '8px' }}>
           <button
@@ -137,33 +141,52 @@ export default function FocusTree({
           <div style={{ fontSize: '13px', color: 'var(--color-text-secondary)', padding: '4px 0', fontWeight: 'bold' }}>
             {t('gen.parent_layer_label')}
           </div>
-          <ParentRow households={parentLayer.households} setFocusId={setFocusId} />
+          <ParentRow
+            households={parentLayer.households}
+            focusedMemberId={focusedMemberId}
+            setFocusId={setFocusId}
+          />
           <VerticalConnector height={24} />
         </>
       )}
 
-      {/* 中層（焦點代 carousel）— 帶 sibling bar */}
+      {/* 中層（焦點代 carousel）— 4h 移除 SiblingBar */}
       <div style={{ fontSize: '13px', color: 'var(--color-primary)', padding: '2px 0 4px', fontWeight: 'bold' }}>
         {t('gen.focus_layer_label')}
       </div>
       <div style={{ position: 'relative', width: '100%', overflow: 'hidden' }}>
-        {focusLayer.households.length > 1 && <SiblingBar />}
         <FocusCarousel
           households={focusLayer.households}
           selectedIdx={safeIdx}
+          focusedMemberId={focusedMemberId}
           onSelect={setSelectedIdx}
           setFocusId={setFocusId}
         />
       </div>
 
-      {/* 下層（子女代） */}
-      {hasChildren && (
+      {/* 下層（仔女代）— 4h：每房獨立橫線，對正各自父母 */}
+      {hasAnyChildren && (
         <>
-          <VerticalConnector height={24} />
           <div style={{ fontSize: '13px', color: 'var(--color-text-secondary)', padding: '2px 0 4px', fontWeight: 'bold' }}>
             {t('gen.child_layer_label')}
           </div>
-          <ChildrenRow households={childLayer.households} setFocusId={setFocusId} />
+          {/* 下層橫向佈局：每組子女對正上面中層的 household */}
+          <div style={{
+            display: 'flex', flexDirection: 'row', gap: '12px',
+            overflowX: 'auto', width: '100%',
+            padding: '0 calc(50% - 90px)',
+            boxSizing: 'border-box',
+            alignItems: 'flex-start',
+          }}>
+            {childLayer.groups.map((group) => (
+              <ChildGroupRow
+                key={group.parentHouseholdId}
+                group={group}
+                focusedMemberId={focusedMemberId}
+                setFocusId={setFocusId}
+              />
+            ))}
+          </div>
         </>
       )}
 

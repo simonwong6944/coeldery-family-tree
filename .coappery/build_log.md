@@ -1860,3 +1860,112 @@ console errors: NONE ✅
 ### 9. Git
 - Commit：`細步 4g: 焦點式家庭樹 (buildFocusView + FocusTree carousel + B1HomePage 重寫)`
 - Push：`git push origin main`
+
+---
+
+## [細步 4h] 焦點式家庭樹重構（全房展開 + 每房橫線 + 半邊切家族 + 三層 viewport + 點擊行為）
+
+**完成時間**：2026-09-03
+
+### 任務一：改 buildFocusView — 新 childLayer.groups 結構
+
+**修改檔案**：`packages/family-tree-engine/focus-view.ts`（202行→202行）
+
+- 新增 `ChildGroup` interface：`{ parentHouseholdId: string; households: Household[] }`
+- 新增 `ChildLayer` interface：`{ groups: ChildGroup[] }`
+- `FocusView.childLayer` 型別從 `FocusLayer`（`{ households: Household[] }`）改為 `ChildLayer`（`{ groups: ChildGroup[] }`）
+- 下層邏輯改為對每個 `focusLayer.households[i]` 各自計算子女：primary + spouse 的 parent_child 邊合併去重
+- 無子女的房 → `groups[i].households = []`（保留佔位對齊）
+- 移除 `selectedHouseholdIdx` 參數（不再影響下層資料）
+
+**修改檔案**：`packages/family-tree-engine/index.ts`
+
+- 更新 re-export：新增 `ChildLayer`、`ChildGroup` 型別導出
+
+### 任務二：每房獨立橫線（ChildGroupRow）
+
+**修改檔案**：`src/components/FocusTreeParts.tsx`（130行→248行）
+
+- 移除 `SiblingBar`（打通整代橫線）
+- 新增 `ChildGroupRow` component：
+  - 0 子女 → 空 `<div>` 佔位（`minWidth: 90px`）
+  - 1 子女 → 垂直線直落 + 子女卡
+  - 2+ 子女 → 垂直線 + 橫線（`alignSelf: stretch`）+ 每子女短垂直線 + 各自子女卡
+  - 橫線只覆蓋該組，不跨房
+
+### 任務三：HouseholdChip 左右半邊分區 click
+
+**修改檔案**：`src/components/FocusTreeParts.tsx`
+
+- `HouseholdChip` props 改為 `onClickPrimary` / `onClickSpouse`（取代原 `onClick`）
+- 新增 `focusedMemberId` prop：判斷 primary/spouse 半邊是否顯示 outline 高亮
+- 單人卡：整張 click（`onClickPrimary`）
+- 配偶卡：
+  - 視覺層 `HouseholdCard`（`pointerEvents: none`）
+  - 左半邊透明 `div`（cursor pointer，`onClick` → primary，`onDoubleClick` → `#/member/:primary.id`）
+  - 右半邊透明 `div`（cursor pointer，`onClick` → spouse，`onDoubleClick` → `#/member/:spouse.id`）
+  - active 半邊顯示 `outline: 2px solid var(--color-primary)`
+
+### 任務四：三層 viewport + 上下 scroll
+
+**修改檔案**：`src/components/FocusTree.tsx`（173行→196行）
+
+- 外層容器加 `overflowY: 'auto'`（Shell 已有 `overflowY: auto`，FocusTree 配合）
+- 下層改為橫向 `overflowX: auto` + 每個 `ChildGroupRow` 排排列
+- 中層 `SiblingBar` 移除（已改為每房獨立橫線）
+
+### 任務五：single-click 高亮 + double-click 導航
+
+**修改檔案**：`src/components/FocusTreeParts.tsx`
+
+- single-click 分流：220ms `setTimeout` 延遲，等待判斷是否 dblclick
+- double-click 攔截：`clearTimeout` + `window.location.hash = '#/member/:id'`
+- `focusedMemberId` 傳入各層 chip，對應半邊顯示 outline 高亮
+
+### B1HomePage.tsx 小改
+
+**修改檔案**：`src/pages/B1HomePage.tsx`
+
+- `buildFocusView(members, relationships, currentFocusId)` 移除 `selectedIdx` 第四參數
+- `selectedIdx` 保留（carousel snap 位置用），但不再影響下層資料計算
+
+### npm run build 結果
+
+```
+✓ built in 615ms
+71 modules transformed, 零 TypeScript 錯誤
+```
+
+### Playwright 截圖驗證（陳大文家族 seed_4g.sql）
+
+**(a) 初始三層佈局**：
+- 父母層：陳榮光/梁玉蘭 ✅
+- 焦點層（carousel）：陳大文/李秀英（is_self=1，綠框）+ 右側陳大雄、陳大偉 ✅
+- 子女層：一條橫線覆蓋陳志明/王美玲 + 陳嘉儀 ✅（每房獨立橫線）
+
+**(b) 每房橫線**：子女代橫線只覆蓋陳大文房子女，兄弟房（空）不顯示橫線 ✅
+
+**(c) 配偶卡右半邊 click**：右半邊（李秀英）click → focusId 切到李秀英，但李秀英無父母資料，上層不顯示（資料限制，行為正確）✅
+
+**(d) flip 後返回本人**：「返回本人」按鈕正常，點擊後恢復陳大文焦點 ✅
+
+**(e) carousel scroll（橫）**：
+- scroll 右後中層顯示陳大雄、陳大偉（視覺置中）✅
+- 下層子女代**保持不變**（scroll 不改資料，任務四 B 行為確認）✅
+
+**(f) single-click 高亮**：click 第二張卡後顯示 outline highlight ✅
+
+**(g) console 無錯誤**：console errors = 0 ✅
+
+### 已知限制（4h 範圍外）
+
+1. **雙祖先線切換**：若 focusId 的 spouse 有自己的父母，㩒 spouse 半邊後上層顯示 spouse 父母——但若 spouse 的父母在 DB 中沒有資料（如本次 seed 的李秀英），上層為空。此行為正確但用戶體驗需改善（可加提示）。
+2. **孫代展開**：下層子女卡不再自動展開孫代，需㩒子女卡成為新焦點才能看到。
+3. **多祖先並排**：若 focusId 有來自兩個不同房的父母（再婚），上層目前只顯示第一個父母 household。
+4. **KC Wong 驗證場景**：規格原本預期用 KC Wong / Simon / Sebina / Suzanne 家族驗證三房子女各自橫線，但現有 D1 --local 種子資料為陳大文家族（seed_4g.sql），KC Wong 資料未插入（規格禁止跑 seed sql）。三房橫線邏輯已實作（`ChildGroupRow`），待 KC Wong 資料插入後可驗證。
+5. **下層子女對正父母 carousel 位置**：目前下層三組子女橫向排列（overflowX: auto），未做 position: absolute 對齊，視覺上各組子女不一定正好在對應父母正下方（特別是 carousel scroll 後）。此為已知限制，需要更複雜的 DOM 量測才能解決。
+
+### Git
+
+- Commit：`git commit -m "細步 4h: 焦點式家庭樹重構（全房展開+每房橫線+半邊切家族+viewport scroll+點擊行為）"`
+- Push：`git push origin main`

@@ -159,8 +159,8 @@ function FocusContent({
   const currentFocusId = focusId ?? selfMember?.id ?? ''
 
   const focusView = useMemo(
-    () => buildFocusView(members, relationships, currentFocusId, selectedIdx),
-    [members, relationships, currentFocusId, selectedIdx],
+    () => buildFocusView(members, relationships, currentFocusId),
+    [members, relationships, currentFocusId],
   )
 
   return (
