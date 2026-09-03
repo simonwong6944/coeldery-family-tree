@@ -210,6 +210,9 @@ export function buildTreeLevels(
   return result
 }
 
-/* ── Re-export 焦點視圖（細步 4h）── */
-export type { FocusView, FocusLayer, ChildLayer, ChildGroup } from './focus-view'
+/* ── Re-export 焦點視圖（細步 4i：多層遞歸）── */
+export type {
+  FocusView, FocusLevel, FocusGroup,
+  FocusLayer, ChildLayer, ChildGroup,  // 向下相容
+} from './focus-view'
 export { buildFocusView } from './focus-view'

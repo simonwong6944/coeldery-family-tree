@@ -2173,3 +2173,111 @@ Console errors: NONE ✅
 
 - Commit：`git commit -m "細步 4h-scroll: FocusChildLayer overflowY:visible 修正縱向 scroll"`
 - Push：`git push origin main`
+
+---
+
+## [細步 4i] buildFocusView 改為上下無限遞歸 render 所有代（2026-09-03）
+
+### 唯一目標
+
+令 `buildFocusView` 由焦點向上/向下遞歸砌所有代（無限），輸出 `levels: FocusLevel[]` 陣列；`FocusTree.tsx` 依 levels 順序 render 全部代。
+
+### 修改檔案
+
+| 檔案 | 動作 | 行數 | 限制 |
+|------|------|------|------|
+| `packages/family-tree-engine/focus-view.ts` | **重寫** | 186 行 | ≤250 ✅ |
+| `packages/family-tree-engine/focus-view-helpers.ts` | **新建** | 68 行 | ≤250 ✅ |
+| `packages/family-tree-engine/index.ts` | **修改** | — | re-export 新型別 |
+| `src/components/FocusTree.tsx` | **重寫** | 218 行 | ≤250 ✅ |
+
+### 新型別設計
+
+```typescript
+// 新增
+export interface FocusGroup {
+  parentHouseholdId: string | null
+  groups: Household[]
+}
+export interface FocusLevel {
+  generation: number   // 0=焦點, -1=父母, +1=子女, -2=祖父母, +2=孫 ...
+  groups: FocusGroup[]
+}
+// FocusView 擴充 levels + 向下相容 alias
+export interface FocusView {
+  levels: FocusLevel[]
+  focusId: string
+  parentLayer: { households: Household[] }   // alias: gen=-1
+  focusLayer:  { households: Household[] }   // alias: gen=0
+  childLayer:  { groups: ChildGroup[] }      // alias: gen=+1
+}
+```
+
+### 核心演算法
+
+- **usedIds Set（跨代共享）**：防環，同一成員不重複出現
+- **向上遞歸**（gen=-1,-2,...）：沿 `parent_child`（to=當前成員）向上，每代取所有父母 households，直到無更上一代
+- **向下遞歸**（gen=+1,+2,...）：沿 `parent_child`（from=當前 household 成員）向下，每代保留「每房分組」結構，直到無更下一代
+- **焦點代（gen=0）**：焦點 household + 共同父母的兄弟姊妹
+- **向下相容 alias**：`levels` 計算完後自動映射 `parentLayer`/`focusLayer`/`childLayer`
+
+### helpers 拆分（focus-view-helpers.ts）
+
+- `buildMarriageMap(rels)`：建立配偶 Map
+- `buildPetsByOwner(members, rels)`：寵物歸屬 Map
+- `makeHousehold(primaryId, byId, spouseMap, petsByOwner, usedIds)`：建單個 Household，標記 usedIds
+
+### FocusTree.tsx 最小 render 調整
+
+- 移除寫死三層（parentLayer/focusLayer/childLayer）
+- 依 `levels` 陣列升冪排序，逐層 render
+- `genLabel()` 用現有 i18n key map（`gen.layer_label_minus1`…`gen.layer_label_3`），超出 key 範圍時 fallback 為 `第 N 代`
+- 各層 render 邏輯：`generation < 0` → `<ParentRow>`；`generation === 0` → `<FocusCarousel>`；`generation > 0` → `<FocusChildLayer>`
+
+### Build 結果
+
+```
+npm run build → ✅（73 modules，零 TypeScript 錯誤，vite build 377ms）
+dist/assets/index-B-OlE4YC.js 338.15 kB │ gzip: 98.04 kB
+（+1 module：新增 focus-view-helpers.ts）
+```
+
+### Playwright DOM 四代驗證（KC Wong D1 --local 資料）
+
+```
+[Layer Labels]
+  ✅ has_父母代（gen=-1：Robert Wong + Helen Wong）
+  ✅ has_本人同代（gen=0：KC Wong + Mary Wong + Simon Wong）
+  ✅ has_子女代（gen=+1：Peter Wong + Amy Wong + Alice Wong）
+  ✅ has_孫兒代（gen=+2：Tom Wong + Emma Wong）
+  ✅ has_曾孫代（gen=+3：Jack Wong）
+
+[Member Names by Generation]
+  ✅ gen_-1_Robert（Robert Wong）
+  ✅ gen_-1_Helen（Helen Wong）
+  ✅ gen_0_KC（KC Wong）
+  ✅ gen_0_Mary（Mary Wong）
+  ✅ gen_+1_Peter（Peter Wong）
+  ✅ gen_+1_Simon（Simon Wong）
+  ✅ gen_+2_Tom（Tom Wong）
+  ✅ gen_+2_Emma（Emma Wong）
+  ✅ gen_+3_Jack（Jack Wong）
+
+[Summary] 11/11 members found in DOM
+[Result] ✅ PASS — 五代（gen -1 至 +3）全部 render 入 DOM
+Console errors: 0
+```
+
+截圖存 `/tmp/4i_dom_verify.png`（不入 repo）。
+
+### 重要說明
+
+- **多層遞歸已完成**：所有代均 render 落 DOM，scroll/平移對位/置中視覺優化留待下一步
+- **scroll/平移/置中**：呢步只需證明「所有代都 render 咗落 DOM」，視覺排列的進一步優化為後續工作
+- **向下相容**：`FocusView` 保留 `parentLayer`/`focusLayer`/`childLayer` alias，現有其他元件引用不受影響
+- **紅線遵守**：未改 scroll CSS、平移對位邏輯、頭像點擊、橫線；未加 npm package；未 deploy；截圖不入 repo
+
+### Git
+
+- Commit：`git commit -m "細步 4i: buildFocusView 改為上下無限遞歸（levels 陣列），FocusTree 依 levels render 所有代"`
+- Push：`git push origin main`

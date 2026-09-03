@@ -1,26 +1,24 @@
 /**
- * FocusTree — 焦點式家庭樹主體（4h-fix-2）
+ * FocusTree — 焦點式家庭樹主體（4i：多層遞歸渲染）
  *
- * 問題一：carousel wrapper 移除 overflow:hidden（不截縱向 scroll）
- *         + touch-action:pan-x 只攔橫向手勢
- * 問題四：中層 household>1 時，carousel 上方加純範圍橫線（SiblingBar）
- * 問題五：carousel padding 改用 scrollPadding + flex justifyContent:center，
- *         移除寫死 calc(50% - 90px)
+ * 依 focusView.levels 陣列（generation 由小到大）順序 render：
+ *   - generation < 0 → 祖先代，用 ParentRow（單行橫排）
+ *   - generation = 0 → 焦點代，用 FocusCarousel（横向 snap）
+ *   - generation > 0 → 後代代，每代用 FocusChildLayer（平移對位）
+ *
+ * 每兩個相鄰代之間加 VerticalConnector 分隔線。
+ * 樣式維持現狀，唔加新視覺功能。
  *
  * module ≤ 250 行。
  */
 
 import { useRef, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { FocusView, Household } from '../../packages/family-tree-engine'
+import type { FocusView, FocusLevel, Household } from '../../packages/family-tree-engine'
 import { HouseholdChip, VerticalConnector, ParentRow, SiblingBar } from './FocusTreeParts'
 import FocusChildLayer from './FocusChildLayer'
 
-/* ── FocusCarousel ── 中層 scroll-snap carousel ──
- * 問題四：households.length > 1 → 上方加 SiblingBar
- * 問題五：padding 改 scrollPaddingInline，flex justifyContent:center
- * 問題一：touch-action: pan-x（只攔橫向手勢，縱向 scroll 不受阻）
- */
+/* ── FocusCarousel ── 焦點代橫向 snap carousel ── */
 function FocusCarousel({
   households, selectedIdx, focusedMemberId, onSelect, setFocusId, scrollRef,
 }: {
@@ -61,31 +59,18 @@ function FocusCarousel({
 
   return (
     <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
-      {/* 問題四：兄弟姊妹橫線（household 數 > 1 時） */}
       {households.length > 1 && <SiblingBar />}
-
-      {/* carousel scroll 容器
-       * 問題五：scrollSnapType x mandatory，padding 用 scrollPaddingInline
-       *   首末卡能 snap 到正中靠 scroll-padding-inline，不靠 content padding
-       * 問題一：touch-action pan-x，不截縱向 scroll
-       */}
       <div
         ref={scrollRef as React.RefObject<HTMLDivElement>}
         onScroll={onScroll}
         style={{
-          display: 'flex',
-          flexDirection: 'row',
-          gap: '12px',
-          overflowX: 'auto',
-          overflowY: 'visible',    /* 問題一：不截縱向 */
-          width: '100%',
+          display: 'flex', flexDirection: 'row', gap: '12px',
+          overflowX: 'auto', overflowY: 'visible', width: '100%',
           scrollSnapType: 'x mandatory',
-          scrollPaddingInline: 'calc(50% - 90px)',  /* 問題五：scroll padding，不影響 layout */
-          padding: '4px 0',
-          boxSizing: 'border-box',
-          msOverflowStyle: 'none',
-          touchAction: 'pan-x',   /* 問題一：只攔橫向手勢 */
-          justifyContent: 'center', /* 問題五：flex 置中（少於一屏時） */
+          scrollPaddingInline: 'calc(50% - 90px)',
+          padding: '4px 0', boxSizing: 'border-box',
+          msOverflowStyle: 'none', touchAction: 'pan-x',
+          justifyContent: 'center',
         }}
       >
         {households.map((hh, i) => (
@@ -115,6 +100,19 @@ function LayerLabel({ text, accent = false }: { text: string; accent?: boolean }
   )
 }
 
+/* ── levelLabel：根據 generation 決定文字 ── */
+function genLabel(gen: number, t: ReturnType<typeof import('react-i18next').useTranslation>['t']): string {
+  // 使用 locale 已有的 layer_label_minus1 / layer_label_0 / layer_label_1 等 key
+  const keyMap: Record<number, string> = {
+    [-3]: 'gen.layer_label_minus3', [-2]: 'gen.layer_label_minus2',
+    [-1]: 'gen.layer_label_minus1', [0]: 'gen.layer_label_0',
+    [1]: 'gen.layer_label_1', [2]: 'gen.layer_label_2', [3]: 'gen.layer_label_3',
+  }
+  const key = keyMap[gen]
+  if (key) return t(key)
+  return gen < 0 ? `第 ${gen} 代` : `第 +${gen} 代`
+}
+
 /* ── FocusTree（主組件）── */
 export interface FocusTreeProps {
   focusView: FocusView
@@ -128,12 +126,11 @@ export default function FocusTree({
   focusView, selectedIdx, selfId, setFocusId, setSelectedIdx,
 }: FocusTreeProps) {
   const { t } = useTranslation()
-  const { parentLayer, focusLayer, childLayer } = focusView
-  const focusedMemberId = focusView.focusId
+  const { levels, focusId } = focusView
 
-  const hasParents = parentLayer.households.length > 0
-  const hasAnyChildren = childLayer.groups.some(g => g.households.length > 0)
-  const safeIdx = selectedIdx < focusLayer.households.length ? selectedIdx : 0
+  const focusLevel  = levels.find(l => l.generation === 0)
+  const focusHHs    = focusLevel?.groups.flatMap(g => g.households) ?? []
+  const safeIdx     = selectedIdx < focusHHs.length ? selectedIdx : 0
 
   const carouselRef = useRef<HTMLDivElement | null>(null)
 
@@ -145,7 +142,7 @@ export default function FocusTree({
     }}>
 
       {/* 返回本人掣 */}
-      {selfId && selfId !== focusView.focusId && (
+      {selfId && selfId !== focusId && (
         <div style={{ width: '100%', display: 'flex', justifyContent: 'center', paddingBottom: '8px' }}>
           <button
             onClick={() => setFocusId(selfId)}
@@ -159,50 +156,66 @@ export default function FocusTree({
         </div>
       )}
 
-      {/* ── 上層（父母代）── */}
-      {hasParents && (
-        <>
-          <LayerLabel text={t('gen.parent_layer_label')} />
-          <VerticalConnector height={20} />
-          <ParentRow
-            households={parentLayer.households}
-            focusedMemberId={focusedMemberId}
-            setFocusId={setFocusId}
-          />
-          <VerticalConnector height={24} />
-        </>
-      )}
+      {/* ── 依 levels 順序 render 所有代 ── */}
+      {levels.map((level: FocusLevel, li: number) => {
+        const isFirst = li === 0
+        const allHH   = level.groups.flatMap(g => g.households)
+        if (allHH.length === 0) return null
 
-      {/* ── 中層（焦點代 carousel）──
-       * 問題一：移除 overflow:hidden wrapper（原本截縱向 scroll）
-       * 改為 width:100% 無 overflow 限制，只靠 carousel 本身 overflowX:auto
-       */}
-      <LayerLabel text={t('gen.focus_layer_label')} accent />
-      <div style={{ width: '100%' }}>
-        <FocusCarousel
-          households={focusLayer.households}
-          selectedIdx={safeIdx}
-          focusedMemberId={focusedMemberId}
-          onSelect={setSelectedIdx}
-          setFocusId={setFocusId}
-          scrollRef={carouselRef}
-        />
-      </div>
+        return (
+          <div key={level.generation} style={{ width: '100%', display: 'contents' }}>
+            {/* 相鄰代之間加 VerticalConnector */}
+            {!isFirst && <VerticalConnector height={24} />}
 
-      {/* ── 下層（子女代）── */}
-      {hasAnyChildren && (
-        <>
-          <VerticalConnector height={24} />
-          <LayerLabel text={t('gen.child_layer_label')} />
-          <FocusChildLayer
-            groups={childLayer.groups}
-            selectedIdx={safeIdx}
-            carouselRef={carouselRef}
-            focusedMemberId={focusedMemberId}
-            setFocusId={setFocusId}
-          />
-        </>
-      )}
+            <LayerLabel
+              text={genLabel(level.generation, t)}
+              accent={level.generation === 0}
+            />
+
+            {level.generation < 0 && (
+              /* 祖先代：ParentRow 單行橫排 */
+              <>
+                <VerticalConnector height={20} />
+                <ParentRow
+                  households={allHH}
+                  focusedMemberId={focusId}
+                  setFocusId={setFocusId}
+                />
+              </>
+            )}
+
+            {level.generation === 0 && (
+              /* 焦點代：FocusCarousel */
+              <div style={{ width: '100%' }}>
+                <FocusCarousel
+                  households={focusHHs}
+                  selectedIdx={safeIdx}
+                  focusedMemberId={focusId}
+                  onSelect={setSelectedIdx}
+                  setFocusId={setFocusId}
+                  scrollRef={carouselRef}
+                />
+              </div>
+            )}
+
+            {level.generation > 0 && (
+              /* 後代代：FocusChildLayer（平移對位）
+               * carouselRef 傳給 gen=1 對齊焦點 carousel；
+               * gen>1 的 carouselRef 設 null（不對位，下步再處理）。 */
+              <FocusChildLayer
+                groups={level.groups.map(g => ({
+                  parentHouseholdId: g.parentHouseholdId ?? '',
+                  households: g.households,
+                }))}
+                selectedIdx={level.generation === 1 ? safeIdx : 0}
+                carouselRef={level.generation === 1 ? carouselRef : { current: null }}
+                focusedMemberId={focusId}
+                setFocusId={setFocusId}
+              />
+            )}
+          </div>
+        )
+      })}
 
     </div>
   )
