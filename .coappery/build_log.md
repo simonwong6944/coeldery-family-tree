@@ -2100,3 +2100,76 @@ KC Wong 初始三層（Robert+Helen / KC+Mary+Simon / Peter+Amy+Alice）剛好�
 
 - Commit：`git commit -m "細步 4h-fix-2: 修復上下scroll/下層平移累加/頭像點擊區/中層橫線/置中"`
 - Push：`git push origin main`
+
+---
+
+## [細步 4h-scroll] 縱向 Scroll 修正（2026-09-03）
+
+### 唯一目標
+
+修復「整棵樹上下 scroll 完全唔郁」問題。
+
+### 根因診斷
+
+用 Playwright DOM 診斷發現：`FocusChildLayer`（`src/components/FocusChildLayer.tsx`）最外層 wrapRef `<div>` 設有 `overflow: 'hidden'`（行 182）。
+
+`overflow: hidden` 在整個元素上截斷縱向，令該 div 的 `scrollHeight` 被 clip 至其可見高度，不再向上層貢獻正確的 `scrollHeight`。結果：`<main>` 的 `scrollHeight` 永遠等於其 `clientHeight`（708px），`overflowY: auto` 誤判為「無需 scroll」，縱向手勢全部無效。
+
+```
+// 診斷輸出（改前）
+main.scrollHeight=708, clientHeight=708, canScroll=false   ← overflow:hidden 截住
+// FocusChildLayer wrapRef: height=169, overflow=hidden/hidden ← 問題元素
+```
+
+### 唯一改動
+
+**`src/components/FocusChildLayer.tsx` 第 182 行**，僅改一個屬性：
+
+```diff
+- overflow: 'hidden',
++ overflowX: 'hidden',
++ overflowY: 'visible',
+```
+
+- `overflowX: hidden`：保留橫向溢出截斷，防止子女卡橫向爆版
+- `overflowY: visible`：放行縱向，讓子女卡高度正確貢獻至 `<main>` 的 `scrollHeight`
+
+其餘所有功能（平移對位、頭像點擊、橫線、置中、engine 邏輯）**完全不動**。
+
+### Build 結果
+
+```
+npm run build → ✅ 72 modules，零 TS 錯誤
+```
+
+### 本地驗證（截圖存於 /tmp/4h_scroll_shots/，不入 repo）
+
+使用 KC Wong 四代 seed（已在 D1 --local）：
+
+```
+[A] 初始三層（Robert+Helen / KC+Mary+Simon / Peter+Amy+Alice）:
+    scrollH=708, clientH=708, canScroll=False
+    → 三層恰好填滿 708px viewport，初始不需 scroll（預期行為）
+
+[B] 切焦點至子女代（加入第四層 Tom+Emma）:
+    scrollH=753, clientH=708, canScroll=True  ✅
+    → scrollTop: 0 → 45（中段）→ 45（底部）✅
+
+Console errors: NONE ✅
+```
+
+截圖驗收：
+- `a_initial_top.png`：初始 KC Wong 三層頂部
+- `b_top.png`：四層頂部（scrollTop=0）
+- `c_mid.png`：四層中段（scrollTop=22）
+- `d_bottom.png`：四層底部（scrollTop=45）
+
+### 已知限制
+
+1. **初始三層不觸發 scroll**：KC Wong 資料三層高度恰好等於 708px viewport，初始狀態下無需 scroll。這是資料高度與 viewport 的巧合，並非 scroll 功能問題——切焦點至子女代（第四層出現）後 scroll 即生效。
+2. **改動範圍補充**：實際根因在 `FocusChildLayer.tsx`，而非任務書預設的 `B1HomePage.tsx` + `FocusTree.tsx`。根因診斷後確認改動僅需一行，不影響任何其他功能。
+
+### Git
+
+- Commit：`git commit -m "細步 4h-scroll: FocusChildLayer overflowY:visible 修正縱向 scroll"`
+- Push：`git push origin main`

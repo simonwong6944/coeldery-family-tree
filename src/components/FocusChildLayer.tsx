@@ -176,12 +176,16 @@ export default function FocusChildLayer({
   if (!hasAnyChildren) return null
 
   return (
-    /* 外層：全寬，overflow:hidden 防止下層卡片溢出影響外層縱向 scroll */
+    /* 外層：全寬，只截橫向溢出（overflowX:hidden 防橫爆版），
+     * overflowY 必須 visible，讓子女卡高度貢獻到 <main> scrollHeight，
+     * 縱向 scroll 才能正常觸發。overflow:hidden 整體截住會令 scrollHeight 永遠等於 clientHeight。
+     */
     <div ref={wrapRef} style={{
       width: '100%',
-      overflow: 'hidden',
+      overflowX: 'hidden',
+      overflowY: 'visible',
       display: 'flex',
-      justifyContent: 'center',   /* 問題五：flex 置中作 fallback */
+      justifyContent: 'center',   /* flex 置中作 fallback */
     }}>
       {/* track：align() 計算後加 translateX，初始無 padding（由 flex 置中） */}
       <div ref={trackRef} style={{
