@@ -1,16 +1,16 @@
 /**
- * FocusChildLayer — 下層子女區（4h-fix）
+ * FocusChildLayer — 下層子女區（4h-fix-2）
  *
- * 功能：
- *   - 全部 ChildGroup 同時 render（全房齊出，不消失）
- *   - 監聽 selectedIdx 及 carousel DOM 位置，
- *     用 getBoundingClientRect + translateX 將整個下層
- *     平移使 highlight 房的子女 group 對正畫面正中
- *   - ResizeObserver + scroll 事件 throttle（requestAnimationFrame）重算
- *   - 每組子女：
- *     - 0 子女 → 不顯示（無佔位）
- *     - 1 子女 → 垂直基準線 + 子女卡（無橫線）
- *     - 2+ 子女 → 純範圍橫線（無垂直）+ 子女卡橫排
+ * 問題二修正（最重要）：
+ *   align() 改用絕對定位，消除累積漂移：
+ *   1. 先將 track.style.transform = '' 歸零（不帶 transition）
+ *   2. 讀 track/groupEl.getBoundingClientRect()（此時 transform=0，座標可靠）
+ *   3. 計算 highlight 父母卡中心 x → child group 中心 x 的差
+ *   4. 一次性 set translateX(delta)（絕對值，不累加）
+ *
+ * 問題五修正：
+ *   - track 移除寫死 paddingLeft: calc(50% - 90px)
+ *   - 初始對齊由 align() 在 mount 時計算，用 flex justifyContent:center 作 fallback
  *
  * module ≤ 250 行。
  */
@@ -76,7 +76,6 @@ function ChildGroup_({
 export interface FocusChildLayerProps {
   groups: ChildGroup[]
   selectedIdx: number
-  /** carousel 容器 ref，用於量度 highlight 父母卡位置 */
   carouselRef: React.RefObject<HTMLDivElement | null>
   focusedMemberId?: string
   setFocusId: (id: string) => void
@@ -85,79 +84,80 @@ export interface FocusChildLayerProps {
 export default function FocusChildLayer({
   groups, selectedIdx, carouselRef, focusedMemberId, setFocusId,
 }: FocusChildLayerProps) {
-  const wrapRef = useRef<HTMLDivElement>(null)       // 外層 overflow: hidden
-  const trackRef = useRef<HTMLDivElement>(null)       // 實際平移的 track div
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const trackRef = useRef<HTMLDivElement>(null)
   const rafId = useRef<number | null>(null)
 
-  // 只渲染有子女的 groups（但順序保留，用 index 對應 carousel）
   const hasAnyChildren = groups.some(g => g.households.length > 0)
 
-  /** 計算平移量並 apply */
+  /**
+   * 絕對定位 align（問題二修正）：
+   * 每次都從 transform=0 的原始 layout 出發，計算一次性絕對 translateX。
+   * 不累加，不漂移。
+   */
   const align = useCallback(() => {
     const carousel = carouselRef.current
     const track = trackRef.current
     const wrap = wrapRef.current
     if (!carousel || !track || !wrap) return
 
-    // 找 carousel 中第 selectedIdx 個子元素（scroll-snap item）
-    const snapItems = Array.from(carousel.children) as HTMLElement[]
-    const target = snapItems[selectedIdx] ?? snapItems[0]
-    if (!target) return
+    /* Step 1: 歸零 transform（不加 transition，避免閃爍），讓 layout 穩定 */
+    track.style.transition = 'none'
+    track.style.transform = ''
 
-    // highlight 父母卡中心 x（頁面坐標）
-    const targetRect = target.getBoundingClientRect()
+    /* Step 2: 找 carousel 中 selectedIdx 對應的 snap 項 */
+    const snapItems = Array.from(carousel.children) as HTMLElement[]
+    const targetEl = snapItems[selectedIdx] ?? snapItems[0]
+    if (!targetEl) return
+
+    /* Step 3: highlight 父母卡中心 x（viewport 座標，transform=0 時可靠） */
+    const targetRect = targetEl.getBoundingClientRect()
     const parentCx = targetRect.left + targetRect.width / 2
 
-    // 外層 wrap 中心 x
-    const wrapRect = wrap.getBoundingClientRect()
-    const wrapCx = wrapRect.left + wrapRect.width / 2
-
-    // 找 track 中第 selectedIdx 個 ChildGroup_ 的中心 x
-    // track 直接子元素 = 有子女的 group div，依原始 groups 順序排
+    /* Step 4: 找 groups[selectedIdx] 對應的 trackChildren 元素 */
     const trackChildren = Array.from(track.children) as HTMLElement[]
-
-    // 建立 groups[selectedIdx] 在 trackChildren 中的位置
-    // （groups 中有空 group，trackChildren 只有非空 group）
+    // track 的直接子元素 = 非空 group，但保留原始 groups 順序中的空 group null slot
+    // groups[i].households.length===0 → track 中沒有此 group 的 DOM
+    // 需要計算 selectedIdx 在 trackChildren 中的真實下標
     let trackIdx = 0
     for (let i = 0; i < selectedIdx && i < groups.length; i++) {
       if (groups[i].households.length > 0) trackIdx++
     }
+
     const groupEl = trackChildren[trackIdx]
     if (!groupEl) {
-      // 若選中的 group 無子女，維持畫面置中（translateX = 0）
-      // 讓整個 track 相對 wrap 置中
+      /* 選中的 group 無子女 → 整個 track 相對 wrap 置中 */
+      const wrapRect = wrap.getBoundingClientRect()
       const trackRect = track.getBoundingClientRect()
-      const trackCx = trackRect.left + trackRect.width / 2
-      const delta = wrapCx - trackCx
-      track.style.transform = `translateX(${delta}px)`
+      const delta = (wrapRect.left + wrapRect.width / 2) - (trackRect.left + trackRect.width / 2)
+      requestAnimationFrame(() => {
+        track.style.transition = 'transform 0.3s cubic-bezier(0.4,0,0.2,1)'
+        track.style.transform = `translateX(${delta}px)`
+      })
       return
     }
 
+    /* Step 5: transform=0 時 groupEl 的中心 x */
     const groupRect = groupEl.getBoundingClientRect()
     const groupCx = groupRect.left + groupRect.width / 2
 
-    // 所需 translate = (highlight父母卡中心) - (group 中心) + 現有 transform
-    // 但更穩健：直接算從 wrap 中心到 group 中心的偏移
-    // 目標：group 中心 align 到 parentCx（即 highlight 父母卡正下方）
-    // 同時確保整個 track 不超出 wrap（不做 clamp，讓用戶自己 scroll）
-    const currentTransform = parseFloat(track.style.transform?.replace('translateX(', '') ?? '0') || 0
+    /* Step 6: 一次性絕對 delta（不累加） */
     const delta = parentCx - groupCx
-    track.style.transform = `translateX(${currentTransform + delta}px)`
-    track.style.transition = 'transform 0.3s cubic-bezier(0.4,0,0.2,1)'
+
+    /* Step 7: 加回 transition，apply 絕對 translateX */
+    requestAnimationFrame(() => {
+      track.style.transition = 'transform 0.3s cubic-bezier(0.4,0,0.2,1)'
+      track.style.transform = `translateX(${delta}px)`
+    })
   }, [selectedIdx, groups, carouselRef])
 
-  /** RAF-throttled align */
   const scheduleAlign = useCallback(() => {
     if (rafId.current !== null) cancelAnimationFrame(rafId.current)
     rafId.current = requestAnimationFrame(() => { rafId.current = null; align() })
   }, [align])
 
-  // selectedIdx 或 groups 變化 → 重算
-  useEffect(() => {
-    scheduleAlign()
-  }, [selectedIdx, groups, scheduleAlign])
+  useEffect(() => { scheduleAlign() }, [selectedIdx, groups, scheduleAlign])
 
-  // ResizeObserver 監聽 wrap 尺寸變化（橫豎屏切換等）
   useEffect(() => {
     const wrap = wrapRef.current
     if (!wrap) return
@@ -166,7 +166,6 @@ export default function FocusChildLayer({
     return () => ro.disconnect()
   }, [scheduleAlign])
 
-  // carousel scroll → 重算對齊
   useEffect(() => {
     const carousel = carouselRef.current
     if (!carousel) return
@@ -177,19 +176,18 @@ export default function FocusChildLayer({
   if (!hasAnyChildren) return null
 
   return (
-    /* 外層：固定寬，overflow hidden，防子女層溢出影響外層 scroll */
+    /* 外層：全寬，overflow:hidden 防止下層卡片溢出影響外層縱向 scroll */
     <div ref={wrapRef} style={{
-      width: '100%', overflow: 'hidden',
-      display: 'flex', justifyContent: 'flex-start',
+      width: '100%',
+      overflow: 'hidden',
+      display: 'flex',
+      justifyContent: 'center',   /* 問題五：flex 置中作 fallback */
     }}>
-      {/* track：平移目標，初始置中 */}
+      {/* track：align() 計算後加 translateX，初始無 padding（由 flex 置中） */}
       <div ref={trackRef} style={{
         display: 'flex', flexDirection: 'row', gap: '24px',
         flexShrink: 0,
         willChange: 'transform',
-        // 初始使整排置中：左右各加半個 viewport padding
-        paddingLeft: 'calc(50% - 90px)',
-        paddingRight: 'calc(50% - 90px)',
       }}>
         {groups.map((group) =>
           group.households.length === 0 ? null : (

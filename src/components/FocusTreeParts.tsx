@@ -1,12 +1,13 @@
 /**
- * FocusTreeParts — 焦點樹子組件（4h-fix）
+ * FocusTreeParts — 焦點樹子組件（4h-fix-2）
  *
- * 4h-fix 改動：
- *   - HouseholdChip：頭像 overlay 觸發 single/double click（無中間分隔線）
- *     single-click 頭像 → setFocusId；double-click → #/member/:id
- *   - VerticalConnector 保留（中央基準線用）
- *   - ChildGroupRow / SiblingBar 移除（由 FocusChildLayer 接管）
- *   - ParentRow 保留，水平置中
+ * 問題三修正（頭像 click 區）：
+ *   - 移除 AvatarOverlay 固定座標估算
+ *   - HouseholdChip wrapper 整張 div 掛 onClick/onDoubleClick
+ *   - couple 卡：用 pointerEvent.clientX 與 wrapper 中央比較，
+ *     左半 → primary；右半 → spouse
+ *   - single 卡：整張 div click → primary
+ *   - 220ms 分流 single/double click
  *
  * module ≤ 250 行。
  */
@@ -34,6 +35,16 @@ export function VerticalConnector({ height = 28 }: { height?: number }) {
   )
 }
 
+/* ── SiblingBar — 純範圍橫線（中層 / 下層共用）── */
+export function SiblingBar() {
+  return (
+    <div aria-hidden="true" style={{
+      height: '2px', backgroundColor: 'var(--color-primary)',
+      opacity: 0.45, alignSelf: 'stretch', margin: '0 8px', flexShrink: 0,
+    }} />
+  )
+}
+
 const selfBadgeStyle: React.CSSProperties = {
   position: 'absolute', top: '4px', left: '50%', transform: 'translateX(-50%)',
   fontSize: '11px', fontWeight: 'bold', color: 'var(--color-primary)',
@@ -44,43 +55,11 @@ function SelfBadge({ t }: { t: (key: string) => string }) {
   return <span style={selfBadgeStyle}>{t('gen.self_badge')}</span>
 }
 
-/* ── AvatarOverlay ──
- * 透明圓形 div 覆蓋頭像，single/double click 分流（220ms）
- * couple 卡：primary at (CARD_PAD, CARD_PAD)，
- *           spouse at (CARD_PAD + size + COL_GAP + HEART_W + COL_GAP, CARD_PAD)
+/* ── HouseholdChip ──
+ * 問題三修正：整張 wrapper div click，用 clientX 判斷 primary/spouse 區
+ * couple 卡：clientX < wrapper 中央 → primary；否則 → spouse
+ * single 卡：整張 → primary
  */
-const CARD_PAD = 20
-const COL_GAP = 16
-const HEART_W = 28
-
-function AvatarOverlay({
-  memberId, size, left, top, onSingle, onDouble,
-}: {
-  memberId: string
-  size: number
-  left: number
-  top: number
-  onSingle: (id: string) => void
-  onDouble: (id: string) => void
-}) {
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const handleClick = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (timer.current) clearTimeout(timer.current)
-    timer.current = setTimeout(() => { timer.current = null; onSingle(memberId) }, 220)
-  }, [memberId, onSingle])
-  const handleDbl = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (timer.current) { clearTimeout(timer.current); timer.current = null }
-    onDouble(memberId)
-  }, [memberId, onDouble])
-  return (
-    <div onClick={handleClick} onDoubleClick={handleDbl}
-      style={{ position: 'absolute', left, top, width: size, height: size, borderRadius: '50%', cursor: 'pointer', zIndex: 4 }} />
-  )
-}
-
-/* ── HouseholdChip ── */
 export function HouseholdChip({
   hh, size, isFocus, focusedMemberId: _fid, onClickPrimary, onClickSpouse,
 }: {
@@ -99,47 +78,62 @@ export function HouseholdChip({
   const variant = secondary ? (pet ? 'couple_with_pet' : 'couple') : 'single'
   const isSelf = hh.primary.is_self === 1
 
-  const timerSingle = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // 記錄最後一次 click 識別的 memberId（供 dblclick handler 用）
+  const lastClickId = useRef<string>(hh.primary.id)
+
   const handleDblNav = useCallback((id: string) => {
     window.location.hash = `#/member/${id}`
   }, [])
 
-  // single 卡：整張 wrapper div 可 click（頭像 flex-center，固定 offset 不可靠）
-  const handleSingleClick = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (timerSingle.current) clearTimeout(timerSingle.current)
-    timerSingle.current = setTimeout(() => { timerSingle.current = null; onClickPrimary(hh.primary.id) }, 220)
-  }, [hh.primary.id, onClickPrimary])
-  const handleSingleDbl = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (timerSingle.current) { clearTimeout(timerSingle.current); timerSingle.current = null }
-    handleDblNav(hh.primary.id)
-  }, [hh.primary.id, handleDblNav])
+  /** 由 clientX 決定點了 primary 還是 spouse */
+  const resolveClickTarget = useCallback((clientX: number): string => {
+    if (!secondary || !onClickSpouse) return hh.primary.id
+    const wrap = wrapRef.current
+    if (!wrap) return hh.primary.id
+    const rect = wrap.getBoundingClientRect()
+    const midX = rect.left + rect.width / 2
+    return clientX < midX ? hh.primary.id : hh.spouse!.id
+  }, [secondary, onClickSpouse, hh.primary.id, hh.spouse])
 
-  if (!secondary) {
-    return (
-      <div style={{ position: 'relative', flexShrink: 0, cursor: 'pointer' }}
-        onClick={handleSingleClick} onDoubleClick={handleSingleDbl}>
-        <HouseholdCard variant={variant} primaryMember={primary} pet={pet}
-          avatarSize={size} isFocused={isFocus} width="auto" />
-        {isSelf && <SelfBadge t={t} />}
-      </div>
-    )
-  }
+  const handleClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    e.stopPropagation()
+    const memberId = resolveClickTarget(e.clientX)
+    lastClickId.current = memberId
+    if (timer.current) clearTimeout(timer.current)
+    timer.current = setTimeout(() => {
+      timer.current = null
+      // 用 lastClickId.current 以確保 closure 拿到最新值
+      const id = lastClickId.current
+      if (id === hh.primary.id) onClickPrimary(id)
+      else onClickSpouse?.(id)
+    }, 220)
+  }, [resolveClickTarget, hh.primary.id, onClickPrimary, onClickSpouse])
 
-  // couple 卡：各自頭像 overlay（無中間線）
+  const handleDblClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    e.stopPropagation()
+    if (timer.current) { clearTimeout(timer.current); timer.current = null }
+    const memberId = resolveClickTarget(e.clientX)
+    handleDblNav(memberId)
+  }, [resolveClickTarget, handleDblNav])
+
   return (
-    <div style={{ position: 'relative', flexShrink: 0 }}>
-      <HouseholdCard variant={variant} primaryMember={primary} secondaryMember={secondary}
-        pet={pet} avatarSize={size} isFocused={isFocus} width="auto" />
-      <AvatarOverlay memberId={hh.primary.id} size={size}
-        left={CARD_PAD} top={CARD_PAD}
-        onSingle={onClickPrimary} onDouble={handleDblNav} />
-      {hh.spouse && onClickSpouse && (
-        <AvatarOverlay memberId={hh.spouse.id} size={size}
-          left={CARD_PAD + size + COL_GAP + HEART_W + COL_GAP} top={CARD_PAD}
-          onSingle={onClickSpouse} onDouble={handleDblNav} />
-      )}
+    <div
+      ref={wrapRef}
+      style={{ position: 'relative', flexShrink: 0, cursor: 'pointer' }}
+      onClick={handleClick}
+      onDoubleClick={handleDblClick}
+    >
+      <HouseholdCard
+        variant={variant}
+        primaryMember={primary}
+        secondaryMember={secondary}
+        pet={pet}
+        avatarSize={size}
+        isFocused={isFocus}
+        width="auto"
+      />
       {isSelf && <SelfBadge t={t} />}
     </div>
   )

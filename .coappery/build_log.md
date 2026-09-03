@@ -2024,3 +2024,79 @@ npm run build → ✅ 72 modules，零 TS 錯誤
 
 - Commit：`git commit -m "細步 4h-fix: scroll container fix + FocusChildLayer + AvatarOverlay + 線簡化"`
 - Push：`git push origin main`
+
+---
+
+## [細步 4h-fix-2] 焦點式家庭樹五項修正（2026-09-03）
+
+### 修正範圍
+
+| # | 問題 | 修正方法 | 狀態 |
+|---|------|----------|------|
+| 1 | 上下 scroll 卡住，去唔到頂/底 | Shell `<main>` 改 `position:absolute top:56px bottom:80px`；carousel wrapper 移除 `overflow:hidden`；carousel 加 `touchAction:pan-x` | ✅ |
+| 2 | `align()` 累加 `currentTransform+delta`，誤差滾雪球 | 每次先歸零 `transform=''`（不帶 transition），再 `getBoundingClientRect`（座標穩定），一次性 set 絕對 `translateX(delta)`，完全不累加 | ✅ |
+| 3 | `AvatarOverlay` 用寫死常數 `CARD_PAD/COL_GAP/HEART_W` 估位錯位 | 移除 `AvatarOverlay`；整張 wrapper div 掛 `onClick/onDoubleClick`；用 `e.clientX` vs wrapper 中央 `getBoundingClientRect().left + width/2` 判斷 primary/spouse | ✅ |
+| 4 | 中層 FocusCarousel 有兄弟姊妹時無橫線 | `households.length > 1` 時上方加 `<SiblingBar/>`（從 FocusTreeParts export，`height:2px opacity:0.45`） | ✅ |
+| 5 | 寫死 `calc(50%-90px)` 置中偏差 | 移除寫死常數，改 `scrollPaddingInline: 'calc(50% - 90px)'`（snap 首末置中）+ `justifyContent: 'center'`（少於一屏時 flex 置中） | ✅ |
+
+### 改動檔案
+
+| 檔案 | 行數 | 說明 |
+|------|------|------|
+| `src/pages/B1HomePage.tsx` | ~180 行 | Shell `<main>` 改 `position:absolute top:56px bottom:80px`，`overflowY:auto` |
+| `src/components/FocusChildLayer.tsx` | ~240 行 | `align()` 絕對定位（歸零→`getBoundingClientRect`→一次性 delta）；移除 `calc(50%-90px)` padding；外層加 `justifyContent:center` flex fallback |
+| `src/components/FocusTreeParts.tsx` | ~220 行 | 移除 `AvatarOverlay`；新增 `SiblingBar` export；`HouseholdChip` 改 `wrapRef` + `clientX` midpoint 判斷；220ms 單/雙擊分流 |
+| `src/components/FocusTree.tsx` | ~200 行 | carousel wrapper 移除 `overflow:hidden`；加 `SiblingBar`（`households.length>1`）；改 `scrollPaddingInline`；`touchAction:pan-x` |
+
+### Build 結果
+
+```
+npm run build → ✅ 72 modules，零 TS 錯誤
+Output: dist/assets/index-CGn7KWSZ.js 337.03 kB │ gzip: 97.69 kB
+```
+
+### 本地驗證（截圖存於 screenshots_4h_fix2/）
+
+**(a) 上下 scroll**：`<main>` DOM 驗證 `position: absolute; inset: 56px 0px 80px; overflow: hidden auto;` ✅
+
+KC Wong 初始三層（Robert+Helen / KC+Mary+Simon / Peter+Amy+Alice）剛好填滿 viewport（scrollHeight=clientHeight=708，預期行為）。切焦點至 Peter+Amy（加入孫代 Tom+Emma）後：
+- `scrollHeight=753 > clientHeight=708`，`scrollTop` 可達 45px ✅
+- scroll 到底後 `scrollTop=45`，scroll 回頂後 `scrollTop=0`，無卡死 ✅
+
+截圖：`a1_scroll_top.png`、`a2_scroll_mid.png`、`a3_scroll_bottom.png`
+
+**(b) 下層平移對位**：carousel scroll 後 child track transform：
+- `BEFORE: translateX(-81.83px)` → scroll right → `AFTER: translateX(-109.83px)` → scroll back → `translateX(-81.83px)`（精準恢復，無漂移）✅
+
+截圖：`b1_before_scroll.png`、`b2_after_scroll_right.png`、`b3_after_scroll_back.png`
+
+**(c) 頭像 click**：wrapper click + `clientX` midpoint 判斷，double-click 成功導航至 `#/member/kc-gp1` ✅
+
+截圖：`c1_before_click.png`、`c2_after_dblclick.png`
+
+**(d) 中層橫線（SiblingBar）**：兩條 2px 橫線可見（中層 + 下層）：
+- 中層 SiblingBar：`width=374px, top=321.78px, height=2px, visible=true` ✅
+- 下層 SiblingBar：`width=431.05px, top=560.06px, height=2px, visible=true` ✅
+
+截圖：`d_sibling_bar.png`
+
+**(e) 置中**：移除 `calc(50%-90px)` 寫死值，`scrollPaddingInline + justifyContent:center` 置中正確 ✅
+
+截圖：`e_center.png`
+
+**(f) console 無錯誤**：console errors = NONE ✅
+
+截圖：`f_initial.png`、`f_final.png`
+
+### 已知限制（4h-fix-2 範圍外）
+
+1. **scrollPaddingInline 依賴卡寬**：`scrollPaddingInline: 'calc(50% - 90px)'` 假設半卡寬≈90px（HouseholdCard width≈180px），若卡寬日後由 prop 調整，需同步更新此值。長遠可改為 `ResizeObserver` 量度第一個 snap 項寬度動態設定。
+2. **KC Wong 初始三層不觸發 scroll**：三層高度（TopBar 56 + 三代 + BottomTab 80）恰好等於 708px viewport，初始不需 scroll。此為資料與 viewport 大小的巧合，非 scroll 功能問題——切焦點至子女代（加入第四層）後 scrollHeight=753，scroll 即生效。
+3. **clientX midpoint 雙人卡判斷**：若 HouseholdCard 的 primary/spouse 排列左右對調（如 RTL 語言），`clientX < midX → primary` 的假設需翻轉。現有 LTR 設計下正確。
+4. **220ms 單/雙擊分流延遲**：單擊回饋需等待 220ms（排除雙擊）。若日後需要即時 hover 高亮，可加 `onPointerDown` 作即時視覺回饋而不觸發業務邏輯。
+5. **SiblingBar 在 carousel overflow 模式下的寬度**：`alignSelf:stretch` + `margin:0 8px` 令 SiblingBar 與 carousel 同寬，但若 carousel 內容超出 flex 容器（overflowX:auto），`stretch` 可能取得 scroll container 寬而非全部內容寬。視覺上預期正確，極端情況（超寬 carousel）需留意。
+
+### Git
+
+- Commit：`git commit -m "細步 4h-fix-2: 修復上下scroll/下層平移累加/頭像點擊區/中層橫線/置中"`
+- Push：`git push origin main`

@@ -1,14 +1,11 @@
 /**
- * FocusTree — 焦點式家庭樹主體（4h-fix）
+ * FocusTree — 焦點式家庭樹主體（4h-fix-2）
  *
- * 4h-fix 改動：
- *   - 真·上下 scroll：FocusTree 不設 height/overflow，
- *     所有代全 render 落 DOM，靠 Shell <main overflowY:auto> 做 scroll
- *   - 中層 carousel scrollRef 傳給 FocusChildLayer 量度父母卡位置
- *   - FocusChildLayer 負責下層全房齊出 + translateX 對齊
- *   - 線簡化：層間只保留中央固定垂直基準線，無多餘垂直線
- *   - 每層 justifyContent: center（水平置中）
- *   - 移除 SiblingBar（整代橫線）
+ * 問題一：carousel wrapper 移除 overflow:hidden（不截縱向 scroll）
+ *         + touch-action:pan-x 只攔橫向手勢
+ * 問題四：中層 household>1 時，carousel 上方加純範圍橫線（SiblingBar）
+ * 問題五：carousel padding 改用 scrollPadding + flex justifyContent:center，
+ *         移除寫死 calc(50% - 90px)
  *
  * module ≤ 250 行。
  */
@@ -16,10 +13,14 @@
 import { useRef, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { FocusView, Household } from '../../packages/family-tree-engine'
-import { HouseholdChip, VerticalConnector, ParentRow } from './FocusTreeParts'
+import { HouseholdChip, VerticalConnector, ParentRow, SiblingBar } from './FocusTreeParts'
 import FocusChildLayer from './FocusChildLayer'
 
-/* ── FocusCarousel ── 中層 scroll-snap carousel ── */
+/* ── FocusCarousel ── 中層 scroll-snap carousel ──
+ * 問題四：households.length > 1 → 上方加 SiblingBar
+ * 問題五：padding 改 scrollPaddingInline，flex justifyContent:center
+ * 問題一：touch-action: pan-x（只攔橫向手勢，縱向 scroll 不受阻）
+ */
 function FocusCarousel({
   households, selectedIdx, focusedMemberId, onSelect, setFocusId, scrollRef,
 }: {
@@ -32,7 +33,6 @@ function FocusCarousel({
 }) {
   const settling = useRef(false)
 
-  // selectedIdx 變化時滾到對應卡
   useEffect(() => {
     const el = scrollRef.current
     if (!el || !el.children[selectedIdx]) return
@@ -41,7 +41,6 @@ function FocusCarousel({
     })
   }, [selectedIdx, scrollRef])
 
-  // scroll 停止後更新 selectedIdx（純視覺，不影響下層資料）
   const onScroll = useCallback(() => {
     if (settling.current) return
     settling.current = true
@@ -61,43 +60,62 @@ function FocusCarousel({
   }, [selectedIdx, onSelect, scrollRef])
 
   return (
-    <div
-      ref={scrollRef as React.RefObject<HTMLDivElement>}
-      onScroll={onScroll}
-      style={{
-        display: 'flex', flexDirection: 'row', gap: '12px',
-        overflowX: 'auto', width: '100%',
-        scrollSnapType: 'x mandatory',
-        /* padding 讓首/末卡能 snap 到正中（90px ≈ 半張 80px 卡 + padding） */
-        padding: '4px calc(50% - 90px)',
-        boxSizing: 'border-box',
-        msOverflowStyle: 'none',
-        position: 'relative', zIndex: 1,
-        justifyContent: 'flex-start',
-      }}
-    >
-      {households.map((hh, i) => (
-        <div key={hh.primary.id} style={{ scrollSnapAlign: 'center', flexShrink: 0 }}>
-          <HouseholdChip
-            hh={hh} size={80}
-            isFocus={i === selectedIdx}
-            focusedMemberId={focusedMemberId}
-            onClickPrimary={setFocusId}
-            onClickSpouse={setFocusId}
-          />
-        </div>
-      ))}
+    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
+      {/* 問題四：兄弟姊妹橫線（household 數 > 1 時） */}
+      {households.length > 1 && <SiblingBar />}
+
+      {/* carousel scroll 容器
+       * 問題五：scrollSnapType x mandatory，padding 用 scrollPaddingInline
+       *   首末卡能 snap 到正中靠 scroll-padding-inline，不靠 content padding
+       * 問題一：touch-action pan-x，不截縱向 scroll
+       */}
+      <div
+        ref={scrollRef as React.RefObject<HTMLDivElement>}
+        onScroll={onScroll}
+        style={{
+          display: 'flex',
+          flexDirection: 'row',
+          gap: '12px',
+          overflowX: 'auto',
+          overflowY: 'visible',    /* 問題一：不截縱向 */
+          width: '100%',
+          scrollSnapType: 'x mandatory',
+          scrollPaddingInline: 'calc(50% - 90px)',  /* 問題五：scroll padding，不影響 layout */
+          padding: '4px 0',
+          boxSizing: 'border-box',
+          msOverflowStyle: 'none',
+          touchAction: 'pan-x',   /* 問題一：只攔橫向手勢 */
+          justifyContent: 'center', /* 問題五：flex 置中（少於一屏時） */
+        }}
+      >
+        {households.map((hh, i) => (
+          <div key={hh.primary.id} style={{ scrollSnapAlign: 'center', flexShrink: 0 }}>
+            <HouseholdChip
+              hh={hh} size={80}
+              isFocus={i === selectedIdx}
+              focusedMemberId={focusedMemberId}
+              onClickPrimary={setFocusId}
+              onClickSpouse={setFocusId}
+            />
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
 
 /* ── 層標籤 ── */
 function LayerLabel({ text, accent = false }: { text: string; accent?: boolean }) {
-  return <div style={{ fontSize: '13px', fontWeight: 'bold', padding: '4px 0', textAlign: 'center', width: '100%', color: accent ? 'var(--color-primary)' : 'var(--color-text-secondary)' }}>{text}</div>
+  return (
+    <div style={{
+      fontSize: '13px', fontWeight: 'bold', padding: '4px 0',
+      textAlign: 'center', width: '100%',
+      color: accent ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+    }}>{text}</div>
+  )
 }
 
 /* ── FocusTree（主組件）── */
-
 export interface FocusTreeProps {
   focusView: FocusView
   selectedIdx: number
@@ -117,11 +135,10 @@ export default function FocusTree({
   const hasAnyChildren = childLayer.groups.some(g => g.households.length > 0)
   const safeIdx = selectedIdx < focusLayer.households.length ? selectedIdx : 0
 
-  // carouselRef 傳給 FocusCarousel + FocusChildLayer（量度父母卡位置）
   const carouselRef = useRef<HTMLDivElement | null>(null)
 
   return (
-    /* 任務一：FocusTree 不設 height，全代 render 落 DOM，Shell <main overflowY:auto> 是 scroll container */
+    /* FocusTree 不設 height/overflow，自然撐高 <main>，靠 Shell <main> scroll */
     <div style={{
       width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center',
       paddingTop: '8px', paddingBottom: '32px',
@@ -146,21 +163,22 @@ export default function FocusTree({
       {hasParents && (
         <>
           <LayerLabel text={t('gen.parent_layer_label')} />
-          {/* 中央固定垂直基準線（上層用） */}
           <VerticalConnector height={20} />
           <ParentRow
             households={parentLayer.households}
             focusedMemberId={focusedMemberId}
             setFocusId={setFocusId}
           />
-          {/* 上層到中層的基準線 */}
           <VerticalConnector height={24} />
         </>
       )}
 
-      {/* ── 中層（焦點代 carousel）── */}
+      {/* ── 中層（焦點代 carousel）──
+       * 問題一：移除 overflow:hidden wrapper（原本截縱向 scroll）
+       * 改為 width:100% 無 overflow 限制，只靠 carousel 本身 overflowX:auto
+       */}
       <LayerLabel text={t('gen.focus_layer_label')} accent />
-      <div style={{ position: 'relative', width: '100%', overflow: 'hidden' }}>
+      <div style={{ width: '100%' }}>
         <FocusCarousel
           households={focusLayer.households}
           selectedIdx={safeIdx}
@@ -174,10 +192,8 @@ export default function FocusTree({
       {/* ── 下層（子女代）── */}
       {hasAnyChildren && (
         <>
-          {/* 中層到下層的基準線 */}
           <VerticalConnector height={24} />
           <LayerLabel text={t('gen.child_layer_label')} />
-          {/* FocusChildLayer：全房齊出 + 跟 highlight 父母卡平移對齊 */}
           <FocusChildLayer
             groups={childLayer.groups}
             selectedIdx={safeIdx}

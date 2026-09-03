@@ -1,13 +1,11 @@
 /**
- * B1HomePage — 焦點式家庭樹主頁（細步 4g）
+ * B1HomePage — 焦點式家庭樹主頁（4h-fix-2）
  *
- * 重寫要點：
- *   - focusId state：初始 = is_self=1 成員；無 is_self → 第一個 person
- *   - selectedIdx state：中層目前選中的 household index（決定下層）
- *   - 呼叫 buildFocusView(members, relationships, focusId, selectedIdx) 取得三層視圖
- *   - FocusTree component 負責渲染 + carousel + 連線
+ * 問題一修正：
+ *   - TopBar/BottomTabBar 已是 position:fixed，<main> 用 marginTop/marginBottom
+ *     而非 paddingTop/paddingBottom，確保 overflowY:auto 可正常 scroll
+ *   - Shell 外層 height:100svh + overflow:hidden，<main flex:1 overflowY:auto>
  *
- * 階段一：以 is_self=1 為焦點；將來 SSO 接入後改用登入者。
  * 頁面 ≤ 200 行。
  */
 
@@ -56,7 +54,11 @@ function TopBarRightSlot() {
   </>
 }
 
-/* ── Shell ── */
+/* ── Shell ──
+ * 問題一修正：TopBar(56px fixed) + BottomTabBar(80px fixed) 已 fixed 定位，
+ * <main> 用 marginTop:56px / marginBottom:80px 留出空間，
+ * 不用 padding（padding 不計入 scrollHeight，會令 overflowY:auto 誤判無需 scroll）
+ */
 function Shell({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation()
   const tabNav = (tab: TabId) => {
@@ -64,9 +66,22 @@ function Shell({ children }: { children: React.ReactNode }) {
     window.location.hash = r[tab]
   }
   return (
-    <div style={{ height:'100svh', backgroundColor:'var(--color-bg)', display:'flex', flexDirection:'column', overflow:'hidden' }}>
+    <div style={{ height:'100svh', backgroundColor:'var(--color-bg)', position:'relative' }}>
       <TopBar titleKey="top_bar.title" rightSlot={<TopBarRightSlot/>}/>
-      <main role="main" aria-label={t('app_name')} style={{ flex:1, overflowY:'auto', overflowX:'hidden', paddingTop:'56px', paddingBottom:'80px' }}>
+      <main
+        role="main"
+        aria-label={t('app_name')}
+        style={{
+          position: 'absolute',
+          top: '56px',          /* TopBar 高度 */
+          bottom: '80px',       /* BottomTabBar 高度 */
+          left: 0,
+          right: 0,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          WebkitOverflowScrolling: 'touch',
+        }}
+      >
         {children}
       </main>
       <BottomTabBar current="family_tree" onTabChange={tabNav}/>
@@ -88,7 +103,6 @@ export default function B1HomePage() {
       .then((d: TreeData) => {
         setTree(d)
         setLoading(false)
-        // 初始焦點 = is_self=1；若無則取第一個 person
         const selfMember = d.members.find((m: ApiMember) => m.is_self === 1 && m.member_kind === 'person')
           ?? d.members.find((m: ApiMember) => m.member_kind === 'person')
         if (selfMember) setFocusId(selfMember.id)
@@ -96,7 +110,6 @@ export default function B1HomePage() {
       .catch(() => { setTree({ members: [], relationships: [] }); setLoading(false) })
   }, [])
 
-  // 換焦點時重設下層 selectedIdx
   const handleSetFocusId = (id: string) => {
     setFocusId(id)
     setSelectedIdx(0)
@@ -142,7 +155,7 @@ export default function B1HomePage() {
   />
 }
 
-/* ── FocusContent — 拆分以避免 hooks-in-conditional ── */
+/* ── FocusContent ── */
 function FocusContent({
   members, relationships, focusId, selectedIdx, setFocusId, setSelectedIdx,
 }: {
