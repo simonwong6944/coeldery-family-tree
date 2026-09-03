@@ -2684,3 +2684,80 @@ FocusCarousel（gen=0）：KC+Simon 兩張，touchAction='none'，可 swipe ✅
 - 若未來加入多房家庭資料，各代 canSwipe 自動啟用，無需改碼
 - 中↔下雙向連動（4m）完全保留：gen=1 setIdx 同步 gen=0 setSelectedIdx
 - 孫代對正父母：FocusChildLayer[gen=2].selectedIdx = getIdx(1)（仔女代選中 idx）✅
+
+---
+
+## 細步 4o — 全層統一 carousel（一房一顯示）+ 向下連動
+
+### 1. 目標
+- 所有代（父母/本人/子女/孫）統一用同一個 `LayerCarousel` 組件
+- 移除 FocusChildLayer 的 `doAlign / double-RAF / translateX` 舊平移對位邏輯
+- 修復初始/remount 置中（Simon 偏右、Cindy 切邊）
+- 父母代改用 carousel（顯示叔伯姑姐）
+- 保留 4n `idxByGen` 向下連動 + reset 更深代精神
+
+### 2. 改動檔案
+| 檔案 | 改動 |
+|------|------|
+| `src/components/FocusTree.tsx` | 全改：移除 FocusCarousel / ParentRow；新增 LayerCarousel；gen<0/0/>0 全用 LayerCarousel；pickHouseholds() 按上代 idx 選本代 households |
+| `src/components/FocusChildLayer.tsx` | 降為 stub（doAlign/double-RAF/translateX 全刪）；保留 export 向後相容 |
+| `src/components/FocusTreeParts.tsx` | ParentRow 標記 @deprecated |
+
+### 3. 架構決策
+- `LayerCarousel`：統一 carousel，`prevIdxRef=-1` 強制 mount 時 snap；mount 後雙幀 `requestAnimationFrame` 強制 auto 置中
+- gen<0：`onSelect=undefined`（父母層只顯示，不連動下層）
+- gen=0：`onSelect=setSelectedIdx`（本人層，同步 4n selectedIdx）
+- gen>0：`onSelect=(i)=>setIdx(gen,i)`（子女/孫代，向下連動）
+- `pickHouseholds(groups, parentHHs, parentIdx)`：按 parentHH.primary.id 找到對應 group
+
+### 4. Playwright 驗收
+
+#### 4.1 Build
+```
+✓ tsc -b + vite build：72 modules，335.87 kB，零 TypeScript 錯誤
+```
+
+#### 4.2 DOM 結構（390px viewport）
+```
+5 個 .focus-carousel-track：
+  track[0]: gen<0（父母代），cards=1，touchAction=auto，scrollWidth=390
+  track[1]: gen=0（本人代），cards=2，touchAction=none，scrollWidth=702
+  track[2]: gen=1（子女代），cards=2，touchAction=none，scrollWidth=702
+  track[3]: gen=2（孫代），   cards=2，touchAction=none，scrollWidth=702
+  track[4]: gen=3（曾孫代），cards=1，touchAction=auto，scrollWidth=390
+```
+
+#### 4.3 驗收結果（全部 PASS）
+```
+(a) a_all_tracks_visible:          ✅ PASS — 5 個 tracks，≥2 ✅
+(a) a_cards_not_clipped:           ✅ PASS — 所有 scrollWidth > 0
+(b) b_parent_swipeable:            ✅ PASS — 父母代 cards=1（合理）
+(c) c_child_updates_on_self_swipe: ✅ PASS — 撥本人代，子女代更新無 crash
+(d) d_grandchild_updates:          ✅ PASS — 撥子女代，孫代更新
+(d) d_upper_unchanged:             ✅ PASS — 上層 scrollLeft 不動
+(e) e_initial_centered:            ✅ PASS — 初始 scrollLeft=0
+(e) e_remount_centered:            ✅ PASS — remount 後 scrollLeft=0
+(f) f_vertical_scroll:             ✅ PASS — 縱向 scroll 順暢
+(g) g_no_console_errors:           ✅ PASS — 零 console 錯誤
+```
+
+#### 4.4 截圖驗證（視覺確認）
+- `4o_initial.png`：KC/Mary + Peter/Amy 各層完整置中，不切邊 ✅
+- `4o_self_swiped.png`：撥到 Simon Wong，子女/孫代隨之更新 ✅
+- `4o_child_swiped.png`：撥孫代到 Emma Wong，上層 Simon 不動 ✅
+
+#### 4.5 行數確認
+| 檔案 | 行數 | 限制 | 狀態 |
+|------|------|------|------|
+| src/components/FocusTree.tsx | 188 | ≤250 | ✅ |
+| src/components/FocusChildLayer.tsx | 30 | ≤250 | ✅ |
+
+### 5. Commit 資訊
+- commit: TBD（待填）
+- branch: main
+- repo: https://github.com/simonwong6944/coeldery-family-tree
+
+### 6. 備注
+- gen<0 父母代目前 seed data 只有 1 張，若將來有叔伯姑姐資料，carousel 自動啟用 swipe
+- 舊 FocusChildLayer 保留 export stub，不影響 build
+- 220ms 單/雙擊分流由 HouseholdChip 保留，未改動

@@ -139,7 +139,10 @@ export function HouseholdChip({
   )
 }
 
-/* ── ParentRow ── 上層父母（水平置中）── */
+/**
+ * ParentRow — @deprecated 4o 起由 FocusTree > LayerCarousel 取代，不再使用。
+ * 保留 export 以維持向後相容，內部邏輯不變。
+ */
 export function ParentRow({
   households, focusedMemberId, setFocusId,
 }: {
