@@ -1,7 +1,10 @@
 /**
  * FocusTree — 焦點式家庭樹
  * 4q: selectedIdxHint / householdsKey / setPointerCapture
- * 4r: idByGen(id-based) + pickHouseholds by primaryId; fallback → []
+ * 4r: idByGen(id-based) + pickHouseholds by primaryId
+ * 4s: seedChain — 焦點切換時沿直系初始化整條鏈 idByGen
+ *     解決：(1) gen≥2 初始孤立（David 消失）
+ *           (2) gen 0 hint vs safeIdx 錯位（Suzanne 下錯顯 Simon 仔女）
  * module ≤ 250 行。
  */
 
@@ -25,24 +28,19 @@ function LayerCarousel({ households, selectedIdx, onSelect, focusedMemberId, set
   const isSingle = households.length <= 1
   const canSwipe = !!onSelect && !isSingle
 
-  // Symptom 2 修正：householdsKey 追蹤 households 內容是否變化
   const householdsKey = useMemo(
     () => households.map(h => h.primary.id).join(','),
     [households]
   )
 
-  /**
-   * snap effect：selectedIdx 或 householdsKey 任一變化都重新置中。
-   * 不再依賴 prevIdxRef 比較——households 換了（層連動）即使 idx 不變也要 snap。
-   * mount 時亦觸發（householdsKey 初始值算作「變化」）。
-   */
+  /* snap：selectedIdx 或 householdsKey 變化都重新置中 */
   useEffect(() => {
     const cards = Array.from(scrollRef.current?.children ?? []).slice(1, -1) as HTMLElement[]
     cards[selectedIdx]?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedIdx, householdsKey])
 
-  /* mount 後雙幀強制 auto 置中（修偏位）*/
+  /* mount 後雙幀強制 auto 置中（修偏位） */
   useEffect(() => {
     const r = requestAnimationFrame(() => requestAnimationFrame(() => {
       const cards = Array.from(scrollRef.current?.children ?? []).slice(1, -1) as HTMLElement[]
@@ -52,11 +50,9 @@ function LayerCarousel({ households, selectedIdx, onSelect, focusedMemberId, set
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  /* Symptom 3 修正：setPointerCapture 確保 pointerup 必達 */
   const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (!canSwipe) return
     pointerRef.current = { x: e.clientX, y: e.clientY, id: e.pointerId }
-    // 鎖住 pointer → 即使 drag 出範圍，pointerup/cancel 仍觸發在同一元素
     try { (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId) } catch (_) { /* ignore */ }
   }, [canSwipe])
 
@@ -72,7 +68,6 @@ function LayerCarousel({ households, selectedIdx, onSelect, focusedMemberId, set
     if (next !== cur) onSelect!(next)
   }, [canSwipe, households.length, onSelect])
 
-  // Symptom 3 補充：任何離開/失去 capture 路徑都清 pointerRef
   const clearPointer = useCallback(() => { pointerRef.current = null }, [])
 
   if (!households.length) return null
@@ -97,8 +92,7 @@ function LayerCarousel({ households, selectedIdx, onSelect, focusedMemberId, set
       >
         {!isSingle && <div aria-hidden="true" style={{ width: '10vw', minWidth: '10vw', flexShrink: 0 }} />}
         {households.map((hh, i) => (
-          <div
-            key={hh.primary.id}
+          <div key={hh.primary.id}
             style={{ width: isSingle ? 'auto' : '80vw', flexShrink: 0, display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}
           >
             <HouseholdChip
@@ -137,11 +131,7 @@ function genLabel(gen: number, t: (k: string) => string): string {
   return GEN_KEY[gen] ? t(GEN_KEY[gen]) : (gen < 0 ? `第 ${gen} 代` : `第 +${gen} 代`)
 }
 
-/**
- * 4r: id-based pickHouseholds
- * 用 selectedParentId (primary.id) 直接比對 parentHouseholdId，不依賴 index。
- * fallback：selectedParentId 為 null 或找不到對應 group → 回傳 []（空狀態）。
- */
+/** 4r: id-based pickHouseholds — 用 selectedParentId 直接對位，棄 index */
 function pickHouseholds(
   groups: { parentHouseholdId: string; households: Household[] }[],
   selectedParentId: string | null,
@@ -150,32 +140,82 @@ function pickHouseholds(
   return groups.find(g => g.parentHouseholdId === selectedParentId)?.households ?? []
 }
 
+/**
+ * 4s: seedChain — 沿焦點直系初始化整條鏈的 idByGen
+ *
+ * 輸入：
+ *   levels      — FocusView.levels（引擎輸出，generation 已排序）
+ *   focusHHs    — gen=0 已排序的 households
+ *   hintIdx     — selectedIdxHint（焦點本人在 gen=0 的排序後位置）
+ *
+ * 輸出：Record<number, string>
+ *   每個有 household 的 generation → 選中 household primary.id
+ *   gen=0  → focusHHs[hintIdx].primary.id（焦點本人）
+ *   gen>0  → 上一層已選 household 的子女 group 第一個（birth_date 排序後最早）
+ *   gen<0  → 各層 allHH[0].primary.id（第一個祖先；通常一房）
+ *
+ * 此函數純計算，不 setState，供 useEffect 呼叫。
+ */
+function seedChain(
+  levels: FocusLevel[],
+  focusHHs: Household[],
+  hintIdx: number,
+): Record<number, string> {
+  const seed: Record<number, string> = {}
+
+  // gen=0：焦點本人（hintIdx 指向的房）
+  const focusHH = focusHHs[hintIdx] ?? focusHHs[0]
+  if (!focusHH) return seed
+  seed[0] = focusHH.primary.id
+
+  // gen>0：逐層向下，順著已選 primary.id 找子女 group 第一房
+  let prevSelectedId: string = focusHH.primary.id
+  for (const level of levels.filter(l => l.generation > 0).sort((a, b) => a.generation - b.generation)) {
+    const group = level.groups.find(g => g.parentHouseholdId === prevSelectedId)
+    const firstHH = group?.households[0]
+    if (!firstHH) break  // 直系鏈斷開，停止
+    seed[level.generation] = firstHH.primary.id
+    prevSelectedId = firstHH.primary.id
+  }
+
+  // gen<0：逐層向上，各層第一個 household
+  for (const level of levels.filter(l => l.generation < 0)) {
+    const allHH = level.groups.flatMap(g => g.households)
+    if (allHH.length > 0) seed[level.generation] = allHH[0].primary.id
+  }
+
+  return seed
+}
+
 export interface FocusTreeProps {
   focusView: FocusView; selectedIdx: number; selfId: string | null
   setFocusId: (id: string) => void; setSelectedIdx: (idx: number) => void
 }
 
-export default function FocusTree({ focusView, selectedIdx, selfId, setFocusId, setSelectedIdx }: FocusTreeProps) {
+export default function FocusTree({ focusView, selectedIdx: _selectedIdx, selfId, setFocusId, setSelectedIdx }: FocusTreeProps) {
   const { t } = useTranslation()
   const { levels, focusId, selectedIdxHint } = focusView
   const focusHHs = levels.find(l => l.generation === 0)?.groups.flatMap(g => g.households) ?? []
-  const safeIdx  = selectedIdx < focusHHs.length ? selectedIdx : 0
 
-  // 4r: 每層記住選中 household 的 primary.id（取代 index-based idxByGen）
-  const [idByGen, setIdByGen] = useState<Record<number, string>>({})
+  // 4s: idByGen 現包含 gen=0 的 id（seedChain 會填入），不再靠 safeIdx 兜底
+  const [idByGen, setIdByGen] = useState<Record<number, string>>(() =>
+    seedChain(levels, focusHHs, selectedIdxHint)
+  )
 
-  /** 取得指定代的選中 household primary.id；gen=0 直接從 focusHHs + safeIdx 取得 */
+  /**
+   * 取得指定代選中 household 的 primary.id
+   * 4s: gen=0 也從 idByGen 讀（由 seedChain 初始化，由 setIdx 更新）
+   *     fallback → focusHHs[0]（防止 race condition）
+   */
   function getSelectedId(g: number): string | null {
-    if (g === 0) return focusHHs[safeIdx]?.primary.id ?? null
-    return idByGen[g] ?? null
+    return idByGen[g] ?? (g === 0 ? (focusHHs[0]?.primary.id ?? null) : null)
   }
 
-  /** 選中某代某 household（傳 idx 用於 gen=0 升級 setSelectedIdx，傳 primaryId 用於 id 追蹤） */
+  /** 選中某代某 household */
   function setIdx(g: number, next: number, primaryId: string) {
     if (g === 0) setSelectedIdx(next)
     setIdByGen(prev => {
       const u: Record<number, string> = { ...prev, [g]: primaryId }
-      // 清掉所有更子代的選中狀態（子代選取跟著重置）
       for (const k of Object.keys(prev).map(Number)) {
         if (k > g) delete u[k]
       }
@@ -184,12 +224,20 @@ export default function FocusTree({ focusView, selectedIdx, selfId, setFocusId, 
     })
   }
 
-  // 切換焦點人 → 重置所有代選中，並套用引擎建議的 selectedIdxHint
+  /**
+   * 4s: 焦點切換 → seedChain 重新計算整條直系鏈
+   * 同步 setSelectedIdx(hintIdx) 確保 gen=0 index 與 seed 一致
+   */
   useEffect(() => {
-    setIdByGen({})
-    if (selectedIdxHint > 0) setSelectedIdx(selectedIdxHint)
+    const chain = seedChain(levels, focusHHs, selectedIdxHint)
+    setIdByGen(chain)
+    setSelectedIdx(selectedIdxHint)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusId, selectedIdxHint])
+
+  // gen=0 的 safeIdx：從 idByGen[0] 反查，確保與 seed/hint 一致
+  const gen0Id   = idByGen[0] ?? focusHHs[0]?.primary.id ?? null
+  const safeIdx  = gen0Id ? Math.max(0, focusHHs.findIndex(h => h.primary.id === gen0Id)) : 0
 
   return (
     <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: '8px', paddingBottom: '32px' }}>
@@ -208,7 +256,6 @@ export default function FocusTree({ focusView, selectedIdx, selfId, setFocusId, 
         const allHH = level.groups.flatMap(g => g.households)
         if (allHH.length === 0) return null
 
-        // 4r: id-based pickHouseholds — 用父代選中 primary.id 對位
         const groups4child = level.groups.map(g => ({
           parentHouseholdId: g.parentHouseholdId ?? '',
           households: g.households,
@@ -218,10 +265,15 @@ export default function FocusTree({ focusView, selectedIdx, selfId, setFocusId, 
           : allHH
         if (displayHHs.length === 0) return null
 
-        // 本代選中 idx：由 idByGen 中的 id 反查；找不到時回 0
-        const selectedId   = idByGen[gen] ?? null
-        const layerIdx     = selectedId ? (displayHHs.findIndex(h => h.primary.id === selectedId) || 0) : 0
-        const safeLayerIdx = layerIdx >= 0 && layerIdx < displayHHs.length ? layerIdx : 0
+        // 本代選中 idx：由 idByGen 中 id 反查；gen=0 用 safeIdx
+        const layerIdx = gen === 0
+          ? safeIdx
+          : (() => {
+              const sid = idByGen[gen] ?? null
+              if (!sid) return 0
+              const idx = displayHHs.findIndex(h => h.primary.id === sid)
+              return idx >= 0 ? idx : 0
+            })()
 
         return (
           <div key={gen} style={{ width: '100%', display: 'contents' }}>
@@ -230,7 +282,7 @@ export default function FocusTree({ focusView, selectedIdx, selfId, setFocusId, 
             <VerticalConnector height={8} />
             <LayerCarousel
               households={displayHHs}
-              selectedIdx={safeLayerIdx}
+              selectedIdx={layerIdx}
               onSelect={(i) => setIdx(gen, i, displayHHs[i]?.primary.id ?? '')}
               focusedMemberId={focusId}
               setFocusId={setFocusId}
