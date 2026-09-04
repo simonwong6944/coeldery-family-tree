@@ -2975,6 +2975,6 @@ h_no_console_errors:            ✅ — errors=[]
 - **setPointerCapture**：Symptom 3 的根本原因是 pointer 離開 element 後 pointerup 不達；setPointerCapture 確保 pointer 鎖定
 
 ### 7. Commit 資訊
-- commit: TBD（待填）
+- commit: 2719a9c
 - branch: main
 - repo: https://github.com/simonwong6944/coeldery-family-tree
