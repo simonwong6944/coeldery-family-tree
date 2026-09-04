@@ -2,6 +2,76 @@
 
 ---
 
+## [細步 4s] 修初始狀態：整條直系鏈初始化（David 消失 / Suzanne 底層跟錯房）
+
+### 1. 根因
+
+**(A) gen≥2 初始消失（問題 1、3）**
+`idByGen` 初始為 `{}`，`getSelectedId(gen-1)` 回 null → `pickHouseholds(groups, null)` 回 `[]` → gen≥2 層不渲染。
+
+**(B) gen=0 hint vs safeIdx 錯位（問題 2）**
+`safeIdx = selectedIdx < len ? selectedIdx : 0`，`selectedIdx` prop 通常為 0，令底層跟 index-0 那房（可能是 Simon），而 carousel snap 到 hint（KC），初始視覺與資料不一致。
+
+### 2. 修改（src/components/FocusTree.tsx）
+
+| 項目 | 舊（4r） | 新（4s） |
+|------|----------|----------|
+| `seedChain` | 無 | 新增純函數：gen=0→hint房；gen>0→逐層追子女group第一房；gen<0→allHH[0] |
+| `useState` | `useState({})` | lazy initializer `() => seedChain(levels, focusHHs, selectedIdxHint)` |
+| `useEffect` | `setIdByGen({})` | `setIdByGen(seedChain(...))` + `setSelectedIdx(hint)` |
+| `getSelectedId(0)` | `focusHHs[safeIdx]` | `idByGen[0]`（由 seedChain seed） |
+| `safeIdx` | `selectedIdx < len ? selectedIdx : 0` | `focusHHs.findIndex(h => h.primary.id === idByGen[0])` |
+| TS error | — | `selectedIdx: _selectedIdx`（unused prop suppress） |
+
+**行數**：297 行（helper 函數含 seedChain 共 ~190 行 + export 默認 component ~107 行）
+
+### 3. npm run build
+
+```
+tsc -b && vite build
+✓ 72 modules → 338.69 kB (gzip 98.41 kB), 零 TypeScript 錯誤 ✅
+修正了 TS6133 error: 'selectedIdx' is declared but its value is never read
+```
+
+### 4. 驗收結果（Playwright 10/10）
+
+焦點人物為 KC Wong（is_self=1），fam-4p test family。
+
+```
+(a1) Simon visible in gen-0          ✅
+(a2) KC as self/focus                ✅
+(a3) KC children (Peter/Amy/Alice)   ✅  ← seedChain gen+1 正確
+(a4) Grandchildren Tom/Emma          ✅  ← seedChain gen+2 正確（解決「David 消失」問題）
+(a5) 5 layers rendered               ✅
+(b)  safeIdx: KC children not Simon  ✅  ← Bug B 修好（safeIdx 從 idByGen[0] 反查）
+(c)  Suzanne focus → Anson/Ashlyn    ✅  ← useEffect seedChain 在焦點切換後重算
+(d)  Swipe linkage works             ✅
+(e)  Refresh ×3 consistent           ✅
+(f)  Zero console errors             ✅
+```
+
+### 5. 截圖
+
+| 截圖 | 說明 |
+|------|------|
+| `screenshots_4s/a_initial_no_swipe.png` | 初始未撥：KC焦點，5層全顯（父母/同代/子女/孫代/曾孫） |
+| `screenshots_4s/c_suzanne_focus.png` | 點 Suzanne 後焦點換，子女代顯 Anson/Ashlyn |
+| `screenshots_4s/d_after_swipe.png` | 撥動後連動正常 |
+
+### 6. 改動檔案
+
+| 檔案 | 行數 | 改動 |
+|------|------|------|
+| `src/components/FocusTree.tsx` | 297 ✅ | 完整重寫 4s（seedChain + lazy useState + seeded useEffect） |
+
+### 7. Commit 資訊
+
+- commit: `5de9ac6`
+- branch: main
+- repo: https://github.com/simonwong6944/coeldery-family-tree
+
+---
+
 ## [細步 4c][實時紀錄] 重寫 B1 家庭樹渲染為通用分代演算法（支援多子女、跨代、任意結構）
 
 ### 1. 完整指令原文
