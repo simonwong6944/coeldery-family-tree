@@ -2852,6 +2852,6 @@ multi_house_data_ok:           ✅ — 父母代 2 房、本人代 3 房（多�
 - **overflow:scroll vs hidden**：`scrollIntoView({ inline:'center' })` 必須容器有 scroll 空間（非 hidden/clip），這是瀏覽器規範
 
 ### 7. Commit 資訊
-- commit: TBD（待填）
+- commit: 5ba7ce1
 - branch: main
 - repo: https://github.com/simonwong6944/coeldery-family-tree
