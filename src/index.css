@@ -51,3 +51,12 @@ body {
 #root {
   min-height: 100svh;
 }
+
+/* ── LayerCarousel：隱藏橫向 scrollbar（仍可 scroll）── */
+.focus-carousel-track {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.focus-carousel-track::-webkit-scrollbar {
+  display: none;
+}

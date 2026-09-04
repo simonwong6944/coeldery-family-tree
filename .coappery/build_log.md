@@ -2761,3 +2761,97 @@ FocusCarousel（gen=0）：KC+Simon 兩張，touchAction='none'，可 swipe ✅
 - gen<0 父母代目前 seed data 只有 1 張，若將來有叔伯姑姐資料，carousel 自動啟用 swipe
 - 舊 FocusChildLayer 保留 export stub，不影響 build
 - 220ms 單/雙擊分流由 HouseholdChip 保留，未改動
+
+---
+
+## 細步 4p — 修全層撥唔郁 + 父母代啟用連動
+
+### 1. 根因分析（4o 教訓）
+
+4o 用單房假資料（每代只有 1 房），`isSingle=true` 時 carousel 永遠不撥（canSwipe=false），
+故 `overflowX:'hidden'` 的 bug 無法被測試發現。**4o 所有 Playwright tests PASS 只係因為單房假資料把 isSingle 恆真，測唔到撥卡功能。**
+
+真實多房樹才能暴露兩個 bug：
+1. **overflow bug**：`overflowX:'hidden'` → `scrollIntoView` 無效，圖面永遠停第一張
+2. **父母代 disabled**：`gen < 0 ? undefined : ...`，父母代 onSelect 故意設 undefined，撥唔動
+
+### 2. 修正內容
+
+| 問題 | 原因 | 修正 |
+|------|------|------|
+| 所有層撥唔郁 | `overflowX:'hidden'` 令 scrollIntoView 無 scroll 空間 | `overflowX:'scroll'`；CSS `.focus-carousel-track` 隱藏 scrollbar |
+| 父母代撥唔動 | `onSelect={gen < 0 ? undefined : ...}` | 所有代一律 `onSelect={(i) => setIdx(gen, i)}` |
+| 撥父母代不 reset 下層 | setIdx 只考慮 gen≥0 | setIdx 支援 gen<0：若 g<0 則同時 `setSelectedIdx(0)` |
+
+### 3. 改動檔案
+
+| 檔案 | 改動 |
+|------|------|
+| `src/components/FocusTree.tsx` | overflowX:'scroll'；onSelect 所有代統一；setIdx 擴展支援 gen<0 |
+| `src/index.css` | 新增 `.focus-carousel-track` scrollbar 隱藏規則（scrollbar-width:none 等） |
+| `seed_4p.sql` | 新增多房測試資料（父母代 2 房、本人代 3 房、子女代 5 人） |
+
+### 4. seed_4p.sql 資料結構
+```
+gen=-1（父母代）2 房：Robert+Helen（KC 父母）、Philip+Grace（Mary 父母）
+gen=0（本人代）3 房：KC+Mary、Simon+Sebina、Suzanne（KC 兄妹）
+gen=1（子女代）：KC 的子女 Peter+Amy、Alice；Simon 的子女 Danny、Diana
+gen=2（孫代）：Tom、Emma（Peter+Amy 的子女）
+gen=3（曾孫代）：Jack（Tom 之子）
+```
+
+### 5. Playwright 驗收（全部 PASS）
+
+#### 5.1 Build
+```
+✓ tsc -b + vite build：72 modules，零 TypeScript 錯誤
+```
+
+#### 5.2 DOM 結構（390px viewport，4p 多房資料）
+```
+5 個 .focus-carousel-track（全部 overflowX='scroll' ✅）：
+  track[0]: gen=-1（父母代），cards=2，touchAction='none'，scrollWidth=702
+  track[1]: gen=0（本人代），cards=3，touchAction='none'，scrollWidth=1014
+  track[2]: gen=1（子女代），cards=2，touchAction='none'，scrollWidth=702
+  track[3]: gen=2（孫代），  cards=2，touchAction='none'，scrollWidth=702
+  track[4]: gen=3（曾孫代），cards=1，touchAction='auto'，scrollWidth=390
+```
+
+#### 5.3 驗收結果（全部 PASS）
+```
+overflow_x_is_scroll:          ✅ — 全部 track overflowX='scroll'（bug 修正確認）
+multi_house_data_ok:           ✅ — 父母代 2 房、本人代 3 房（多房資料確認）
+(a) a_self_carousel_swipeable: ✅ — 本人代 scrollLeft: 0→312→624（真正動起來）
+(a) a_self_multiple_houses_visible: ✅ — 3 房都可見
+(b) b_parent_carousel_swipeable:  ✅ — 父母代 scrollLeft: 0→312（撥得動）
+(c) c_child_updates_on_self_swipe: ✅ — 撥本人代，子女代跟換
+(d) d_parent_swipe_resets_self:    ✅ — 撥父母代，本人代 reset 到 0
+(d) d_parent_swipe_resets_child:   ✅ — 子女代同時 reset 到 0
+(e) e_deep_swipe_upper_unchanged:  ✅ — 撥深層，上層不動
+(f) f_initial_centered:            ✅ — 初始 scrollLeft=0
+(f) f_remount_centered:            ✅ — remount 無 crash
+(g) g_vertical_scroll:             ✅ — 縱向 scroll 順暢
+(h) h_no_console_errors:           ✅ — 零 console 錯誤
+```
+
+#### 5.4 截圖驗證（視覺確認）
+- `4p_initial.png`：KC+Mary 置中，右側露 Simon 邊緣（peek 效果）✅
+- `4p_self_swipe1.png`：Simon+Sebina 置中，子女代換成 Danny ✅
+- `4p_self_swipe2.png`：Suzanne（第3房）置中 ✅
+- `4p_parent_swipe.png`：父母代 Philip+Grace 置中 ✅
+- `4p_parent_swiped.png`：父母代撥後本人代 reset 回 KC+Mary ✅
+
+#### 5.5 行數確認
+| 檔案 | 行數 | 限制 | 狀態 |
+|------|------|------|------|
+| src/components/FocusTree.tsx | 247 | ≤250 | ✅ |
+
+### 6. 結語 / 教訓
+- **4o 的遮蔽效應**：單房假資料 `isSingle=true` → `canSwipe=false` → overflow/onSelect bug 完全隱藏
+- **正確測試方法**：每代最少 2 房，才能驗證 canSwipe=true 路徑下的 scrollIntoView 行為
+- **overflow:scroll vs hidden**：`scrollIntoView({ inline:'center' })` 必須容器有 scroll 空間（非 hidden/clip），這是瀏覽器規範
+
+### 7. Commit 資訊
+- commit: TBD（待填）
+- branch: main
+- repo: https://github.com/simonwong6944/coeldery-family-tree
