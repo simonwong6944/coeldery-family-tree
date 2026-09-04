@@ -3101,5 +3101,6 @@ function pickHouseholds(
 
 ### 9. Commit 資訊
 
+- commit: bf76660
 - branch: main
 - repo: https://github.com/simonwong6944/coeldery-family-tree
