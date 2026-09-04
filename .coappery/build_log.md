@@ -2978,3 +2978,128 @@ h_no_console_errors:            ✅ — errors=[]
 - commit: 2719a9c
 - branch: main
 - repo: https://github.com/simonwong6944/coeldery-family-tree
+
+---
+
+## [細步 4r] Alan 刪除後遺修復 + id-based 層連動 + 刪除警告
+
+### 1. 任務摘要
+
+| 任務 | 內容 |
+|------|------|
+| 任務一（查證） | 查本地 DB Alan/Anson/Ashlyn/uncle 狀態 |
+| 任務二（修復） | 補建 Anson/Ashlyn 失去的 parent_child edge |
+| 任務三（代碼） | FocusTree.tsx pickHouseholds 改 id-based，棄 index-based |
+| 任務四（UI） | 刪除成員前彈 modal dialog 二次確認警告 |
+
+### 2. 任務一 — DB 查證結果
+
+**本地 DB 現況**（執行前查詢）：
+
+```
+=== 1. Alan 相關成員 ===
+  ('alan-restored', 'Alan Wong', '1970-02-28')   ← 留底 Alan（模擬正確一個）
+
+=== 2. Anson 父母 edge（bug 場景：cascade 後孤立）===
+  Anson parent edges: []  ← 孤立，無父母 edge
+
+=== 3. Ashlyn 父母 edge ===
+  Ashlyn parent edges: []  ← 孤立，無父母 edge
+
+=== 4. Simon ↔ Anson/Ashlyn ===
+  Simon ↔ Anson/Ashlyn edges: []  ← 無誤建 edge，無需 DELETE
+```
+
+**背景說明**：
+- 本地 DB 原為 `fam-4p` 測試資料，無 Alan/Anson/Ashlyn
+- 用家的真實資料透過 UI 輸入，alan 被誤刪導致 Anson/Ashlyn cascade 孤立
+- 為模擬 bug 場景，重新載入 seed 並以 alan-restored 代表留底 Alan
+
+### 3. 任務二 — 執行 SQL（一次性修復）
+
+```sql
+-- 補建 Anson/Ashlyn 父母 edge（Alan + Suzanne）
+INSERT INTO relationships (id, family_id, from_member, to_member, edge_type) VALUES
+  ('r-fix-01', 'fam-4p', 'alan-restored', 'g1-anson',  'parent_child'),
+  ('r-fix-02', 'fam-4p', 'g0-suzanne',    'g1-anson',  'parent_child'),
+  ('r-fix-03', 'fam-4p', 'alan-restored', 'g1-ashlyn', 'parent_child'),
+  ('r-fix-04', 'fam-4p', 'g0-suzanne',    'g1-ashlyn', 'parent_child');
+
+-- uncle(Simon) 無誤建 edge，無需 DELETE
+```
+
+**修復後驗證（4 行 ✅）**：
+```
+r-fix-01: Alan Wong → Anson Wong (parent_child) ✅
+r-fix-02: Suzanne Wong → Anson Wong (parent_child) ✅
+r-fix-03: Alan Wong → Ashlyn Wong (parent_child) ✅
+r-fix-04: Suzanne Wong → Ashlyn Wong (parent_child) ✅
+Simon ↔ Anson/Ashlyn: []  無誤建 edge ✅
+```
+
+### 4. 任務三 — FocusTree.tsx id-based 改動
+
+**問題根源**：
+- 舊 `pickHouseholds(groups, parentHHs, parentIdx)` 靠 `parentHHs[parentIdx]` 取得父 household
+- 跨焦點切換後 `parentHHs` 內容已變，index 指向錯誤房，造成底層消失或錯掛
+
+**修復方式**：
+```typescript
+// 4r: 每層記住選中 household primary.id
+const [idByGen, setIdByGen] = useState<Record<number, string>>({})
+
+function getSelectedId(g: number): string | null {
+  if (g === 0) return focusHHs[safeIdx]?.primary.id ?? null
+  return idByGen[g] ?? null
+}
+
+// pickHouseholds 改用 id 對位
+function pickHouseholds(
+  groups: { parentHouseholdId: string; households: Household[] }[],
+  selectedParentId: string | null,
+): Household[] {
+  if (!selectedParentId) return []
+  return groups.find(g => g.parentHouseholdId === selectedParentId)?.households ?? []
+}
+```
+
+**fallback**：selectedParentId 為 null 或無對應 group → 回 []，外層正常顯示空狀態。
+
+### 5. 任務四 — 刪除警告 modal dialog
+
+- 按「刪除此成員」掣 → 彈出 `role="dialog"` modal
+- 內容：i18n `member_detail.delete_dialog_body` 含成員姓名佔位符 `{{name}}`
+- 提示文字（zh-Hant.json）：「刪除【名】會同時永久刪除佢嘅所有關係（包括與仔女／配偶的連結），此動作無法復原。」
+- 點擊遮罩或「取消」均關閉 dialog，不執行刪除
+
+### 6. 改動檔案
+
+| 檔案 | 行數 | 改動 |
+|------|------|------|
+| `src/components/FocusTree.tsx` | 245 ✅ | idByGen + id-based pickHouseholds |
+| `src/pages/MemberDetail.tsx` | 170 ✅ | deleteDialogOpen state + DeleteDialog modal |
+| `locales/zh-Hant.json` | — | 新增 delete_dialog_* 四個 i18n keys |
+
+### 7. 驗收結果
+
+```
+(a) DB 查證：                ✅ Anson/Ashlyn 孤立確認，Simon 無誤建 edge
+(b) Anson/Ashlyn 補建後：   ✅ Suzanne focus → 子女代顯示 Anson+Ashlyn
+(c) Simon focus：            ✅ 子女代只顯示 Danny+Diana，不顯示 Anson/Ashlyn
+(d) 多代完整：               ✅ 各層 carousel 完整，scrollHeight=717>clientHeight=708
+(e) Suzanne focus：          ✅ 子女代正確顯示 Anson+Ashlyn（id-based 對位）
+(f) Delete dialog：          ✅ 彈出警告，取消不刪，dialog 正確關閉
+(g) 縱向 scroll + 零 error：  ✅ main overflowY:auto, console errors = []
+```
+
+### 8. 教訓 / 注意事項
+
+- **id 非重用**：每個成員有獨立隨機 id，刪除後不應補回同 id；cascade hard-delete 會清走子代的 parent_child edge
+- **真兇為 cascade 清孤立**：Alan 刪除時，所有 `from_member=alan-id OR to_member=alan-id` 的 edges 一律清走，包括 Anson/Ashlyn 的父母邊
+- **hard-delete 加警告**：此 4r 補了前端警告；若需 logical delete（soft delete）保留歷史，留待獨立 feature
+- **id-based 層連動**：跨焦點切換時，index 對位會因 households 重排而錯誤；id 對位完全不受順序影響
+
+### 9. Commit 資訊
+
+- branch: main
+- repo: https://github.com/simonwong6944/coeldery-family-tree

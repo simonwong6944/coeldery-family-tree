@@ -1,17 +1,7 @@
 /**
- * FocusTree — 焦點式家庭樹（4q：直系重構 + 排序 + dots + Symptom 2/3 修正）
- *
- * 4q 改動：
- *   (1) 使用 focusView.selectedIdxHint 作為 gen=0 初始選中位置（焦點本人居中）
- *   (2) dots：傳 leftCount/rightCount 給每張 HouseholdChip
- *   (3) Symptom 2 修正：snap effect 依賴 [householdsKey, selectedIdx]
- *       householdsKey = households.map(h=>h.primary.id).join(',')
- *       → 層連動 reset 後 households 換了，即使 idx 不變也強制重新 scrollIntoView
- *   (4) Symptom 3 修正：
- *       a. setPointerCapture 鎖住 pointer → pointerup 必達同一元素
- *       b. onPointerLeave + onLostPointerCapture 補充清理 pointerRef
- *       c. 任何結束路徑均 clear pointerRef
- *
+ * FocusTree — 焦點式家庭樹
+ * 4q: selectedIdxHint / householdsKey / setPointerCapture
+ * 4r: idByGen(id-based) + pickHouseholds by primaryId; fallback → []
  * module ≤ 250 行。
  */
 
@@ -147,13 +137,17 @@ function genLabel(gen: number, t: (k: string) => string): string {
   return GEN_KEY[gen] ? t(GEN_KEY[gen]) : (gen < 0 ? `第 ${gen} 代` : `第 +${gen} 代`)
 }
 
+/**
+ * 4r: id-based pickHouseholds
+ * 用 selectedParentId (primary.id) 直接比對 parentHouseholdId，不依賴 index。
+ * fallback：selectedParentId 為 null 或找不到對應 group → 回傳 []（空狀態）。
+ */
 function pickHouseholds(
   groups: { parentHouseholdId: string; households: Household[] }[],
-  parentHHs: Household[], parentIdx: number,
+  selectedParentId: string | null,
 ): Household[] {
-  const parentHH = parentHHs[parentIdx]
-  if (!parentHH) return []
-  return groups.find(g => g.parentHouseholdId === parentHH.primary.id)?.households ?? []
+  if (!selectedParentId) return []
+  return groups.find(g => g.parentHouseholdId === selectedParentId)?.households ?? []
 }
 
 export interface FocusTreeProps {
@@ -167,27 +161,32 @@ export default function FocusTree({ focusView, selectedIdx, selfId, setFocusId, 
   const focusHHs = levels.find(l => l.generation === 0)?.groups.flatMap(g => g.households) ?? []
   const safeIdx  = selectedIdx < focusHHs.length ? selectedIdx : 0
 
-  const [idxByGen, setIdxByGen] = useState<Record<number, number>>({})
+  // 4r: 每層記住選中 household 的 primary.id（取代 index-based idxByGen）
+  const [idByGen, setIdByGen] = useState<Record<number, string>>({})
 
-  function getIdx(g: number): number {
-    return g === 0 ? safeIdx : (idxByGen[g] ?? 0)
+  /** 取得指定代的選中 household primary.id；gen=0 直接從 focusHHs + safeIdx 取得 */
+  function getSelectedId(g: number): string | null {
+    if (g === 0) return focusHHs[safeIdx]?.primary.id ?? null
+    return idByGen[g] ?? null
   }
 
-  function setIdx(g: number, next: number) {
+  /** 選中某代某 household（傳 idx 用於 gen=0 升級 setSelectedIdx，傳 primaryId 用於 id 追蹤） */
+  function setIdx(g: number, next: number, primaryId: string) {
     if (g === 0) setSelectedIdx(next)
-    setIdxByGen(prev => {
-      const u: Record<number, number> = { ...prev, [g]: next }
+    setIdByGen(prev => {
+      const u: Record<number, string> = { ...prev, [g]: primaryId }
+      // 清掉所有更子代的選中狀態（子代選取跟著重置）
       for (const k of Object.keys(prev).map(Number)) {
-        if (k > g) u[k] = 0
+        if (k > g) delete u[k]
       }
-      if (g < 0) { setSelectedIdx(0) }
+      if (g < 0) setSelectedIdx(0)
       return u
     })
   }
 
-  // 切換焦點人 → 重置所有代 idx，並套用引擎建議的 selectedIdxHint
+  // 切換焦點人 → 重置所有代選中，並套用引擎建議的 selectedIdxHint
   useEffect(() => {
-    setIdxByGen({})
+    setIdByGen({})
     if (selectedIdxHint > 0) setSelectedIdx(selectedIdxHint)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusId, selectedIdxHint])
@@ -209,18 +208,20 @@ export default function FocusTree({ focusView, selectedIdx, selfId, setFocusId, 
         const allHH = level.groups.flatMap(g => g.households)
         if (allHH.length === 0) return null
 
-        const parentHHs = gen > 1
-          ? (levels.find(l => l.generation === gen - 1)?.groups.flatMap(g => g.households) ?? [])
-          : focusHHs
+        // 4r: id-based pickHouseholds — 用父代選中 primary.id 對位
         const groups4child = level.groups.map(g => ({
           parentHouseholdId: g.parentHouseholdId ?? '',
           households: g.households,
         }))
-        const displayHHs = gen > 0 ? pickHouseholds(groups4child, parentHHs, getIdx(gen - 1)) : allHH
+        const displayHHs = gen > 0
+          ? pickHouseholds(groups4child, getSelectedId(gen - 1))
+          : allHH
         if (displayHHs.length === 0) return null
 
-        const layerIdx     = getIdx(gen)
-        const safeLayerIdx = layerIdx < displayHHs.length ? layerIdx : 0
+        // 本代選中 idx：由 idByGen 中的 id 反查；找不到時回 0
+        const selectedId   = idByGen[gen] ?? null
+        const layerIdx     = selectedId ? (displayHHs.findIndex(h => h.primary.id === selectedId) || 0) : 0
+        const safeLayerIdx = layerIdx >= 0 && layerIdx < displayHHs.length ? layerIdx : 0
 
         return (
           <div key={gen} style={{ width: '100%', display: 'contents' }}>
@@ -230,7 +231,7 @@ export default function FocusTree({ focusView, selectedIdx, selfId, setFocusId, 
             <LayerCarousel
               households={displayHHs}
               selectedIdx={safeLayerIdx}
-              onSelect={(i) => setIdx(gen, i)}
+              onSelect={(i) => setIdx(gen, i, displayHHs[i]?.primary.id ?? '')}
               focusedMemberId={focusId}
               setFocusId={setFocusId}
               chipSize={gen === 0 ? 80 : 64}
