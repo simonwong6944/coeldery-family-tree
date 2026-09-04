@@ -2855,3 +2855,126 @@ multi_house_data_ok:           ✅ — 父母代 2 房、本人代 3 房（多�
 - commit: 5ba7ce1
 - branch: main
 - repo: https://github.com/simonwong6944/coeldery-family-tree
+
+---
+
+## 細步 4q — 直系血脈重構 + 兄弟姊妹排序 + dots 提示 + 修三個 bug
+
+### 1. 目標
+- 任務一：引擎向上遞歸只跟焦點直系血脈（移除 focusHH.spouse）
+- 任務二：各代 households 按 birth_date ASC 排序，焦點本人居中
+- 任務三：卡片左下/右下角 dots 顯示旁邊剩餘人數（上限 5 粒）
+- 任務四：修 Symptom 2（snap householdsKey 依賴）
+- 任務五：修 Symptom 3（setPointerCapture + onPointerLeave/onLostPointerCapture）
+
+### 2. 核心設計
+
+**大原則**：每一代只顯示焦點的直系。
+- 父母代 = 焦點直接父母一房（唔含配偶父母）
+- 本人代 = 焦點 + 親兄弟姊妹（共父母）
+- 向下 = 焦點後代
+- 想睇上一代的兄弟姊妹，要 click 令嗰個人成為焦點
+
+### 3. 技術實現
+
+#### 任務一：引擎修正
+```
+// 舊：包含配偶（導致搜入 Mary 的父母 Philip/Grace）
+currentMemberIds = new Set([focusId, ...(focusHH?.spouse ? [focusHH.spouse.id] : [])])
+
+// 新（4q）：只放焦點本人
+currentMemberIds = new Set([focusId])
+```
+
+向上遞歸 nextIds 也改為只放 primary，唔放配偶：
+```
+nextIds.add(hh.primary.id)  // 唔加 hh.spouse.id
+```
+
+#### 任務二：birth_date 排序
+`sortHouseholdsByBirthDate(households, focusId)` 加於 focus-view-helpers.ts：
+- `birth_date` ASC，null 排最後（用 '9999-99-99' 佔位）
+- 返回 `{ sorted, focusIdx }`，focusIdx 指向焦點本人
+- `buildFocusView` 返回 `selectedIdxHint = focusIdx`
+- `FocusTree` 的 `useEffect([focusId, selectedIdxHint])` 套用 hint
+
+**⚠️ Dependency Note（birth_date）**：
+- 排序依賴 `ApiMember.birth_date` 欄位，現取自 Cloudflare D1
+- seed_4p.sql 的成員均無 birth_date（null），排序按建立順序 fallback（stable sort 保證）
+- 若日後資料搬至 CoEldery85，需同步更新 birth_date 資料源
+
+#### 任務三：dots
+`SwipeDots` 組件加於 FocusTreeParts.tsx：
+- 上限 `MAX_DOTS = 5`
+- CSS 變數 `var(--color-primary)`，opacity 0.55，5px 圓形
+- 絕對定位，`position: absolute`，bottom: 6px
+
+#### 任務四：Symptom 2 修正
+```tsx
+// 舊：prevIdxRef 一樣就跳過 → households 換了（層連動）但 idx 沒變，不 snap
+useEffect(() => {
+  if (prevIdxRef.current === selectedIdx) return  // ← 問題所在
+  ...
+}, [selectedIdx])
+
+// 新：依賴 householdsKey（households 內容 identity）
+const householdsKey = useMemo(() => households.map(h=>h.primary.id).join(','), [households])
+useEffect(() => {
+  cards[selectedIdx]?.scrollIntoView({...})
+}, [selectedIdx, householdsKey])  // ← 任一變化都 snap
+```
+
+#### 任務五：Symptom 3 修正
+```tsx
+// onPointerDown 加 setPointerCapture
+try { e.currentTarget.setPointerCapture(e.pointerId) } catch (_) {}
+
+// 補充清理路徑
+onPointerCancel={clearPointer}
+onPointerLeave={clearPointer}        // ← 新增
+onLostPointerCapture={clearPointer}  // ← 新增
+```
+
+### 4. 改動檔案
+| 檔案 | 改動 |
+|------|------|
+| `packages/family-tree-engine/focus-view.ts` | 任務一（currentMemberIds 只放 focusId）；任務二（用 sortHouseholdsByBirthDate）；新增 selectedIdxHint 至 FocusView |
+| `packages/family-tree-engine/focus-view-helpers.ts` | 任務二（新增 sortHouseholdsByBirthDate 函式） |
+| `src/components/FocusTree.tsx` | 任務二（使用 selectedIdxHint）；任務四（householdsKey snap）；任務五（setPointerCapture + 補清理）；移除 prevIdxRef |
+| `src/components/FocusTreeParts.tsx` | 任務三（新增 SwipeDots 組件，HouseholdChip 加 leftCount/rightCount props） |
+
+### 5. 驗收結果
+
+```
+c_db_engine_bloodline:          ✅ — KC 焦點父母代只含 Robert/Helen，不含 Philip/Grace
+a_initial_parent_only_kc:       ✅ — DOM 確認：has_robert=true, has_helen=true, has_philip=false, has_grace=false
+b_simon_focus_parent_bloodline: ✅ — Simon 焦點後父母代同樣只有 Robert（Robert+Helen）
+d_dots_exist:                   ✅ — dot_count=10, 多個 dots 容器（右邊還有 2 人 / 左邊還有 1 人 等）
+e_symptom2_no_disappear:        ✅ — swipe 後 tracks 仍 5 個（不消失），scroll 正常
+f_symptom3_no_freeze:           ✅ — 5 次反覆 swipe 無 fail，alive=true
+g_vertical_scroll:              ✅ — main.scrollHeight=1173 > clientHeight=708，scrollTop 可設定
+h_no_console_errors:            ✅ — errors=[]
+```
+
+#### 視覺截圖確認
+- `4q_full_initial.png`：父母代 Robert+Helen（紅心連接），本人代 KC+Mary（本人標籤，右下 2 粒 dots），右側露 Simon 邊緣（1 粒左 dot） ✅
+- `4q_b_simon_focus.png`：Simon+Sebina 居中，左下/右下各 1 粒 dots，子女代穩定顯示 Peter+Amy ✅
+
+#### 行數確認
+| 檔案 | 行數 | 限制 | 狀態 |
+|------|------|------|------|
+| `packages/family-tree-engine/focus-view.ts` | 196 | ≤250 | ✅ |
+| `packages/family-tree-engine/focus-view-helpers.ts` | 117 | ≤250 | ✅ |
+| `src/components/FocusTree.tsx` | 244 | ≤250 | ✅ |
+| `src/components/FocusTreeParts.tsx` | 202 | ≤250 | ✅ |
+
+### 6. 教訓 / 注意事項
+- **直系血脈定義**：引擎向上遞歸時，`currentMemberIds` 只放直系本人（不放配偶），確保每一代只搜本人的父母，不溝入配偶家族
+- **birth_date 排序 Dependency**：若 D1 遷移至 CoEldery85，需確認 `birth_date` 欄位仍可用
+- **householdsKey snap**：Symptom 2 的根本原因是依賴值不完整；只依賴 idx 而不依賴 households 內容，層連動後顯示錯誤
+- **setPointerCapture**：Symptom 3 的根本原因是 pointer 離開 element 後 pointerup 不達；setPointerCapture 確保 pointer 鎖定
+
+### 7. Commit 資訊
+- commit: TBD（待填）
+- branch: main
+- repo: https://github.com/simonwong6944/coeldery-family-tree

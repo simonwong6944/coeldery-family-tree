@@ -1,13 +1,10 @@
 /**
- * FocusTreeParts — 焦點樹子組件（4h-fix-2）
+ * FocusTreeParts — 焦點樹子組件（4q：+SwipeDots）
  *
- * 問題三修正（頭像 click 區）：
- *   - 移除 AvatarOverlay 固定座標估算
- *   - HouseholdChip wrapper 整張 div 掛 onClick/onDoubleClick
- *   - couple 卡：用 pointerEvent.clientX 與 wrapper 中央比較，
- *     左半 → primary；右半 → spouse
- *   - single 卡：整張 div click → primary
- *   - 220ms 分流 single/double click
+ * 4q 新增：
+ *   SwipeDots — 卡左下/右下角 dots 撥動提示
+ *     - leftCount / rightCount = 該方向剩餘人數
+ *     - 上限 5 粒；CSS 變數上色
  *
  * module ≤ 250 行。
  */
@@ -35,7 +32,7 @@ export function VerticalConnector({ height = 28 }: { height?: number }) {
   )
 }
 
-/* ── SiblingBar — 純範圍橫線（中層 / 下層共用）── */
+/* ── SiblingBar ── */
 export function SiblingBar() {
   return (
     <div aria-hidden="true" style={{
@@ -45,6 +42,46 @@ export function SiblingBar() {
   )
 }
 
+/* ── SwipeDots（4q 新增）──
+ * count: 該方向剩餘人數（0 = 不顯示）
+ * side: 'left' | 'right'
+ * 上限 MAX_DOTS 粒
+ */
+const MAX_DOTS = 5
+
+export function SwipeDots({ count, side }: { count: number; side: 'left' | 'right' }) {
+  if (count <= 0) return null
+  const dots = Math.min(count, MAX_DOTS)
+  return (
+    <div
+      aria-label={`${side === 'left' ? '左' : '右'}邊還有 ${count} 人`}
+      style={{
+        position: 'absolute',
+        bottom: '6px',
+        ...(side === 'left' ? { left: '6px' } : { right: '6px' }),
+        display: 'flex',
+        flexDirection: 'row',
+        gap: '3px',
+        pointerEvents: 'none',
+        zIndex: 4,
+      }}
+    >
+      {Array.from({ length: dots }).map((_, i) => (
+        <div
+          key={i}
+          style={{
+            width: '5px', height: '5px', borderRadius: '50%',
+            backgroundColor: 'var(--color-primary)',
+            opacity: 0.55,
+            flexShrink: 0,
+          }}
+        />
+      ))}
+    </div>
+  )
+}
+
+/* ── SelfBadge ── */
 const selfBadgeStyle: React.CSSProperties = {
   position: 'absolute', top: '4px', left: '50%', transform: 'translateX(-50%)',
   fontSize: '11px', fontWeight: 'bold', color: 'var(--color-primary)',
@@ -56,12 +93,12 @@ function SelfBadge({ t }: { t: (key: string) => string }) {
 }
 
 /* ── HouseholdChip ──
- * 問題三修正：整張 wrapper div click，用 clientX 判斷 primary/spouse 區
- * couple 卡：clientX < wrapper 中央 → primary；否則 → spouse
- * single 卡：整張 → primary
+ * 4q 新增：leftCount / rightCount → SwipeDots
+ * 問題三修正（4h-fix-2）：整張 wrapper div click，用 clientX 判斷 primary/spouse
  */
 export function HouseholdChip({
   hh, size, isFocus, focusedMemberId: _fid, onClickPrimary, onClickSpouse,
+  leftCount = 0, rightCount = 0,
 }: {
   hh: Household
   size: number
@@ -69,6 +106,8 @@ export function HouseholdChip({
   focusedMemberId?: string
   onClickPrimary: (id: string) => void
   onClickSpouse?: (id: string) => void
+  leftCount?: number
+  rightCount?: number
 }) {
   const { t } = useTranslation()
   const rel = t('gen.member_relation_person')
@@ -80,14 +119,12 @@ export function HouseholdChip({
 
   const wrapRef = useRef<HTMLDivElement>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  // 記錄最後一次 click 識別的 memberId（供 dblclick handler 用）
   const lastClickId = useRef<string>(hh.primary.id)
 
   const handleDblNav = useCallback((id: string) => {
     window.location.hash = `#/member/${id}`
   }, [])
 
-  /** 由 clientX 決定點了 primary 還是 spouse */
   const resolveClickTarget = useCallback((clientX: number): string => {
     if (!secondary || !onClickSpouse) return hh.primary.id
     const wrap = wrapRef.current
@@ -104,7 +141,6 @@ export function HouseholdChip({
     if (timer.current) clearTimeout(timer.current)
     timer.current = setTimeout(() => {
       timer.current = null
-      // 用 lastClickId.current 以確保 closure 拿到最新值
       const id = lastClickId.current
       if (id === hh.primary.id) onClickPrimary(id)
       else onClickSpouse?.(id)
@@ -135,13 +171,14 @@ export function HouseholdChip({
         width="auto"
       />
       {isSelf && <SelfBadge t={t} />}
+      <SwipeDots count={leftCount}  side="left"  />
+      <SwipeDots count={rightCount} side="right" />
     </div>
   )
 }
 
 /**
  * ParentRow — @deprecated 4o 起由 FocusTree > LayerCarousel 取代，不再使用。
- * 保留 export 以維持向後相容，內部邏輯不變。
  */
 export function ParentRow({
   households, focusedMemberId, setFocusId,

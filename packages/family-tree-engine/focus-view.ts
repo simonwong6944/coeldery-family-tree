@@ -1,8 +1,13 @@
 /**
- * buildFocusView — 焦點式無限多層視圖（細步 4i）
+ * buildFocusView — 焦點式無限多層視圖（4q：直系血脈重構 + birth_date 排序）
  *
- * 由焦點向上/向下遞歸砌所有代，輸出 levels 陣列（generation 由小到大）。
- * visited(usedIds) 防環；向下相容保留 parentLayer/focusLayer/childLayer alias。
+ * 4q 改動：
+ *   (1) 向上遞歸 currentMemberIds 只放 focusId，唔放 focusHH.spouse
+ *       → 父母代只搜焦點本人直接父母；唔溝入配偶父母
+ *   (2) sortHouseholdsByBirthDate()：各代 households 按 birth_date ASC 排序
+ *       null birth_date 排最後；焦點本人 (is_self/focusId) 位置=排序後索引
+ *   (3) buildFocusView 返回 selectedIdxHint（建議 selectedIdx，指向焦點本人）
+ *
  * SOP 規則 B：≤ 250 行。helpers 詳見 focus-view-helpers.ts。
  */
 
@@ -27,6 +32,8 @@ export interface FocusView {
   levels: FocusLevel[]
   /** 焦點 memberId */
   focusId: string
+  /** 建議 selectedIdx（gen=0 焦點本人在排序後的位置）*/
+  selectedIdxHint: number
 
   /* ── 向下相容 alias（指向 levels 對應代） ── */
   parentLayer: { households: Household[] }
@@ -40,7 +47,7 @@ export interface ChildGroup  { parentHouseholdId: string; households: Household[
 export interface ChildLayer  { groups: ChildGroup[] }
 
 /* ── Helpers（見 focus-view-helpers.ts）── */
-import { buildMarriageMap, buildPetsByOwner, makeHousehold } from './focus-view-helpers'
+import { buildMarriageMap, buildPetsByOwner, makeHousehold, sortHouseholdsByBirthDate } from './focus-view-helpers'
 
 /* ── Main ── */
 
@@ -49,10 +56,10 @@ export function buildFocusView(
   relationships: ApiRel[],
   focusId: string,
 ): FocusView {
-  const byId       = new Map(members.map(m => [m.id, m]))
-  const spouseMap  = buildMarriageMap(relationships)
+  const byId        = new Map(members.map(m => [m.id, m]))
+  const spouseMap   = buildMarriageMap(relationships)
   const petsByOwner = buildPetsByOwner(members, relationships)
-  const pcEdges    = relationships.filter(r => r.edge_type === 'parent_child')
+  const pcEdges     = relationships.filter(r => r.edge_type === 'parent_child')
 
   /** 跨代共享 usedIds，防止同一人重複出現 */
   const usedIds = new Set<string>()
@@ -60,7 +67,6 @@ export function buildFocusView(
   const levels: FocusLevel[] = []
 
   /* ── 焦點代（generation = 0）── */
-  // 焦點 household
   const focusHH = makeHousehold(focusId, byId, spouseMap, petsByOwner, usedIds)
   const focusHouseholds: Household[] = focusHH ? [focusHH] : []
 
@@ -75,22 +81,21 @@ export function buildFocusView(
     }
   }
 
+  // 4q：按 birth_date 排序，取得焦點本人在排序後的 index
+  const { sorted: sortedFocusHH, focusIdx } = sortHouseholdsByBirthDate(focusHouseholds, focusId)
+  const selectedIdxHint = focusIdx
+
   levels.push({
     generation: 0,
-    groups: [{ parentHouseholdId: null, households: focusHouseholds }],
+    groups: [{ parentHouseholdId: null, households: sortedFocusHH }],
   })
 
   /* ── 向上遞歸（-1, -2, …）── */
-  // currentGenParentIds: 本代「每個人」的直接父母 id 集合（用於找上一代）
-  // 用 Map<parentId, childHouseholdId> 為每個父母記錄「來自哪個 household」
-  // 簡化：上層代只做一個大 group（parentHouseholdId=null for gen<-1；gen=-1 用 focusHH）
-  let currentMemberIds: Set<string> = new Set([
-    focusId,
-    ...(focusHH?.spouse ? [focusHH.spouse.id] : []),
-  ])
+  // 4q 修正：currentMemberIds 只放 focusId（唔放 focusHH.spouse）
+  // → 父母代只搜焦點本人直接父母，唔溝入配偶父母
+  let currentMemberIds: Set<string> = new Set([focusId])
 
   for (let gen = -1; ; gen--) {
-    // 收集 currentMemberIds 的所有直接父母 id（未使用）
     const parentIdSet = new Set<string>()
     for (const memberId of currentMemberIds) {
       for (const r of pcEdges) {
@@ -108,23 +113,26 @@ export function buildFocusView(
       const hh = makeHousehold(pid, byId, spouseMap, petsByOwner, usedIds)
       if (!hh) continue
       genHouseholds.push(hh)
+      // 4q：向上遞歸時，nextIds 只放找到的 primary（父/母），
+      // 唔放配偶——因為我們要跟「焦點的直系血緣」，即祖父母是父母的父母，
+      // 唔係父母配偶的父母（外曾祖父母）
       nextIds.add(hh.primary.id)
-      if (hh.spouse) nextIds.add(hh.spouse.id)
     }
 
     if (genHouseholds.length === 0) break
 
+    // 祖父母及以上按 birth_date 排序（focusId 在上層不存在，全靠日期）
+    const { sorted: sortedGenHH } = sortHouseholdsByBirthDate(genHouseholds, null)
+
     levels.push({
       generation: gen,
-      groups: [{ parentHouseholdId: null, households: genHouseholds }],
+      groups: [{ parentHouseholdId: null, households: sortedGenHH }],
     })
     currentMemberIds = nextIds
   }
 
   /* ── 向下遞歸（+1, +2, …）── */
-  // 每代：以上一代各 household 為 parent 分組，收集子女
-  // 初始「上一代 households」= 焦點代的 households（含兄弟姊妹）
-  let prevGenHouseholds: Household[] = focusHouseholds
+  let prevGenHouseholds: Household[] = sortedFocusHH
 
   for (let gen = 1; ; gen++) {
     const groups: FocusGroup[] = []
@@ -148,13 +156,15 @@ export function buildFocusView(
         if (hh) childHouseholds.push(hh)
       }
 
+      // 子女也按 birth_date 排序
+      const { sorted: sortedChild } = sortHouseholdsByBirthDate(childHouseholds, null)
+
       groups.push({
         parentHouseholdId: parentHH.primary.id,
-        households: childHouseholds,
+        households: sortedChild,
       })
     }
 
-    // 若本代完全無子女，停止向下
     const hasAny = groups.some(g => g.households.length > 0)
     if (!hasAny) break
 
@@ -166,9 +176,9 @@ export function buildFocusView(
   levels.sort((a, b) => a.generation - b.generation)
 
   /* ── 向下相容 alias ── */
-  const focusLevel   = levels.find(l => l.generation === 0)
-  const parentLevel  = levels.find(l => l.generation === -1)
-  const childLevel   = levels.find(l => l.generation === 1)
+  const focusLevel  = levels.find(l => l.generation === 0)
+  const parentLevel = levels.find(l => l.generation === -1)
+  const childLevel  = levels.find(l => l.generation === 1)
 
   const parentLayer = {
     households: parentLevel?.groups.flatMap(g => g.households) ?? [],
@@ -182,5 +192,5 @@ export function buildFocusView(
     })),
   }
 
-  return { levels, focusId, parentLayer, focusLayer, childLayer }
+  return { levels, focusId, selectedIdxHint, parentLayer, focusLayer, childLayer }
 }
