@@ -234,7 +234,19 @@
     "post3_body": "一家人飲茶，好開心",
     "post3_liker1": "陳美玲",
     "post3_comment1_author": "陳志明",
-    "post3_comment1_body": "下次一齊去！"
+    "post3_comment1_body": "下次一齊去！",
+    "loading": "載入中…",
+    "empty_title": "暫時未有動態",
+    "empty_sub": "成為第一個發布家庭動態的人 🌱",
+    "error_no_self": "尚未設定本人成員，請先在成員資料頁設定本人",
+    "error_generic": "載入失敗，請稍後再試",
+    "compose_title": "新動態",
+    "compose_placeholder": "分享家庭點滴…",
+    "compose_submit": "發布",
+    "compose_cancel": "取消",
+    "compose_empty_err": "請輸入動態內容",
+    "like_count": "{{count}} 個讚",
+    "submitting": "發布中…"
   },
   "b4_reco": {
     "label": "為您推薦",
