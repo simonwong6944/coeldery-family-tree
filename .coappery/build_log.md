@@ -3268,7 +3268,7 @@ Console 零 error                                   ✅
 
 ### 9. Commit 資訊
 
-- commit: （見下方 git push 後填入）
+- commit: `518c4a0`
 - branch: main
 - repo: https://github.com/simonwong6944/coeldery-family-tree
 
