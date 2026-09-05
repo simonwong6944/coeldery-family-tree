@@ -3351,7 +3351,7 @@ tsc -b && vite build
 
 ### 8. Commit 資訊
 
-- commit: `（見下方 push 後填入）`
+- commit: `ef19df9`
 - branch: main
 - repo: https://github.com/simonwong6944/coeldery-family-tree
 
