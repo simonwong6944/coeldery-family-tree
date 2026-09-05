@@ -9,6 +9,7 @@
  *   member_kind:       'person' | 'pet'
  *   display_name:      string
  *   birth_date?:       string     // ISO 8601 date，可選
+ *   gender?:           'male' | 'female'  // 可選；不傳或 undefined → NULL
  *
  *   // person only
  *   relation_key?:     string     // b3 locale key，如 'relation_spouse' / 'relation_child' 等
@@ -46,10 +47,14 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
   try { body = await ctx.request.json() as Record<string, unknown> }
   catch { return Response.json({ ok: false, error: '無效的 JSON 格式' }, { status: 400 }) }
 
-  const { member_kind, display_name, birth_date, relation_key, target_member_id, owner_member_ids } = body as {
+  const { member_kind, display_name, birth_date, gender, relation_key, target_member_id, owner_member_ids } = body as {
     family_id?: string; member_kind?: string; display_name?: string; birth_date?: string
-    relation_key?: string; target_member_id?: string; owner_member_ids?: string[]
+    gender?: string; relation_key?: string; target_member_id?: string; owner_member_ids?: string[]
   }
+
+  // ── 驗證 gender（只接受 'male'、'female' 或 undefined）──
+  if (gender !== undefined && gender !== 'male' && gender !== 'female')
+    return Response.json({ ok: false, error: "gender 只接受 'male' 或 'female'" }, { status: 400 })
 
   if (!member_kind || !['person', 'pet'].includes(member_kind))
     return Response.json({ ok: false, error: 'member_kind 必須為 person 或 pet' }, { status: 400 })
@@ -71,8 +76,8 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
   // ── 建立成員節點 ──
   const memberId = genId()
   await ctx.env.DB.prepare(
-    'INSERT INTO members (id, family_id, member_kind, display_name, birth_date) VALUES (?, ?, ?, ?, ?)'
-  ).bind(memberId, familyId, member_kind, display_name.trim(), birth_date ?? null).run()
+    'INSERT INTO members (id, family_id, member_kind, display_name, birth_date, gender) VALUES (?, ?, ?, ?, ?, ?)'
+  ).bind(memberId, familyId, member_kind, display_name.trim(), birth_date ?? null, gender ?? null).run()
 
   // ── 建立關係邊 ──
   const relationshipIds: string[] = []

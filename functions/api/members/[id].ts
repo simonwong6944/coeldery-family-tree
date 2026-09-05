@@ -5,8 +5,8 @@
  *   連帶清走所有 from_member / to_member 為該 id 的 relationships，再 DELETE member。
  *   Rule 19：此路由只用於清除錯誤輸入；離婚/離世不走此路由。
  *
- * PATCH — 只准改 deceased_date（守紅線 4：禁改姓名/生日）
- *   body: { deceased_date: string | null }
+ * PATCH — 只准改 deceased_date、is_self、gender（守紅線 4：禁改姓名/生日）
+ *   body: { deceased_date?: string | null, is_self?: 0 | 1, gender?: 'male' | 'female' | null }
  *
  * Cloudflare Pages Function — edge runtime
  * binding: DB (D1)
@@ -45,8 +45,8 @@ export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
   try { body = await ctx.request.json() as Record<string, unknown> }
   catch { return Response.json({ ok: false, error: '無效的 JSON 格式' }, { status: 400 }) }
 
-  // 守紅線 4：只允許改 deceased_date 或 is_self，禁改姓名/生日
-  const allowedKeys = ['deceased_date', 'is_self']
+  // 守紅線 4：只允許改 deceased_date、is_self、gender，禁改姓名/生日
+  const allowedKeys = ['deceased_date', 'is_self', 'gender']
   const bodyKeys = Object.keys(body)
   const forbidden = bodyKeys.filter(k => !allowedKeys.includes(k))
   if (forbidden.length > 0)
@@ -75,9 +75,20 @@ export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
     return Response.json({ ok: true, member_id: memberId, is_self: isSelf })
   }
 
+  // ── 處理 gender ──
+  if ('gender' in body) {
+    const genderVal = body.gender
+    if (genderVal !== null && genderVal !== 'male' && genderVal !== 'female')
+      return Response.json({ ok: false, error: "gender 只接受 'male'、'female' 或 null" }, { status: 400 })
+    await ctx.env.DB.prepare(
+      'UPDATE members SET gender = ? WHERE id = ?'
+    ).bind(genderVal, memberId).run()
+    return Response.json({ ok: true, member_id: memberId, gender: genderVal })
+  }
+
   // ── 處理 deceased_date ──
   if (!('deceased_date' in body))
-    return Response.json({ ok: false, error: '缺少可更新的欄位（deceased_date 或 is_self）' }, { status: 400 })
+    return Response.json({ ok: false, error: '缺少可更新的欄位（deceased_date、is_self 或 gender）' }, { status: 400 })
 
   const deceasedDate = body.deceased_date as string | null
   if (deceasedDate !== null && !/^\d{4}-\d{2}-\d{2}$/.test(deceasedDate))
