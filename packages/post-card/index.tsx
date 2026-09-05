@@ -113,24 +113,28 @@ export default function PostCard({
             {timeText}
           </p>
         </div>
-        {/* 「關於：X」pill */}
-        <span style={{
-          fontSize: '18px', padding: '4px 12px', borderRadius: '20px',
-          backgroundColor: 'var(--color-bg)',
-          border: '1.5px solid var(--color-divider)',
-          color: 'var(--color-text-secondary)',
-          whiteSpace: 'nowrap', flexShrink: 0,
-        }}>
-          {t('b4.about_prefix')}{aboutText}
-        </span>
+        {/* 「關於：X」pill（aboutText 為空時唔顯示）*/}
+        {aboutText && (
+          <span style={{
+            fontSize: '18px', padding: '4px 12px', borderRadius: '20px',
+            backgroundColor: 'var(--color-bg)',
+            border: '1.5px solid var(--color-divider)',
+            color: 'var(--color-text-secondary)',
+            whiteSpace: 'nowrap', flexShrink: 0,
+          }}>
+            {t('b4.about_prefix')}{aboutText}
+          </span>
+        )}
       </div>
 
-      {/* ── 大相（滿卡闊）── */}
-      <img
-        src={photoUrl}
-        alt={photoAlt}
-        style={{ width: '100%', display: 'block', maxHeight: '320px', objectFit: 'cover' }}
-      />
+      {/* ── 大相（滿卡闊；冇相時唔 render，避免 broken image）── */}
+      {photoUrl && (
+        <img
+          src={photoUrl}
+          alt={photoAlt}
+          style={{ width: '100%', display: 'block', maxHeight: '320px', objectFit: 'cover' }}
+        />
+      )}
 
       {/* ── 內文 ── */}
       <p style={{ margin: 0, padding: '12px 16px', fontSize: '18px', color: 'var(--color-text)', lineHeight: 1.6 }}>

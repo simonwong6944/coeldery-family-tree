@@ -1,12 +1,12 @@
 /**
  * FamilyFeed — 家庭圈動態 feed（B4 + B5 提醒卡 + B4 推薦卡）
  * 規格：.coappery/design/B4_family_feed.md + B5_reminder_cards.md
- * 行數上限：≤220 行
- * v2.0.0：接駁真 D1 API（posts/likes/comments），移除 feedRepository 貼文邏輯
- *          B5 提醒卡 / 推薦卡 mock 保留不動（不屬本階段範圍）
+ * v2.1.0：Compose 加相片上載（Cloudinary signed upload）
+ *          PostCard photo_url 空時唔 render 相片位（UI 清理）
+ *          B5 提醒卡 / 推薦卡 mock 保留不動
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import TopBar from '../../packages/top-bar'
 import BottomTabBar from '../../packages/bottom-tab-bar'
@@ -20,27 +20,40 @@ import { isRecoDismissed, dismissReco, CURRENT_USER_NAME } from '../utils/feedRe
 
 /* ── API 回應型別 ── */
 interface ApiComment {
-  id: string
-  author_member_id: string
-  author_name: string
-  body: string
-  created_at: string
+  id: string; author_member_id: string; author_name: string
+  body: string; created_at: string
 }
-
 interface ApiPost {
-  id: string
-  family_id: string
-  author_member_id: string
-  author_name: string
-  body_text: string | null
-  photo_url: string | null
-  created_at: string
-  comments: ApiComment[]
-  like_count: number
-  isLikedByMe: boolean
+  id: string; family_id: string; author_member_id: string; author_name: string
+  body_text: string | null; photo_url: string | null; created_at: string
+  comments: ApiComment[]; like_count: number; isLikedByMe: boolean
+}
+interface SignResponse {
+  ok: boolean; signature?: string; timestamp?: number
+  apiKey?: string; cloudName?: string; folder?: string; error?: string
+}
+interface CloudinaryUploadResponse { secure_url: string }
+
+/* ── Cloudinary signed upload（只帶 B1 簽名覆蓋嘅 5 個 field）── */
+async function uploadToCloudinary(file: File, sign: Required<Omit<SignResponse, 'ok' | 'error'>>): Promise<string> {
+  const fd = new FormData()
+  fd.append('file',      file)
+  fd.append('api_key',   sign.apiKey)
+  fd.append('timestamp', String(sign.timestamp))
+  fd.append('signature', sign.signature)
+  fd.append('folder',    sign.folder)
+  // ⚠️ 絕對唔加 upload_preset / tags / transformation 等，否則 signature mismatch
+
+  const res = await fetch(
+    `https://api.cloudinary.com/v1_1/${sign.cloudName}/image/upload`,
+    { method: 'POST', body: fd }
+  )
+  if (!res.ok) throw new Error('cloudinary_upload_failed')
+  const data = await res.json() as CloudinaryUploadResponse
+  return data.secure_url
 }
 
-/* ── PostCard 橋接：API post → PostCard props 所需格式 ── */
+/* ── PostCard 橋接 ── */
 function toCommentItems(comments: ApiComment[]): CommentItem[] {
   return comments.map(c => ({
     name:      c.author_name,
@@ -48,10 +61,7 @@ function toCommentItems(comments: ApiComment[]): CommentItem[] {
     body:      c.body,
   }))
 }
-
 function toLikers(likeCount: number): string[] {
-  // PostCard 用 likers.length 顯示讚好數；API 只回 like_count（不含名單）
-  // 用佔位字串陣列填充數量，顯示「N 個讚」
   return Array.from({ length: likeCount }, (_, i) => String(i))
 }
 
@@ -59,8 +69,8 @@ const TAB_ROUTES: Record<TabId, string> = {
   family_tree: '#/', family_circle: '#/family-feed',
   family_gathering: '#/family-gather', my_recommendations: '#/my-recommend',
 }
-
 const RECO_ID = 'reco-family-gathering-v1'
+const MAX_PHOTO_BYTES = 5 * 1024 * 1024  // 5 MB
 
 /* ── Compose sheet 樣式 ── */
 const overlayStyle: React.CSSProperties = {
@@ -73,51 +83,50 @@ const sheetStyle: React.CSSProperties = {
   flexDirection: 'column', gap: '12px',
 }
 
-/* ─────────────────────────────────────────────────────── */
+/* ──────────────────────────────────────────────────────────── */
 
 export default function FamilyFeed() {
   const { t } = useTranslation()
 
   /* ── 貼文狀態 ── */
-  const [posts,      setPosts]      = useState<ApiPost[]>([])
-  const [loadState,  setLoadState]  = useState<'loading' | 'ok' | 'error'>('loading')
-  const [errorMsg,   setErrorMsg]   = useState('')
+  const [posts,     setPosts]     = useState<ApiPost[]>([])
+  const [loadState, setLoadState] = useState<'loading' | 'ok' | 'error'>('loading')
+  const [errorMsg,  setErrorMsg]  = useState('')
 
   /* ── Compose sheet ── */
   const [composeOpen,    setComposeOpen]    = useState(false)
   const [composeDraft,   setComposeDraft]   = useState('')
+  const [composePhoto,   setComposePhoto]   = useState<File | null>(null)
   const [composeErr,     setComposeErr]     = useState('')
   const [composeLoading, setComposeLoading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   /* ── B5 mock（保留不動）── */
   const [modalOpen,     setModalOpen]     = useState(false)
   const [recoDismissed, setRecoDismissed] = useState(() => isRecoDismissed(RECO_ID))
 
-  const handleTabChange    = (tab: TabId) => { window.location.hash = TAB_ROUTES[tab] }
-  const handleDismissReco  = () => { dismissReco(RECO_ID); setRecoDismissed(true) }
+  const handleTabChange   = (tab: TabId) => { window.location.hash = TAB_ROUTES[tab] }
+  const handleDismissReco = () => { dismissReco(RECO_ID); setRecoDismissed(true) }
+
+  /* ── 重設 compose ── */
+  const resetCompose = () => {
+    setComposeDraft(''); setComposePhoto(null)
+    setComposeErr('');   setComposeLoading(false)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
 
   /* ── 載入貼文 ── */
   const loadPosts = useCallback(async () => {
-    setLoadState('loading')
-    setErrorMsg('')
+    setLoadState('loading'); setErrorMsg('')
     try {
       const res  = await fetch('/api/posts')
       const data = await res.json() as { ok: boolean; posts?: ApiPost[]; error?: string }
       if (!data.ok) {
-        setErrorMsg(
-          res.status === 409
-            ? t('b4.error_no_self')
-            : (data.error ?? t('b4.error_generic'))
-        )
-        setLoadState('error')
-        return
+        setErrorMsg(res.status === 409 ? t('b4.error_no_self') : (data.error ?? t('b4.error_generic')))
+        setLoadState('error'); return
       }
-      setPosts(data.posts ?? [])
-      setLoadState('ok')
-    } catch {
-      setErrorMsg(t('b4.error_generic'))
-      setLoadState('error')
-    }
+      setPosts(data.posts ?? []); setLoadState('ok')
+    } catch { setErrorMsg(t('b4.error_generic')); setLoadState('error') }
   }, [t])
 
   useEffect(() => { loadPosts() }, [loadPosts])
@@ -136,7 +145,7 @@ export default function FamilyFeed() {
           isLikedByMe: data.isLikedByMe ?? !p.isLikedByMe,
         }
       ))
-    } catch { /* 網絡錯誤靜默，唔阻 UI */ }
+    } catch { /* 靜默 */ }
   }
 
   /* ── 新增留言 ── */
@@ -144,9 +153,8 @@ export default function FamilyFeed() {
     if (!body.trim()) return
     try {
       const res  = await fetch(`/api/posts/${post.id}/comments`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ body: body.trim() }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body:   JSON.stringify({ body: body.trim() }),
       })
       const data = await res.json() as {
         ok: boolean
@@ -166,26 +174,66 @@ export default function FamilyFeed() {
     } catch { /* 靜默 */ }
   }
 
-  /* ── 新增貼文（compose sheet submit）── */
+  /* ── 揀相片（前端驗證）── */
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setComposeErr('')
+    const file = e.target.files?.[0] ?? null
+    if (!file) { setComposePhoto(null); return }
+    if (!file.type.startsWith('image/')) {
+      setComposeErr(t('b4.compose_err_not_image'))
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      return
+    }
+    if (file.size > MAX_PHOTO_BYTES) {
+      setComposeErr(t('b4.compose_err_too_large'))
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      return
+    }
+    setComposePhoto(file)
+  }
+
+  /* ── 新增貼文（含相片上載流程）── */
   const handleComposeSubmit = async () => {
     const text = composeDraft.trim()
-    if (!text) { setComposeErr(t('b4.compose_empty_err')); return }
-    setComposeErr('')
-    setComposeLoading(true)
+
+    // 至少文字或相片其一
+    if (!text && !composePhoto) { setComposeErr(t('b4.compose_both_empty')); return }
+
+    setComposeErr(''); setComposeLoading(true)
     try {
+      let photoUrl: string | null = null
+
+      if (composePhoto) {
+        // Step 1：攞後端簽名
+        const signRes  = await fetch('/api/cloudinary-sign', { method: 'POST' })
+        const signData = await signRes.json() as SignResponse
+        if (!signData.ok || !signData.signature || !signData.timestamp ||
+            !signData.apiKey || !signData.cloudName || !signData.folder) {
+          setComposeErr(t('b4.compose_err_sign_fail')); return
+        }
+
+        // Step 2：直接 POST 去 Cloudinary（只帶 B1 簽名嘅 5 個 field）
+        try {
+          photoUrl = await uploadToCloudinary(composePhoto, {
+            signature: signData.signature, timestamp: signData.timestamp,
+            apiKey: signData.apiKey, cloudName: signData.cloudName, folder: signData.folder,
+          })
+        } catch {
+          setComposeErr(t('b4.compose_err_upload_fail')); return
+        }
+      }
+
+      // Step 3：POST /api/posts { body_text, photo_url }
       const res  = await fetch('/api/posts', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ body_text: text }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body:   JSON.stringify({ body_text: text || null, photo_url: photoUrl }),
       })
       const data = await res.json() as { ok: boolean; post?: ApiPost; error?: string }
       if (!data.ok || !data.post) {
-        setComposeErr(data.error ?? t('b4.error_generic'))
-        return
+        setComposeErr(data.error ?? t('b4.error_generic')); return
       }
       setPosts(prev => [data.post!, ...prev])
-      setComposeDraft('')
-      setComposeOpen(false)
+      resetCompose(); setComposeOpen(false)
     } catch {
       setComposeErr(t('b4.error_generic'))
     } finally {
@@ -193,7 +241,7 @@ export default function FamilyFeed() {
     }
   }
 
-  /* ── 渲染單則貼文（橋接 API 型別 → PostCard props）── */
+  /* ── 渲染單則貼文 ── */
   const renderPost = (p: ApiPost) => (
     <PostCard
       key={p.id}
@@ -242,18 +290,15 @@ export default function FamilyFeed() {
       <>
         {posts[0] && renderPost(posts[0])}
         <ReminderCard
-          targetName={CURRENT_USER_NAME}
-          icon="🎂"
+          targetName={CURRENT_USER_NAME} icon="🎂"
           titleText={t('b5.mock_title', { name: t('b4.post3_author') })}
           subtitleText={t('b5.mock_subtitle')}
-          onBlessing={() => undefined}
-          onArrange={() => undefined}
+          onBlessing={() => undefined} onArrange={() => undefined}
         />
         {posts[1] && renderPost(posts[1])}
         {!recoDismissed && (
           <RecommendationCard
-            title={t('b4_reco.title1')}
-            onCtaClick={() => undefined}
+            title={t('b4_reco.title1')} onCtaClick={() => undefined}
             onDismiss={handleDismissReco}
           />
         )}
@@ -262,6 +307,116 @@ export default function FamilyFeed() {
     )
   }
 
+  /* ── Compose sheet UI ── */
+  const renderCompose = () => (
+    <div style={overlayStyle} onClick={() => { if (!composeLoading) { resetCompose(); setComposeOpen(false) } }}>
+      <div style={sheetStyle} onClick={e => e.stopPropagation()}>
+        <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold', color: 'var(--color-text)' }}>
+          {t('b4.compose_title')}
+        </h3>
+
+        {/* 文字輸入 */}
+        <textarea
+          autoFocus
+          value={composeDraft}
+          onChange={e => { setComposeDraft(e.target.value); setComposeErr('') }}
+          placeholder={t('b4.compose_placeholder')}
+          rows={3}
+          disabled={composeLoading}
+          style={{
+            width: '100%', fontSize: '16px', fontFamily: 'inherit',
+            color: 'var(--color-text)', backgroundColor: 'var(--color-bg)',
+            border: `1.5px solid ${composeErr ? 'var(--color-danger,#dc2626)' : 'var(--color-divider)'}`,
+            borderRadius: '10px', padding: '10px 12px', resize: 'vertical',
+            boxSizing: 'border-box', outline: 'none',
+          }}
+        />
+
+        {/* 相片區域 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          {/* 隱藏 file input，由按鈕觸發 */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            style={{ display: 'none' }}
+            onChange={handleFileChange}
+            disabled={composeLoading}
+          />
+          <button
+            type="button"
+            onClick={() => { setComposeErr(''); fileInputRef.current?.click() }}
+            disabled={composeLoading}
+            style={{
+              minHeight: '40px', padding: '0 16px', borderRadius: '20px',
+              border: '1.5px solid var(--color-divider)', background: 'var(--color-bg)',
+              color: 'var(--color-text-secondary)', fontSize: '15px',
+              fontFamily: 'inherit', cursor: composeLoading ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {t('b4.compose_add_photo')}
+          </button>
+
+          {/* 已選相片顯示 */}
+          {composePhoto && (
+            <span style={{ fontSize: '14px', color: 'var(--color-text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              {t('b4.compose_photo_selected', { name: composePhoto.name })}
+              <button
+                type="button"
+                onClick={() => { setComposePhoto(null); if (fileInputRef.current) fileInputRef.current.value = '' }}
+                disabled={composeLoading}
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer', padding: '0 4px',
+                  color: 'var(--color-danger,#dc2626)', fontSize: '15px', lineHeight: 1,
+                }}
+                aria-label={t('b4.compose_photo_remove')}
+              >
+                ✕
+              </button>
+            </span>
+          )}
+        </div>
+
+        {/* 錯誤訊息 */}
+        {composeErr && (
+          <p style={{ margin: 0, fontSize: '13px', color: 'var(--color-danger,#dc2626)' }}>
+            {composeErr}
+          </p>
+        )}
+
+        {/* 操作按鈕列 */}
+        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+          <button
+            onClick={() => { resetCompose(); setComposeOpen(false) }}
+            disabled={composeLoading}
+            style={{
+              minHeight: '44px', padding: '0 20px', borderRadius: '10px',
+              border: '1.5px solid var(--color-border)', background: 'var(--color-card)',
+              color: 'var(--color-text)', fontSize: '16px', fontFamily: 'inherit',
+              cursor: composeLoading ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {t('b4.compose_cancel')}
+          </button>
+          <button
+            onClick={handleComposeSubmit}
+            disabled={composeLoading}
+            style={{
+              minHeight: '44px', padding: '0 24px', borderRadius: '10px',
+              border: 'none', backgroundColor: 'var(--color-primary)',
+              color: '#fff', fontSize: '16px', fontWeight: 'bold',
+              fontFamily: 'inherit', cursor: composeLoading ? 'not-allowed' : 'pointer',
+              opacity: composeLoading ? 0.7 : 1,
+            }}
+          >
+            {composeLoading ? t('b4.compose_uploading') : t('b4.compose_submit')}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+
+  /* ── Main render ── */
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100svh', backgroundColor: 'var(--color-bg)' }}>
       <TopBar titleKey="b4.page_title" />
@@ -286,7 +441,7 @@ export default function FamilyFeed() {
       {/* FAB ＋ 新動態 */}
       <button
         aria-label={t('b4.new_post_btn')}
-        onClick={() => { setComposeOpen(true); setComposeErr(''); setComposeDraft('') }}
+        onClick={() => { resetCompose(); setComposeOpen(true) }}
         style={{
           position: 'fixed', bottom: '88px', right: '20px',
           width: '56px', height: '56px', borderRadius: '50%',
@@ -301,63 +456,10 @@ export default function FamilyFeed() {
 
       <BottomTabBar current="family_circle" onTabChange={handleTabChange} />
 
-      {/* ── Compose Sheet ── */}
-      {composeOpen && (
-        <div style={overlayStyle} onClick={() => setComposeOpen(false)}>
-          <div style={sheetStyle} onClick={e => e.stopPropagation()}>
-            <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold', color: 'var(--color-text)' }}>
-              {t('b4.compose_title')}
-            </h3>
-            <textarea
-              autoFocus
-              value={composeDraft}
-              onChange={e => { setComposeDraft(e.target.value); setComposeErr('') }}
-              placeholder={t('b4.compose_placeholder')}
-              rows={4}
-              style={{
-                width: '100%', fontSize: '16px', fontFamily: 'inherit',
-                color: 'var(--color-text)', backgroundColor: 'var(--color-bg)',
-                border: `1.5px solid ${composeErr ? 'var(--color-danger,#dc2626)' : 'var(--color-divider)'}`,
-                borderRadius: '10px', padding: '10px 12px', resize: 'vertical',
-                boxSizing: 'border-box', outline: 'none',
-              }}
-            />
-            {composeErr && (
-              <p style={{ margin: 0, fontSize: '13px', color: 'var(--color-danger,#dc2626)' }}>
-                {composeErr}
-              </p>
-            )}
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-              <button
-                onClick={() => setComposeOpen(false)}
-                disabled={composeLoading}
-                style={{
-                  minHeight: '44px', padding: '0 20px', borderRadius: '10px',
-                  border: '1.5px solid var(--color-border)', background: 'var(--color-card)',
-                  color: 'var(--color-text)', fontSize: '16px', fontFamily: 'inherit', cursor: 'pointer',
-                }}
-              >
-                {t('b4.compose_cancel')}
-              </button>
-              <button
-                onClick={handleComposeSubmit}
-                disabled={composeLoading}
-                style={{
-                  minHeight: '44px', padding: '0 24px', borderRadius: '10px',
-                  border: 'none', backgroundColor: 'var(--color-primary)',
-                  color: '#fff', fontSize: '16px', fontWeight: 'bold',
-                  fontFamily: 'inherit', cursor: composeLoading ? 'not-allowed' : 'pointer',
-                  opacity: composeLoading ? 0.7 : 1,
-                }}
-              >
-                {composeLoading ? t('b4.submitting') : t('b4.compose_submit')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Compose Sheet */}
+      {composeOpen && renderCompose()}
 
-      {/* ── B5 彈出提醒卡 mock（保留不動）── */}
+      {/* B5 彈出提醒卡 mock（保留不動）*/}
       <ReminderModal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
