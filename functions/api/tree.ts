@@ -31,13 +31,13 @@ export const onRequestGet: PagesFunction<Env> = async (ctx) => {
     ).bind(resolvedFamilyId).first<{ id: string; name: string; created_at: string }>(),
 
     ctx.env.DB.prepare(
-      `SELECT id, family_id, member_kind, display_name, birth_date, deceased_date, is_self, avatar_url, created_at
+      `SELECT id, family_id, member_kind, display_name, birth_date, deceased_date, is_self, avatar_url, gender, created_at
        FROM members WHERE family_id = ? ORDER BY created_at ASC`
     ).bind(resolvedFamilyId).all<{
       id: string; family_id: string; member_kind: string
       display_name: string; birth_date: string | null
       deceased_date: string | null; is_self: number
-      avatar_url: string | null; created_at: string
+      avatar_url: string | null; gender: string | null; created_at: string
     }>(),
 
     ctx.env.DB.prepare(

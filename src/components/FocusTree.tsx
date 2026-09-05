@@ -163,6 +163,25 @@ function genLabel(gen: number, t: (k: string) => string): string {
   return GEN_KEY[gen] ? t(GEN_KEY[gen]) : (gen < 0 ? `第 ${gen} 代` : `第 +${gen} 代`)
 }
 
+/**
+ * Phase 4: sortSpouses — 同一 household 內夫左妻右排序。
+ * male → primary 在左（保持原有 primary/spouse 結構），
+ * female → spouse 在左（交換 primary / spouse）。
+ * 任何一方 gender 為 null / undefined → 維持原有次序，不報錯、不隱藏。
+ * 此函數純計算，不改動 id、不影響 snap / seed / swipe 邏輯。
+ */
+function sortSpouses(hh: Household): Household {
+  const { primary, spouse } = hh
+  if (!spouse) return hh                          // 單身戶，無需排序
+  const pg = primary.gender ?? null
+  const sg = spouse.gender  ?? null
+  if (pg === null || sg === null) return hh       // 任一方未設定 → 維持原有次序
+  if (pg === 'male' && sg === 'female') return hh // 已正確：male 左、female 右
+  if (pg === 'female' && sg === 'male')           // 需交換：female 在 primary 位 → 搬去右邊
+    return { ...hh, primary: spouse, spouse: primary }
+  return hh                                       // 同性或其他組合 → 維持原有次序
+}
+
 /** 4r: id-based pickHouseholds — 用 selectedParentId 直接對位，棄 index */
 function pickHouseholds(
   groups: { parentHouseholdId: string; households: Household[] }[],
@@ -306,18 +325,21 @@ export default function FocusTree({ focusView, selectedIdx: _selectedIdx, selfId
           parentHouseholdId: g.parentHouseholdId ?? '',
           households: g.households,
         }))
-        const displayHHs = gen > 0
+        // logicalHHs：引擎原始次序，用於 snap/seed id 查找（primary.id = parentHouseholdId）
+        const logicalHHs = gen > 0
           ? pickHouseholds(groups4child, getSelectedId(gen - 1))
           : allHH
-        if (displayHHs.length === 0) return null
+        if (logicalHHs.length === 0) return null
+        // displayHHs：純顯示層，Phase 4 夫左妻右排序（不影響 id 查找邏輯）
+        const displayHHs = logicalHHs.map(sortSpouses)
 
-        // 本代選中 idx：由 idByGen 中 id 反查；gen=0 用 safeIdx
+        // 本代選中 idx：由 idByGen 中 id 反查 logicalHHs；gen=0 用 safeIdx
         const layerIdx = gen === 0
           ? safeIdx
           : (() => {
               const sid = idByGen[gen] ?? null
               if (!sid) return 0
-              const idx = displayHHs.findIndex(h => h.primary.id === sid)
+              const idx = logicalHHs.findIndex(h => h.primary.id === sid)
               return idx >= 0 ? idx : 0
             })()
 
@@ -329,7 +351,7 @@ export default function FocusTree({ focusView, selectedIdx: _selectedIdx, selfId
             <LayerCarousel
               households={displayHHs}
               selectedIdx={layerIdx}
-              onSelect={(i) => setIdx(gen, i, displayHHs[i]?.primary.id ?? '')}
+              onSelect={(i) => setIdx(gen, i, logicalHHs[i]?.primary.id ?? '')}
               focusedMemberId={focusId}
               setFocusId={setFocusId}
               chipSize={gen === 0 ? 80 : 64}

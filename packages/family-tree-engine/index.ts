@@ -19,6 +19,7 @@ export interface ApiMember {
   deceased_date?: string | null
   avatar_url: string | null
   is_self?: number  // 1 = 本人，0 = 一般；全 family 最多一個 is_self=1
+  gender?: string | null  // 'male' | 'female' | null（未設定）
 }
 
 export interface ApiRel {
