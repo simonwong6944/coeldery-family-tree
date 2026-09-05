@@ -8,7 +8,10 @@
  * 4t: 修連動後深層 snap 漏觸發
  *     解決：(1) setIdx 清除下層後沿 parentHouseholdId 鏈重新 seed 所有下層
  *           (2) double-RAF 依賴 householdsKey，內容改變也強制 snap
- * module ≤ 250 行。
+ * 4u: 修 iOS Safari 手勢（touch-action: none 殺死所有原生手勢）
+ *     解決：(1) touchAction 改 pan-y，恢復 track 內垂直 scroll
+ *           (2) 新增 touch events（touchstart/touchend）處理橫向 swipe dx
+ *           (3) 移除 setPointerCapture，避免阻礙 iOS pan-y 手勢識別
  */
 
 import { useRef, useEffect, useCallback, useState, useMemo } from 'react'
@@ -26,6 +29,7 @@ function LayerCarousel({ households, selectedIdx, onSelect, focusedMemberId, set
   const scrollRef      = useRef<HTMLDivElement | null>(null)
   const selectedIdxRef = useRef(selectedIdx)
   const pointerRef     = useRef<{ x: number; y: number; id: number } | null>(null)
+  const touchRef       = useRef<{ x: number; y: number } | null>(null)
   selectedIdxRef.current = selectedIdx
 
   const isSingle = households.length <= 1
@@ -53,10 +57,12 @@ function LayerCarousel({ households, selectedIdx, onSelect, focusedMemberId, set
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [householdsKey])
 
+  /* Pointer events：桌面 / 觸控螢幕（不含 iOS Safari）
+   * 移除 setPointerCapture — 配合 pan-y 不阻礙 iOS 原生手勢 */
   const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (!canSwipe) return
     pointerRef.current = { x: e.clientX, y: e.clientY, id: e.pointerId }
-    try { (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId) } catch (_) { /* ignore */ }
+    // ⚠️ 4u: 移除 setPointerCapture，iOS pan-y 下 capture 阻礙手勢識別
   }, [canSwipe])
 
   const onPointerUp = useCallback((e: React.PointerEvent) => {
@@ -73,6 +79,28 @@ function LayerCarousel({ households, selectedIdx, onSelect, focusedMemberId, set
 
   const clearPointer = useCallback(() => { pointerRef.current = null }, [])
 
+  /* Touch events：iOS Safari 原生 — pan-y 下 pointer events 收不到正確 dx
+   * touchstart 記錄起點；touchend 計算 dx/dy，維持 SWIPE_THRESHOLD 邏輯 */
+  const onTouchStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    if (!canSwipe) return
+    const t = e.touches[0]
+    if (t) touchRef.current = { x: t.clientX, y: t.clientY }
+  }, [canSwipe])
+
+  const onTouchEnd = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    if (!canSwipe) return
+    const s = touchRef.current
+    touchRef.current = null
+    if (!s) return
+    const t = e.changedTouches[0]
+    if (!t) return
+    const dx = t.clientX - s.x, dy = t.clientY - s.y
+    if (Math.abs(dy) > Math.abs(dx) || Math.abs(dx) < SWIPE_THRESHOLD) return
+    const cur  = selectedIdxRef.current
+    const next = dx < 0 ? Math.min(cur + 1, households.length - 1) : Math.max(cur - 1, 0)
+    if (next !== cur) onSelect!(next)
+  }, [canSwipe, households.length, onSelect])
+
   if (!households.length) return null
   return (
     <div style={{ width: '100%' }}>
@@ -83,12 +111,13 @@ function LayerCarousel({ households, selectedIdx, onSelect, focusedMemberId, set
         onPointerUp={onPointerUp}
         onPointerCancel={clearPointer}
         onPointerLeave={clearPointer}
-        onLostPointerCapture={clearPointer}
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
         style={{
           display: 'flex', flexDirection: 'row',
           overflowX: 'scroll', overflowY: 'visible',
           width: '100%', padding: '4px 0', boxSizing: 'border-box',
-          touchAction: canSwipe ? 'none' : 'auto',
+          touchAction: canSwipe ? 'pan-y' : 'auto',  // 4u: pan-y 恢復垂直 scroll，iOS Safari 用 touch events 處理橫向
           justifyContent: isSingle ? 'center' : 'flex-start',
           userSelect: 'none',
         }}

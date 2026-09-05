@@ -3273,3 +3273,86 @@ Console 零 error                                   ✅
 - repo: https://github.com/simonwong6944/coeldery-family-tree
 
 ---
+
+## [細步 4u] 修 iOS Safari 手勢（touch-action: none 殺死 track 上下 scroll + 橫向 swipe）
+
+**完成時間**：2026-09-05
+
+### 1. 根因
+
+`LayerCarousel` track 在 `canSwipe` 時設 `touchAction: 'none'`。
+
+**iOS Safari `touch-action: none` 會殺死 track 範圍內所有原生手勢，桌面測唔到**：
+1. 垂直 scroll 死：track 範圍內整棵樹無法上下 scroll
+2. 橫向 swipe 死：iOS Safari pointer events + setPointerCapture 在 `touch-action: none` 下收不到正確 dx，橫向切換失效
+3. 桌面 / 觸控螢幕完全正常（無此限制），故開發期完全測不到此 bug
+
+### 2. 修法（src/components/FocusTree.tsx）
+
+| 項目 | 舊（4t） | 新（4u） |
+|------|----------|----------|
+| `touchAction` | `canSwipe ? 'none' : 'auto'` | `canSwipe ? 'pan-y' : 'auto'` |
+| `setPointerCapture` | 有（`onPointerDown` 呼叫） | 移除（iOS `pan-y` 下 capture 阻礙手勢識別） |
+| `onLostPointerCapture` | 有（JSX 屬性） | 移除（連同 setPointerCapture 一起移除） |
+| `touchRef` | 無 | 新增 `useRef<{x:number;y:number}|null>(null)` |
+| `onTouchStart` | 無 | 新增：記錄 `e.touches[0].clientX/Y` 至 `touchRef` |
+| `onTouchEnd` | 無 | 新增：計算 dx/dy，維持 `SWIPE_THRESHOLD=40` 及 next/prev 邏輯 |
+| JSX touch 屬性 | 無 | 新增 `onTouchStart` / `onTouchEnd` |
+
+**設計原則**：
+- `pan-y`：允許瀏覽器處理垂直滾動，橫向由 touch events 自行處理
+- Touch events（`touchstart`/`touchend`）：iOS Safari 原生可靠，不受 `pan-y` 影響
+- Pointer events 保留：桌面/觸控螢幕兼容（移除 `setPointerCapture` 後仍可正常 swipe）
+- `onTouchEnd` 使用 `e.changedTouches[0]`（而非 `e.touches[0]`，因 touchend 時 touches 為空）
+
+### 3. npm run build
+
+```
+tsc -b && vite build
+✓ 72 modules → 339.27 kB (gzip 98.55 kB), 零 TypeScript 錯誤 ✅
+```
+
+### 4. 桌面回歸測試（Playwright 7/7）
+
+測試場景：fam-4t 真樹（route mock 注入），Simon 焦點
+
+```
+[T1] Simon/KC/Sky 可見（基本顯示）               ✅ ✅ ✅
+[T2] touch-action 值無 'none'（確認 pan-y 生效）  ✅ → ['auto','auto','auto','pan-y','auto']
+[T3] 桌面 pointer swipe gen+1 Sky↔Haydan 無 regression ✅
+[T4] 點 Sky → David 出現（4t snap 邏輯未被破壞）  ✅
+[T5] Console 零 error                            ✅
+```
+
+**T2 重要確認**：`touch-action` 值包含 `'pan-y'`（gen+1 carousel track），無任何 `'none'`。
+
+### 5. iOS Safari 驗收（需在真機測試，sandbox 無法提供）
+
+| 驗收項 | 說明 |
+|--------|------|
+| (a) 垂直 scroll | `pan-y` 允許瀏覽器處理，track 內上下 scroll 應恢復正常 |
+| (b) 橫向 swipe | `touchstart`/`touchend` 計算 dx，`SWIPE_THRESHOLD=40` 維持不變 |
+| (c) 桌面無 regression | Playwright 7/7 PASS ✅ |
+| (d) 家庭樹顯示 | David/Sky/Haydan 顯示正常，snap 邏輯未被破壞 ✅ |
+| (e) console 零 error | ✅ |
+
+### 6. 改動檔案
+
+| 檔案 | 行數 | 改動 |
+|------|------|------|
+| `src/components/FocusTree.tsx` | 344 | `touchAction` 改 `pan-y`；移除 `setPointerCapture`/`onLostPointerCapture`；新增 `touchRef` + `onTouchStart` + `onTouchEnd` handlers |
+
+### 7. 教訓
+
+> **iOS Safari `touch-action: none` 會殺死 track 內上下 scroll，桌面測唔到。**
+>
+> 正確做法：`pan-y`（允許垂直）+ touch events 自行處理橫向 swipe。
+> 永遠不要在需要 scroll 的容器上設 `touch-action: none`，除非確認該容器不需任何原生手勢。
+
+### 8. Commit 資訊
+
+- commit: `（見下方 push 後填入）`
+- branch: main
+- repo: https://github.com/simonwong6944/coeldery-family-tree
+
+---
