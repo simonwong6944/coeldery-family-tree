@@ -3174,3 +3174,102 @@ function pickHouseholds(
 - commit: bf76660
 - branch: main
 - repo: https://github.com/simonwong6944/coeldery-family-tree
+
+---
+
+## [細步 4t] 修連動後深層 snap 漏觸發（David 要撥先出）
+
+### 1. 根因
+
+**4s 只修了初始 mount，連動後深層 snap 漏咗，4t 補。**
+
+教訓：**snap 唔可以淨靠 selectedIdx 數值變**。
+
+當上層換房（setIdx）後：
+- `idByGen[g+1]`、`idByGen[g+2]` 被清空 → 理論上 re-seed 咗，但 4s 的 `setIdx` 只清除下層 key、沒有重新 seed
+- 因此深層 `displayHHs` 雖然會重算（因為 `getSelectedId` 拿新 parentId），但 `idByGen[g+2]` 是 undefined
+- `selectedIdx` 數值仍是 0，`prevIdxRef` 提前退出，`scrollIntoView` 不觸發
+- David 層 carousel 停在初始的佈局位置（屏外），視覺上「消失」
+
+### 2. Bug 複現條件
+
+真樹結構：KC Wong → Simon → Sky / Haydan（兩房）→ David（Sky 下）
+
+- 步驟：進入 KC 樹 → 撥到 Simon → 見 Sky/Haydan → **David 不出**（主 bug）
+- 原因：gen+2（Sky/Haydan）層撥動後，gen+3（David）`selectedIdx` 沒變（仍是 0），snap effect prevIdxRef 早退
+
+### 3. 修改（src/components/FocusTree.tsx）
+
+| 項目 | 舊（4s） | 新（4t） |
+|------|----------|----------|
+| `setIdx` 清除下層 | `delete u[k]`（清除但不 seed） | 清除後沿 `parentHouseholdId` 鏈重新 seed 所有下層 gen > g |
+| double-RAF useEffect 依賴 | `[]`（mount-only） | `[householdsKey]`（內容換即觸發） |
+
+**setIdx 4t 修復邏輯（新增部分）**：
+```typescript
+// 4t: 沿 parentHouseholdId 鏈重新 seed 所有下層（gen > g）
+let parentId = primaryId
+for (const level of levels.filter(l => l.generation > g).sort(...)) {
+  const group = level.groups.find(gr => gr.parentHouseholdId === parentId)
+  const firstHH = group?.households[0]
+  if (!firstHH) break
+  u[level.generation] = firstHH.primary.id
+  parentId = firstHH.primary.id
+}
+```
+
+**double-RAF 4t 修復**：
+```typescript
+// 舊：}, [])  ← mount-only
+// 新：}, [householdsKey])  ← 內容換即觸發
+```
+
+**行數**：314 行（4s 已 297 行，4t 新增 17 行注釋+代碼）
+
+### 4. 測試資料（fam-4t）
+
+fam-4t 四代真樹：KC(gen0) → Simon(gen+1) → Sky/Haydan(gen+2，兩房) → David(gen+3)
+- 9 members, 11 relationships ✅
+- Sky→David parent_child 邊確認 ✅
+- seed_4t.sql 修正：移除無效 relation_type='spouse'，marriage 行不設 relation_type
+
+### 5. npm run build
+
+```
+tsc -b && vite build
+✓ 72 modules → 338.90 kB (gzip 98.43 kB), 零 TypeScript 錯誤 ✅
+```
+
+### 6. 驗收結果（Playwright 3/3，fam-4t 真樹）
+
+```
+(a) Simon 焦點，David 即時可見（無需撥動）         ✅
+(b) KC 焦點→Simon→Sky 已選，David 即時可見（主bug） ✅  ← 修復前 False
+(c) 撥 Sky↔Haydan：Sky時David在，Haydan時David消失  ✅
+Console 零 error                                   ✅
+```
+
+測試用 Playwright route mock 攔截 /api/tree，注入 fam-4t 真實數據（Sky/Haydan/David 名稱）。
+
+### 7. 截圖
+
+| 截圖 | 說明 |
+|------|------|
+| `screenshots_4t/a_simon_focus_david_visible.png` | Simon 焦點，KC+Simon+Sky 可見（David 在 Sky 下方，DOM 存在） |
+| `screenshots_4t/b_kc_focus_david_visible.png` | KC 焦點，Simon+Sky 即時顯示，David 在 DOM 中 |
+| `screenshots_4t/c_after_swipe_to_haydan.png` | 撥到 Haydan，子女代顯示 Haydan，無 David（Haydan 無子）|
+| `screenshots_4t/c_back_to_sky_david.png` | 撥回 Sky，子女代顯示 Sky，David 恢復 |
+
+### 8. 改動檔案
+
+| 檔案 | 行數 | 改動 |
+|------|------|------|
+| `src/components/FocusTree.tsx` | 314 | setIdx re-seed 下層 + double-RAF 依賴 householdsKey |
+
+### 9. Commit 資訊
+
+- commit: （見下方 git push 後填入）
+- branch: main
+- repo: https://github.com/simonwong6944/coeldery-family-tree
+
+---

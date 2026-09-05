@@ -5,6 +5,9 @@
  * 4s: seedChain — 焦點切換時沿直系初始化整條鏈 idByGen
  *     解決：(1) gen≥2 初始孤立（David 消失）
  *           (2) gen 0 hint vs safeIdx 錯位（Suzanne 下錯顯 Simon 仔女）
+ * 4t: 修連動後深層 snap 漏觸發
+ *     解決：(1) setIdx 清除下層後沿 parentHouseholdId 鏈重新 seed 所有下層
+ *           (2) double-RAF 依賴 householdsKey，內容改變也強制 snap
  * module ≤ 250 行。
  */
 
@@ -40,7 +43,7 @@ function LayerCarousel({ households, selectedIdx, onSelect, focusedMemberId, set
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedIdx, householdsKey])
 
-  /* mount 後雙幀強制 auto 置中（修偏位） */
+  /* 4t: householdsKey 改變（含 mount）→ 雙幀強制 auto 置中，覆蓋「內容換但 selectedIdx 數值未變」情況 */
   useEffect(() => {
     const r = requestAnimationFrame(() => requestAnimationFrame(() => {
       const cards = Array.from(scrollRef.current?.children ?? []).slice(1, -1) as HTMLElement[]
@@ -48,7 +51,7 @@ function LayerCarousel({ households, selectedIdx, onSelect, focusedMemberId, set
     }))
     return () => cancelAnimationFrame(r)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [householdsKey])
 
   const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (!canSwipe) return
@@ -211,13 +214,27 @@ export default function FocusTree({ focusView, selectedIdx: _selectedIdx, selfId
     return idByGen[g] ?? (g === 0 ? (focusHHs[0]?.primary.id ?? null) : null)
   }
 
-  /** 選中某代某 household */
+  /**
+   * 選中某代某 household
+   * 4t: 清除 g 以下所有代後，沿 parentHouseholdId 鏈重新 seed 所有下層，
+   *     確保 gen+2 等深層 householdsKey 立即改變，觸發各層 double-RAF snap。
+   */
   function setIdx(g: number, next: number, primaryId: string) {
     if (g === 0) setSelectedIdx(next)
     setIdByGen(prev => {
+      // 更新本代，清除所有更深代
       const u: Record<number, string> = { ...prev, [g]: primaryId }
-      for (const k of Object.keys(prev).map(Number)) {
+      for (const k of Object.keys(u).map(Number)) {
         if (k > g) delete u[k]
+      }
+      // 4t: 沿 parentHouseholdId 鏈重新 seed 所有下層（gen > g）
+      let parentId = primaryId
+      for (const level of levels.filter(l => l.generation > g).sort((a, b) => a.generation - b.generation)) {
+        const group = level.groups.find(gr => gr.parentHouseholdId === parentId)
+        const firstHH = group?.households[0]
+        if (!firstHH) break  // 直系鏈斷開，停止
+        u[level.generation] = firstHH.primary.id
+        parentId = firstHH.primary.id
       }
       if (g < 0) setSelectedIdx(0)
       return u
