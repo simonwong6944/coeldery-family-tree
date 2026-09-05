@@ -191,7 +191,8 @@
     "relation_father": "父親",
     "relation_mother": "母親",
     "relation_son": "兒子",
-    "relation_daughter": "女兒"
+    "relation_daughter": "女兒",
+    "relation_sentence_is": "是"
   },
   "placeholder": {
     "family_feed_title": "家庭圈",
@@ -334,7 +335,8 @@
     "delete_cancel_btn": "取消",
     "set_self_btn": "設為本人",
     "is_self_label": "本人",
-    "back_to_tree": "返回家庭樹"
+    "back_to_tree": "返回家庭樹",
+    "add_rel_no_type": "請選擇關係類型"
   },
   "a11y": {
     "avatar_alt": "{{name}}的頭像",

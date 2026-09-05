@@ -15,15 +15,9 @@ type Gender = 'male' | 'female' | null
 type SubmitStatus = 'idle' | 'submitting' | 'done' | 'error'
 interface ExistingMember { id: string; display_name: string; member_kind: string }
 
-// UI relation key 清單（父親/母親等）→ 後端 relation_key 映射，方向邏輯不變
-const RELATION_OPTIONS = ['relation_father','relation_mother','relation_son','relation_daughter','relation_spouse','relation_sibling','relation_grandchild','relation_other'] as const
-type RelationUiKey = typeof RELATION_OPTIONS[number]
-const UI_TO_BACKEND: Record<RelationUiKey, string> = {
-  relation_father:'relation_parent', relation_mother:'relation_parent',
-  relation_son:'relation_child',     relation_daughter:'relation_child',
-  relation_spouse:'relation_spouse', relation_sibling:'relation_sibling',
-  relation_grandchild:'relation_grandchild', relation_other:'relation_other',
-}
+// UI relation key 清單及映射 — 從共用 util import，避免重複定義
+import { RELATION_OPTIONS, UI_TO_BACKEND } from '../utils/relationMapping'
+import type { RelationUiKey } from '../utils/relationMapping'
 
 export default function B3AddMember() {
   const { t } = useTranslation()
