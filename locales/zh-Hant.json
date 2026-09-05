@@ -179,7 +179,19 @@
     "target_first_member": "您是家庭樹的首位成員，無需選擇對象。",
     "target_placeholder": "請選擇一位家庭成員",
     "label_pet_owners_real": "主人（請從家庭成員中選擇）",
-    "pet_no_members": "尚無人成員，請先加入至少一位人成員。"
+    "pet_no_members": "尚無人成員，請先加入至少一位人成員。",
+    "gender_label": "性別",
+    "gender_male": "男",
+    "gender_female": "女",
+    "gender_unset": "不設定",
+    "relation_sentence_label": "關係",
+    "relation_subject_placeholder": "新成員",
+    "relation_object_placeholder": "（請先選擇對象）",
+    "relation_sentence_of": "的",
+    "relation_father": "父親",
+    "relation_mother": "母親",
+    "relation_son": "兒子",
+    "relation_daughter": "女兒"
   },
   "placeholder": {
     "family_feed_title": "家庭圈",
