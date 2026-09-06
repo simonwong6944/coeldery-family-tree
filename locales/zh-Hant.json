@@ -257,6 +257,7 @@
     "compose_err_upload_fail": "相片上載失敗，請稍後再試",
     "compose_both_empty": "請輸入文字或選擇相片",
     "photo_close": "關閉",
+    "more_actions": "更多操作",
     "post_delete": "刪除",
     "comment_delete": "刪除",
     "delete_post_confirm": "確定要刪除這則貼文嗎？此動作無法復原。",

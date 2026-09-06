@@ -8,6 +8,9 @@
  * v1.2.0：加 onPhotoClick prop — 撳相片時呼叫（由頁面層實現 lightbox）
  * v1.3.0：加 canDelete / onDelete / onDeleteComment — 刪除由頁面層確認並呼叫 API
  *         CommentItem 加 id + canDelete；掣本身唔彈對話框，由頁面層處理
+ * v1.4.0：散開刪除掣 → 右上角「⋮」選單（只有本人內容才顯示）
+ *         留言行同理：canDelete=true 才顯示「⋮」；選單目前只有「刪除」一項
+ *         點擊選單外（透明全屏遮罩）收埋；選完一項後亦自動收埋
  */
 
 import { useState } from 'react'
@@ -50,7 +53,7 @@ export interface PostCardProps {
   onAddComment: (body: string) => void
   /** 撳相片回調（由頁面層實現 lightbox）；無傳入時相片不可點（向後兼容）*/
   onPhotoClick?: () => void
-  /** 是否顯示貼文刪除掣（由頁面層根據 author_member_id 或 fallback Plan B 決定）*/
+  /** 是否顯示貼文「⋮」掣（由頁面層根據 author_member_id === currentMemberId 決定）*/
   canDelete?: boolean
   /** 貼文刪除回調（掣本身唔彈對話框，由頁面層先確認再呼叫）*/
   onDelete?: () => void
@@ -64,6 +67,8 @@ function formatLikers(likers: string[], suffix: string): string {
   return likers.join('、') + ' ' + suffix
 }
 
+/* ──────────────────────────────────────────────────────────── */
+
 export default function PostCard({
   postId: _postId,
   authorName, authorAvatarUrl, timeText, aboutText,
@@ -72,10 +77,15 @@ export default function PostCard({
   canDelete, onDelete, onDeleteComment,
 }: PostCardProps) {
   const { t } = useTranslation()
+
   /* 留言輸入展開狀態（本地 UI state，非持久資料）*/
   const [commentOpen, setCommentOpen] = useState(false)
   /* 留言草稿（本地 UI state，送出後清空）*/
   const [draft, setDraft] = useState('')
+
+  /* ── ⋮ 選單狀態：'post' | commentId | null ── */
+  /* null = 全收埋；'post' = 貼文選單開；字串 = 對應 commentId 選單開 */
+  const [menuOpen, setMenuOpen] = useState<'post' | string | null>(null)
 
   /* ── 送出留言 ── */
   const handleSubmitComment = () => {
@@ -85,6 +95,9 @@ export default function PostCard({
     setDraft('')
     setCommentOpen(false)
   }
+
+  /* ── 關閉所有選單 ── */
+  const closeMenu = () => setMenuOpen(null)
 
   /* ── 共用樣式 token ── */
   const avatarStyle: React.CSSProperties = {
@@ -101,219 +114,292 @@ export default function PostCard({
     borderRadius: '8px',
   }
 
+  /* ── ⋮ 掣樣式（貼文 / 留言共用，尺寸略有別）── */
+  const morePostBtnStyle: React.CSSProperties = {
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    minWidth: '44px', minHeight: '44px',
+    padding: '0 8px',
+    background: 'none', border: 'none', cursor: 'pointer',
+    fontSize: '22px', lineHeight: 1, fontFamily: 'inherit',
+    color: 'var(--color-text-secondary)',
+    borderRadius: '8px', flexShrink: 0,
+  }
+  const moreCommentBtnStyle: React.CSSProperties = {
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    minWidth: '44px', minHeight: '44px',
+    padding: '0 6px',
+    background: 'none', border: 'none', cursor: 'pointer',
+    fontSize: '18px', lineHeight: 1, fontFamily: 'inherit',
+    color: 'var(--color-text-secondary)',
+    borderRadius: '6px', flexShrink: 0,
+  }
+
+  /* ── 選單浮層（inline，right 對齊，z-index 50）── */
+  const menuDropStyle: React.CSSProperties = {
+    position: 'absolute', top: '100%', right: 0, zIndex: 50,
+    minWidth: '140px',
+    backgroundColor: 'var(--color-card)',
+    border: '1.5px solid var(--color-divider)',
+    borderRadius: '10px',
+    boxShadow: '0 4px 16px rgba(0,0,0,0.13)',
+    overflow: 'hidden',
+    marginTop: '4px',
+  }
+  const menuItemStyle: React.CSSProperties = {
+    display: 'flex', alignItems: 'center', gap: '8px',
+    width: '100%', minHeight: '44px',
+    padding: '0 16px',
+    background: 'none', border: 'none', cursor: 'pointer',
+    fontSize: '16px', fontFamily: 'inherit', textAlign: 'left',
+    color: 'var(--color-danger, #dc2626)',
+  }
+
   return (
-    <article
-      aria-label={t('b4.post_img_alt', { name: authorName })}
-      style={{
-        backgroundColor: 'var(--color-card)',
-        borderRadius: '16px',
-        boxShadow: 'var(--shadow-subtle)',
-        overflow: 'hidden',
-        marginBottom: '16px',
-      }}
-    >
-      {/* ── 頂部：頭像 + 名 + 時間 ── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px 16px 8px' }}>
-        <img
-          src={authorAvatarUrl}
-          alt={t('b4.avatar_alt', { name: authorName })}
-          style={avatarStyle}
-        />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ margin: 0, fontSize: '18px', fontWeight: 'bold', color: 'var(--color-text)', lineHeight: 1.2 }}>
-            {authorName}
-          </p>
-          <p style={{ margin: 0, fontSize: '18px', color: 'var(--color-text-secondary)', lineHeight: 1.2 }}>
-            {timeText}
-          </p>
-        </div>
-        {/* 「關於：X」pill（aboutText 為空時唔顯示）*/}
-        {aboutText && (
-          <span style={{
-            fontSize: '18px', padding: '4px 12px', borderRadius: '20px',
-            backgroundColor: 'var(--color-bg)',
-            border: '1.5px solid var(--color-divider)',
-            color: 'var(--color-text-secondary)',
-            whiteSpace: 'nowrap', flexShrink: 0,
-          }}>
-            {t('b4.about_prefix')}{aboutText}
-          </span>
-        )}
-        {/* 刪除貼文掣（canDelete=true 時顯示；掣本身唔彈確認，由頁面層處理）*/}
-        {canDelete && onDelete && (
-          <button
-            type="button"
-            onClick={onDelete}
-            aria-label={t('b4.post_delete')}
-            style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              gap: '4px', minHeight: '44px', minWidth: '44px',
-              padding: '0 10px',
-              background: 'none', border: 'none', cursor: 'pointer',
-              fontSize: '16px', fontFamily: 'inherit',
-              color: 'var(--color-danger, #dc2626)',
-              borderRadius: '8px', flexShrink: 0,
-            }}
-          >
-            &#128465; {t('b4.post_delete')}
-          </button>
-        )}
-      </div>
-
-      {/* ── 大相（滿卡闊；冇相時唔 render，避免 broken image）── */}
-      {photoUrl && (
-        onPhotoClick ? (
-          // 有傳入 onPhotoClick：將相片包成可點擊按鈕（鍵盤可達，cursor: zoom-in）
-          <button
-            type="button"
-            onClick={onPhotoClick}
-            aria-label={photoAlt}
-            style={{
-              display: 'block', width: '100%', padding: 0,
-              border: 'none', background: 'none', cursor: 'zoom-in',
-            }}
-          >
-            <img
-              src={photoUrl}
-              alt={photoAlt}
-              style={{ width: '100%', display: 'block', maxHeight: '320px', objectFit: 'cover' }}
-            />
-          </button>
-        ) : (
-          // 冇傳入 onPhotoClick：維持現狀，相片不可點（向後兼容）
-          <img
-            src={photoUrl}
-            alt={photoAlt}
-            style={{ width: '100%', display: 'block', maxHeight: '320px', objectFit: 'cover' }}
-          />
-        )
-      )}
-
-      {/* ── 內文 ── */}
-      <p style={{ margin: 0, padding: '12px 16px', fontSize: '18px', color: 'var(--color-text)', lineHeight: 1.6 }}>
-        {bodyText}
-      </p>
-
-      {/* ── 讚好名單 ── */}
-      {likers.length > 0 && (
-        <p style={{ margin: 0, padding: '0 16px 8px', fontSize: '18px', color: 'var(--color-text-secondary)' }}>
-          {formatLikers(likers, t('b4.likes_suffix'))}
-        </p>
-      )}
-
-      {/* ── 分隔線 ── */}
-      <hr style={{ margin: '0 16px', border: 'none', borderTop: '1px solid var(--color-divider)' }} />
-
-      {/* ── 互動列（讚好狀態由 isLiked prop 驅動，onClick 呼叫 onToggleLike 持久化至 feedRepository）── */}
-      <div style={{ display: 'flex', padding: '4px 8px' }}>
-        <button
-          onClick={onToggleLike}
-          aria-pressed={isLiked}
+    <>
+      {/* ── 透明全屏遮罩：任何選單開啟時覆蓋在卡片下方，點擊收埋 ── */}
+      {menuOpen !== null && (
+        <div
+          onClick={closeMenu}
           style={{
-            ...btnStyle,
-            color: isLiked ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+            position: 'fixed', inset: 0, zIndex: 40,
+            background: 'transparent',
           }}
-        >
-          {isLiked ? '❤️' : '🤍'} {t('b4.like_btn').replace('❤️ ', '')}
-        </button>
-        <button
-          onClick={() => setCommentOpen(o => !o)}
-          aria-expanded={commentOpen}
-          style={btnStyle}
-        >
-          {t('b4.comment_btn')}
-        </button>
-      </div>
+          aria-hidden="true"
+        />
+      )}
 
-      {/* ── 留言輸入區（點擊「留言」後展開；送出呼叫 onAddComment 持久化）── */}
-      {commentOpen && (
-        <div style={{ padding: '0 16px 12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <textarea
-            value={draft}
-            onChange={e => setDraft(e.target.value)}
-            placeholder={t('b4.comment_placeholder')}
-            rows={2}
-            style={{
-              width: '100%',
-              minHeight: '52px',
-              fontSize: '18px',
-              fontFamily: 'inherit',
-              color: 'var(--color-text)',
+      <article
+        aria-label={t('b4.post_img_alt', { name: authorName })}
+        style={{
+          position: 'relative',   /* 讓選單可用 position: absolute 定位 */
+          backgroundColor: 'var(--color-card)',
+          borderRadius: '16px',
+          boxShadow: 'var(--shadow-subtle)',
+          overflow: 'visible',    /* 允許選單浮出卡片邊界 */
+          marginBottom: '16px',
+        }}
+      >
+        {/* ── 頂部：頭像 + 名 + 時間 + 「關於」pill + ⋮ 掣 ── */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px 16px 8px' }}>
+          <img
+            src={authorAvatarUrl}
+            alt={t('b4.avatar_alt', { name: authorName })}
+            style={avatarStyle}
+          />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ margin: 0, fontSize: '18px', fontWeight: 'bold', color: 'var(--color-text)', lineHeight: 1.2 }}>
+              {authorName}
+            </p>
+            <p style={{ margin: 0, fontSize: '18px', color: 'var(--color-text-secondary)', lineHeight: 1.2 }}>
+              {timeText}
+            </p>
+          </div>
+          {/* 「關於：X」pill（aboutText 為空時唔顯示）*/}
+          {aboutText && (
+            <span style={{
+              fontSize: '18px', padding: '4px 12px', borderRadius: '20px',
               backgroundColor: 'var(--color-bg)',
               border: '1.5px solid var(--color-divider)',
-              borderRadius: '10px',
-              padding: '10px 12px',
-              resize: 'vertical',
-              boxSizing: 'border-box',
-              outline: 'none',
-            }}
-          />
+              color: 'var(--color-text-secondary)',
+              whiteSpace: 'nowrap', flexShrink: 0,
+            }}>
+              {t('b4.about_prefix')}{aboutText}
+            </span>
+          )}
+
+          {/* ── 貼文「⋮」掣 + 選單（canDelete=true 才顯示）── */}
+          {canDelete && onDelete && (
+            <div style={{ position: 'relative', flexShrink: 0 }}>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setMenuOpen(prev => prev === 'post' ? null : 'post') }}
+                aria-label={t('b4.more_actions')}
+                aria-expanded={menuOpen === 'post'}
+                aria-haspopup="menu"
+                style={morePostBtnStyle}
+              >
+                &#8942;
+              </button>
+              {menuOpen === 'post' && (
+                <div role="menu" style={menuDropStyle}>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => { closeMenu(); onDelete() }}
+                    style={menuItemStyle}
+                  >
+                    &#128465; {t('b4.post_delete')}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ── 大相（滿卡闊；冇相時唔 render，避免 broken image）── */}
+        {/* overflow: visible 下需自行 clip 相片，用 borderRadius + overflow hidden 包 */}
+        {photoUrl && (
+          <div style={{ overflow: 'hidden' }}>
+            {onPhotoClick ? (
+              <button
+                type="button"
+                onClick={onPhotoClick}
+                aria-label={photoAlt}
+                style={{
+                  display: 'block', width: '100%', padding: 0,
+                  border: 'none', background: 'none', cursor: 'zoom-in',
+                }}
+              >
+                <img
+                  src={photoUrl}
+                  alt={photoAlt}
+                  style={{ width: '100%', display: 'block', maxHeight: '320px', objectFit: 'cover' }}
+                />
+              </button>
+            ) : (
+              <img
+                src={photoUrl}
+                alt={photoAlt}
+                style={{ width: '100%', display: 'block', maxHeight: '320px', objectFit: 'cover' }}
+              />
+            )}
+          </div>
+        )}
+
+        {/* ── 內文 ── */}
+        <p style={{ margin: 0, padding: '12px 16px', fontSize: '18px', color: 'var(--color-text)', lineHeight: 1.6 }}>
+          {bodyText}
+        </p>
+
+        {/* ── 讚好名單 ── */}
+        {likers.length > 0 && (
+          <p style={{ margin: 0, padding: '0 16px 8px', fontSize: '18px', color: 'var(--color-text-secondary)' }}>
+            {formatLikers(likers, t('b4.likes_suffix'))}
+          </p>
+        )}
+
+        {/* ── 分隔線 ── */}
+        <hr style={{ margin: '0 16px', border: 'none', borderTop: '1px solid var(--color-divider)' }} />
+
+        {/* ── 互動列 ── */}
+        <div style={{ display: 'flex', padding: '4px 8px' }}>
           <button
-            onClick={handleSubmitComment}
+            onClick={onToggleLike}
+            aria-pressed={isLiked}
             style={{
-              alignSelf: 'flex-end',
-              minHeight: '44px',
-              minWidth: '120px',
-              padding: '0 20px',
-              borderRadius: '10px',
-              border: 'none',
-              backgroundColor: 'var(--color-primary)',
-              color: 'var(--color-card)',
-              fontSize: '18px',
-              fontWeight: 'bold',
-              fontFamily: 'inherit',
-              cursor: 'pointer',
+              ...btnStyle,
+              color: isLiked ? 'var(--color-accent)' : 'var(--color-text-secondary)',
             }}
           >
-            {t('b4.comment_submit')}
+            {isLiked ? '❤️' : '🤍'} {t('b4.like_btn').replace('❤️ ', '')}
+          </button>
+          <button
+            onClick={() => setCommentOpen(o => !o)}
+            aria-expanded={commentOpen}
+            style={btnStyle}
+          >
+            {t('b4.comment_btn')}
           </button>
         </div>
-      )}
 
-      {/* ── 留言區 ── */}
-      {comments.length > 0 && (
-        <div style={{ padding: '0 16px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <hr style={{ margin: '0 0 4px', border: 'none', borderTop: '1px solid var(--color-divider)' }} />
-          {comments.map((c, i) => (
-            <div key={c.id || i} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
-              <img
-                src={c.avatarUrl}
-                alt={t('b4.comment_avatar_alt', { name: c.name })}
-                style={{ ...avatarStyle, width: '36px', height: '36px' }}
-              />
-              <div style={{ flex: 1, backgroundColor: 'var(--color-bg)', borderRadius: '10px', padding: '8px 12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2px' }}>
-                  <p style={{ margin: 0, fontSize: '18px', fontWeight: 'bold', color: 'var(--color-text)' }}>
-                    {c.name}
+        {/* ── 留言輸入區 ── */}
+        {commentOpen && (
+          <div style={{ padding: '0 16px 12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <textarea
+              value={draft}
+              onChange={e => setDraft(e.target.value)}
+              placeholder={t('b4.comment_placeholder')}
+              rows={2}
+              style={{
+                width: '100%',
+                minHeight: '52px',
+                fontSize: '18px',
+                fontFamily: 'inherit',
+                color: 'var(--color-text)',
+                backgroundColor: 'var(--color-bg)',
+                border: '1.5px solid var(--color-divider)',
+                borderRadius: '10px',
+                padding: '10px 12px',
+                resize: 'vertical',
+                boxSizing: 'border-box',
+                outline: 'none',
+              }}
+            />
+            <button
+              onClick={handleSubmitComment}
+              style={{
+                alignSelf: 'flex-end',
+                minHeight: '44px',
+                minWidth: '120px',
+                padding: '0 20px',
+                borderRadius: '10px',
+                border: 'none',
+                backgroundColor: 'var(--color-primary)',
+                color: 'var(--color-card)',
+                fontSize: '18px',
+                fontWeight: 'bold',
+                fontFamily: 'inherit',
+                cursor: 'pointer',
+              }}
+            >
+              {t('b4.comment_submit')}
+            </button>
+          </div>
+        )}
+
+        {/* ── 留言區 ── */}
+        {comments.length > 0 && (
+          <div style={{ padding: '0 16px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <hr style={{ margin: '0 0 4px', border: 'none', borderTop: '1px solid var(--color-divider)' }} />
+            {comments.map((c, i) => (
+              <div key={c.id || i} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                <img
+                  src={c.avatarUrl}
+                  alt={t('b4.comment_avatar_alt', { name: c.name })}
+                  style={{ ...avatarStyle, width: '36px', height: '36px' }}
+                />
+                <div style={{ flex: 1, backgroundColor: 'var(--color-bg)', borderRadius: '10px', padding: '8px 12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <p style={{ margin: 0, fontSize: '18px', fontWeight: 'bold', color: 'var(--color-text)' }}>
+                      {c.name}
+                    </p>
+                    {/* ── 留言「⋮」掣 + 選單（c.canDelete=true 才顯示）── */}
+                    {c.canDelete && onDeleteComment && (
+                      <div style={{ position: 'relative', flexShrink: 0 }}>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setMenuOpen(prev => prev === c.id ? null : c.id) }}
+                          aria-label={t('b4.more_actions')}
+                          aria-expanded={menuOpen === c.id}
+                          aria-haspopup="menu"
+                          style={moreCommentBtnStyle}
+                        >
+                          &#8942;
+                        </button>
+                        {menuOpen === c.id && (
+                          <div role="menu" style={menuDropStyle}>
+                            <button
+                              type="button"
+                              role="menuitem"
+                              onClick={() => { closeMenu(); onDeleteComment(c.id) }}
+                              style={menuItemStyle}
+                            >
+                              &#128465; {t('b4.comment_delete')}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <p style={{ margin: '4px 0 0', fontSize: '18px', color: 'var(--color-text)', lineHeight: 1.5 }}>
+                    {c.body}
                   </p>
-                  {/* 刪除留言掣（c.canDelete=true 時顯示；掣本身唔彈確認，由頁面層處理）*/}
-                  {c.canDelete && onDeleteComment && (
-                    <button
-                      type="button"
-                      onClick={() => onDeleteComment(c.id)}
-                      aria-label={t('b4.comment_delete')}
-                      style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        gap: '4px', minHeight: '44px', minWidth: '44px',
-                        padding: '0 8px',
-                        background: 'none', border: 'none', cursor: 'pointer',
-                        fontSize: '16px', fontFamily: 'inherit',
-                        color: 'var(--color-danger, #dc2626)',
-                        borderRadius: '6px', flexShrink: 0,
-                      }}
-                    >
-                      &#128465; {t('b4.comment_delete')}
-                    </button>
-                  )}
                 </div>
-                <p style={{ margin: 0, fontSize: '18px', color: 'var(--color-text)', lineHeight: 1.5 }}>
-                  {c.body}
-                </p>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </article>
+            ))}
+          </div>
+        )}
+      </article>
+    </>
   )
 }

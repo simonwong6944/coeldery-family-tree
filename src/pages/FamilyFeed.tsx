@@ -5,6 +5,8 @@
  * v2.7.0：相片全屏 lightbox（撳相片放大，可關）
  * v2.8.0：貼文 / 留言削除（前端）— 接駁 DELETE /api/posts/:id 及 DELETE /api/posts/:id/comments
  *         Plan B：削除掣一律顯示，後端回 403 時顯示禁止提示（無 /api/me）
+ * v2.9.0：加 GET /api/me — 得 currentMemberId，canDelete 改由 author_member_id === currentMemberId 計算
+ *         貼文 / 留言刪除掣改為 ⋮ 選單（只有本人內容才顯示）
  * v2.4.0：提醒卡改為摘要橫幅（可展開/收合）；修正 b5 口語字
  * v2.3.0：貼文 / 留言作者頭像接真相（author_avatar_url），fallback DiceBear
  *          avatarFor() helper 單一來源，所有頭像 URL 經此產生
@@ -83,13 +85,13 @@ function avatarFor(name: string, url: string | null | undefined): string {
 }
 
 /* ── PostCard 橋接 ── */
-function toCommentItems(comments: ApiComment[]): CommentItem[] {
+function toCommentItems(comments: ApiComment[], currentMemberId: string | null): CommentItem[] {
   return comments.map(c => ({
     id:        c.id,
     name:      c.author_name,
     avatarUrl: avatarFor(c.author_name, c.author_avatar_url),
     body:      c.body,
-    canDelete: true,   // Plan B: 一律顯示，403 由後端判斷
+    canDelete: currentMemberId !== null && c.author_member_id === currentMemberId,
   }))
 }
 function toLikers(likeCount: number): string[] {
@@ -121,6 +123,9 @@ export default function FamilyFeed() {
 
   /* ── Lightbox ── */
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
+
+  /* ── 當前登入者 memberId（由 GET /api/me 取得）── */
+  const [currentMemberId, setCurrentMemberId] = useState<string | null>(null)
 
   /* ── 削除提示（失敗 / 403）── */
   const [deleteErrMsg, setDeleteErrMsg] = useState('')
@@ -223,6 +228,12 @@ export default function FamilyFeed() {
       .then(d => d.ok ? (d.reminders ?? []) : [])
       .catch(() => [] as ReminderItem[])
 
+    // Me：獨立 fetch，失敗只靜默留 null（即不顯示任何 ⋮ 掣）
+    const mePromise = fetch('/api/me')
+      .then(r => r.json() as Promise<{ ok: boolean; member_id?: string }>)
+      .then(d => d.ok ? (d.member_id ?? null) : null)
+      .catch(() => null as string | null)
+
     // Posts：主流程，失敗進入 error state
     const postsPromise = fetch('/api/posts')
       .then(async r => {
@@ -236,15 +247,21 @@ export default function FamilyFeed() {
         return data.posts ?? []
       })
 
-    // 同時發出兩個請求
-    const [reminderResult, postsResult] = await Promise.allSettled([
+    // 同時發出三個請求
+    const [reminderResult, meResult, postsResult] = await Promise.allSettled([
       remindersPromise,
+      mePromise,
       postsPromise,
     ])
 
     // 處理 reminders（失敗 = 空 array，貼文不受影響）
     setReminders(
       reminderResult.status === 'fulfilled' ? reminderResult.value : []
+    )
+
+    // 處理 me（失敗 = null，貼文不受影響，只是沒有 ⋮ 掣）
+    setCurrentMemberId(
+      meResult.status === 'fulfilled' ? meResult.value : null
     )
 
     // 處理 posts
@@ -427,12 +444,12 @@ export default function FamilyFeed() {
       photoAlt={t('b4.post_img_alt', { name: p.author_name })}
       bodyText={p.body_text ?? ''}
       likers={toLikers(p.like_count)}
-      comments={toCommentItems(p.comments)}
+      comments={toCommentItems(p.comments, currentMemberId)}
       isLiked={p.isLikedByMe}
       onToggleLike={() => handleToggleLike(p)}
       onAddComment={(body) => handleAddComment(p, body)}
       onPhotoClick={p.photo_url ? () => setLightboxUrl(p.photo_url) : undefined}
-      canDelete={true}
+      canDelete={currentMemberId !== null && p.author_member_id === currentMemberId}
       onDelete={() => handleDeletePost(p.id)}
       onDeleteComment={(commentId) => handleDeleteComment(p, commentId)}
     />
