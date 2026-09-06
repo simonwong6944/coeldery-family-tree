@@ -1,9 +1,10 @@
 /**
  * FamilyFeed — 家庭圈動態 feed（B4 + B5 提醒卡 + B4 推薦卡）
  * 規格：.coappery/design/B4_family_feed.md + B5_reminder_cards.md
- * v2.1.0：Compose 加相片上載（Cloudinary signed upload）
+ * v2.2.0：提醒卡接真 API（GET /api/reminders），parallel fetch，獨立 error
+ *          Compose 加相片上載（Cloudinary signed upload）
  *          PostCard photo_url 空時唔 render 相片位（UI 清理）
- *          B5 提醒卡 / 推薦卡 mock 保留不動
+ *          B5 彈出卡 / 推薦卡 mock 保留不動
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
@@ -16,7 +17,7 @@ import type { CommentItem } from '../../packages/post-card'
 import ReminderCard from '../../packages/reminder-card'
 import ReminderModal from '../../packages/reminder-modal'
 import RecommendationCard from '../../packages/recommendation-card'
-import { isRecoDismissed, dismissReco, CURRENT_USER_NAME } from '../utils/feedRepository'
+import { isRecoDismissed, dismissReco } from '../utils/feedRepository'
 
 /* ── API 回應型別 ── */
 interface ApiComment {
@@ -33,6 +34,18 @@ interface SignResponse {
   apiKey?: string; cloudName?: string; folder?: string; error?: string
 }
 interface CloudinaryUploadResponse { secure_url: string }
+
+/* ── Reminders API 回應型別 ── */
+interface ReminderItem {
+  member_id:    string
+  display_name: string
+  type:         'birthday' | 'memorial' | 'custom' | 'festival'
+  source:       'member' | 'family' | 'system'
+  date:         string          // YYYY-MM-DD
+  days_until:   number
+  age:          number | null
+  gender:       string | null
+}
 
 /* ── Cloudinary signed upload（只帶 B1 簽名覆蓋嘅 5 個 field）── */
 async function uploadToCloudinary(file: File, sign: Required<Omit<SignResponse, 'ok' | 'error'>>): Promise<string> {
@@ -101,6 +114,9 @@ export default function FamilyFeed() {
   const [composeLoading, setComposeLoading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  /* ── 提醒卡（真 API）── */
+  const [reminders, setReminders] = useState<ReminderItem[]>([])
+
   /* ── B5 mock（保留不動）── */
   const [modalOpen,     setModalOpen]     = useState(false)
   const [recoDismissed, setRecoDismissed] = useState(() => isRecoDismissed(RECO_ID))
@@ -115,18 +131,77 @@ export default function FamilyFeed() {
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
-  /* ── 載入貼文 ── */
+  /* ── i18n helpers：提醒卡標題 / 副標題 ── */
+  const getReminderTitle = (item: ReminderItem): string => {
+    const name = item.display_name
+    if (item.type === 'memorial') {
+      if (item.days_until === 0) return t('b5.memorial_today',    { name })
+      if (item.days_until === 1) return t('b5.memorial_tomorrow', { name })
+      return t('b5.memorial_in_n', { name, count: item.days_until })
+    }
+    // birthday（及其他 type 暫以 birthday 格式處理）
+    if (item.days_until === 0) return t('b5.birthday_today',    { name })
+    if (item.days_until === 1) return t('b5.birthday_tomorrow', { name })
+    return t('b5.birthday_in_n', { name, count: item.days_until })
+  }
+
+  const getReminderSubtitle = (item: ReminderItem): string => {
+    // date 格式 YYYY-MM-DD，拆月日
+    const parts = item.date.split('-')
+    const month = parseInt(parts[1] ?? '0', 10)
+    const day   = parseInt(parts[2] ?? '0', 10)
+    if (item.type === 'memorial') {
+      return item.age != null
+        ? t('b5.memorial_subtitle',        { month, day, age: item.age })
+        : t('b5.memorial_subtitle_no_age', { month, day })
+    }
+    return item.age != null
+      ? t('b5.birthday_subtitle',        { month, day, age: item.age })
+      : t('b5.birthday_subtitle_no_age', { month, day })
+  }
+
+  /* ── 載入貼文 + 提醒（parallel，獨立 error 處理）── */
   const loadPosts = useCallback(async () => {
     setLoadState('loading'); setErrorMsg('')
-    try {
-      const res  = await fetch('/api/posts')
-      const data = await res.json() as { ok: boolean; posts?: ApiPost[]; error?: string }
-      if (!data.ok) {
-        setErrorMsg(res.status === 409 ? t('b4.error_no_self') : (data.error ?? t('b4.error_generic')))
-        setLoadState('error'); return
-      }
-      setPosts(data.posts ?? []); setLoadState('ok')
-    } catch { setErrorMsg(t('b4.error_generic')); setLoadState('error') }
+
+    // Reminders：獨立 fetch，失敗只靜默清空，不阻塞貼文
+    const remindersPromise = fetch('/api/reminders')
+      .then(r => r.json() as Promise<{ ok: boolean; reminders?: ReminderItem[] }>)
+      .then(d => d.ok ? (d.reminders ?? []) : [])
+      .catch(() => [] as ReminderItem[])
+
+    // Posts：主流程，失敗進入 error state
+    const postsPromise = fetch('/api/posts')
+      .then(async r => {
+        const data = await r.json() as { ok: boolean; posts?: ApiPost[]; error?: string }
+        if (!data.ok) {
+          throw Object.assign(
+            new Error(data.error ?? t('b4.error_generic')),
+            { status: r.status }
+          )
+        }
+        return data.posts ?? []
+      })
+
+    // 同時發出兩個請求
+    const [reminderResult, postsResult] = await Promise.allSettled([
+      remindersPromise,
+      postsPromise,
+    ])
+
+    // 處理 reminders（失敗 = 空 array，貼文不受影響）
+    setReminders(
+      reminderResult.status === 'fulfilled' ? reminderResult.value : []
+    )
+
+    // 處理 posts
+    if (postsResult.status === 'fulfilled') {
+      setPosts(postsResult.value); setLoadState('ok')
+    } else {
+      const err = postsResult.reason as (Error & { status?: number })
+      setErrorMsg(err.status === 409 ? t('b4.error_no_self') : (err.message || t('b4.error_generic')))
+      setLoadState('error')
+    }
   }, [t])
 
   useEffect(() => { loadPosts() }, [loadPosts])
@@ -288,13 +363,21 @@ export default function FamilyFeed() {
     )
     return (
       <>
+        {/* 提醒卡區塊：擺喺 feed 頂，後端已按 days_until 升序排好，前端保持順序 */}
+        {reminders.map(r => (
+          <ReminderCard
+            key={`${r.member_id}-${r.type}`}
+            targetName={r.display_name}
+            icon={r.type === 'memorial' ? '🕯️' : '🎂'}
+            titleText={getReminderTitle(r)}
+            subtitleText={getReminderSubtitle(r)}
+            onBlessing={undefined}
+            onArrange={undefined}
+          />
+        ))}
+
+        {/* 貼文列表：提醒卡之後，推薦卡插喺 posts[1] 之前 */}
         {posts[0] && renderPost(posts[0])}
-        <ReminderCard
-          targetName={CURRENT_USER_NAME} icon="🎂"
-          titleText={t('b5.mock_title', { name: t('b4.post3_author') })}
-          subtitleText={t('b5.mock_subtitle')}
-          onBlessing={() => undefined} onArrange={() => undefined}
-        />
         {posts[1] && renderPost(posts[1])}
         {!recoDismissed && (
           <RecommendationCard

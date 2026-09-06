@@ -274,7 +274,17 @@
     "mock_title": "🎂 {{name}} 下個月生日",
     "mock_subtitle": "10 月 15 日・尚餘 30 日",
     "mock_modal_headline": "{{name}} 明天生日 🎂",
-    "mock_modal_warm": "記得向他送上生日祝福 💚"
+    "mock_modal_warm": "記得向他送上生日祝福 💚",
+    "birthday_today": "{{name}} 今日生日 🎂",
+    "birthday_tomorrow": "{{name}} 聽日生日 🎂",
+    "birthday_in_n": "{{name}} 仲有 {{count}} 日生日 🎂",
+    "birthday_subtitle": "{{month}} 月 {{day}} 日・{{age}} 歲",
+    "birthday_subtitle_no_age": "{{month}} 月 {{day}} 日",
+    "memorial_today": "{{name}} 今日忌辰",
+    "memorial_tomorrow": "{{name}} 聽日忌辰",
+    "memorial_in_n": "{{name}} 仲有 {{count}} 日忌辰",
+    "memorial_subtitle": "{{month}} 月 {{day}} 日・第 {{age}} 年",
+    "memorial_subtitle_no_age": "{{month}} 月 {{day}} 日"
   },
   "b5_detail": {
     "page_title": "事件詳情",
