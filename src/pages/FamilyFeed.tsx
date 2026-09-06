@@ -1,6 +1,8 @@
 /**
  * FamilyFeed — 家庭圈動態 feed（B4 + B5 提醒卡 + B4 推薦卡）
  * 規格：.coappery/design/B4_family_feed.md + B5_reminder_cards.md
+ * v2.3.0：貼文 / 留言作者頭像接真相（author_avatar_url），fallback DiceBear
+ *          avatarFor() helper 單一來源，所有頭像 URL 經此產生
  * v2.2.0：提醒卡接真 API（GET /api/reminders），parallel fetch，獨立 error
  *          Compose 加相片上載（Cloudinary signed upload）
  *          PostCard photo_url 空時唔 render 相片位（UI 清理）
@@ -22,10 +24,12 @@ import { isRecoDismissed, dismissReco } from '../utils/feedRepository'
 /* ── API 回應型別 ── */
 interface ApiComment {
   id: string; author_member_id: string; author_name: string
+  author_avatar_url: string | null
   body: string; created_at: string
 }
 interface ApiPost {
   id: string; family_id: string; author_member_id: string; author_name: string
+  author_avatar_url: string | null
   body_text: string | null; photo_url: string | null; created_at: string
   comments: ApiComment[]; like_count: number; isLikedByMe: boolean
 }
@@ -66,11 +70,18 @@ async function uploadToCloudinary(file: File, sign: Required<Omit<SignResponse, 
   return data.secure_url
 }
 
+/* ── 頭像 URL helper：真相優先，無相 fallback DiceBear initials ── */
+function avatarFor(name: string, url: string | null | undefined): string {
+  return (url && url.trim())
+    ? url
+    : `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name)}`
+}
+
 /* ── PostCard 橋接 ── */
 function toCommentItems(comments: ApiComment[]): CommentItem[] {
   return comments.map(c => ({
     name:      c.author_name,
-    avatarUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(c.author_name)}`,
+    avatarUrl: avatarFor(c.author_name, c.author_avatar_url),
     body:      c.body,
   }))
 }
@@ -233,7 +244,7 @@ export default function FamilyFeed() {
       })
       const data = await res.json() as {
         ok: boolean
-        comment?: { id: string; author_name: string; body: string; created_at: string; author_member_id: string }
+        comment?: { id: string; author_name: string; body: string; created_at: string; author_member_id: string; author_avatar_url?: string | null }
       }
       if (!data.ok || !data.comment) return
       const c = data.comment
@@ -242,7 +253,8 @@ export default function FamilyFeed() {
           ...p,
           comments: [...p.comments, {
             id: c.id, author_member_id: c.author_member_id,
-            author_name: c.author_name, body: c.body, created_at: c.created_at,
+            author_name: c.author_name, author_avatar_url: c.author_avatar_url ?? null,
+            body: c.body, created_at: c.created_at,
           }],
         }
       ))
@@ -322,7 +334,7 @@ export default function FamilyFeed() {
       key={p.id}
       postId={p.id}
       authorName={p.author_name}
-      authorAvatarUrl={`https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(p.author_name)}`}
+      authorAvatarUrl={avatarFor(p.author_name, p.author_avatar_url)}
       timeText={p.created_at.slice(0, 10)}
       aboutText=""
       photoUrl={p.photo_url ?? ''}

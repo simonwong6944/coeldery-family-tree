@@ -23,6 +23,7 @@ interface PostRow {
   family_id: string
   author_member_id: string
   author_name: string
+  author_avatar_url: string | null
   body_text: string | null
   photo_url: string | null
   created_at: string
@@ -33,6 +34,7 @@ interface CommentRow {
   post_id: string
   author_member_id: string
   author_name: string
+  author_avatar_url: string | null
   body: string
   created_at: string
 }
@@ -58,6 +60,7 @@ export const onRequestGet: PagesFunction<Env> = async (ctx) => {
     SELECT
       p.id, p.family_id, p.author_member_id,
       m.display_name AS author_name,
+      m.avatar_url   AS author_avatar_url,
       p.body_text, p.photo_url, p.created_at
     FROM posts p
     JOIN members m ON m.id = p.author_member_id
@@ -77,6 +80,7 @@ export const onRequestGet: PagesFunction<Env> = async (ctx) => {
     SELECT
       c.id, c.post_id, c.author_member_id,
       m.display_name AS author_name,
+      m.avatar_url   AS author_avatar_url,
       c.body, c.created_at
     FROM post_comments c
     JOIN members m ON m.id = c.author_member_id
@@ -123,12 +127,14 @@ export const onRequestGet: PagesFunction<Env> = async (ctx) => {
     body_text:        p.body_text,
     photo_url:        p.photo_url,
     created_at:       p.created_at,
+    author_avatar_url: p.author_avatar_url,
     comments: (commentsByPost.get(p.id) ?? []).map(c => ({
-      id:               c.id,
-      author_member_id: c.author_member_id,
-      author_name:      c.author_name,
-      body:             c.body,
-      created_at:       c.created_at,
+      id:                c.id,
+      author_member_id:  c.author_member_id,
+      author_name:       c.author_name,
+      author_avatar_url: c.author_avatar_url,
+      body:              c.body,
+      created_at:        c.created_at,
     })),
     like_count:    likeCountByPost.get(p.id) ?? 0,
     isLikedByMe:   myLikedSet.has(p.id),
@@ -163,24 +169,25 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
     'INSERT INTO posts (id, family_id, author_member_id, body_text, photo_url) VALUES (?, ?, ?, ?, ?)'
   ).bind(postId, familyId, authorId, bodyText || null, photoUrl || null).run()
 
-  // 5. 取作者名
+  // 5. 取作者名 + 頭像
   const author = await ctx.env.DB.prepare(
-    'SELECT display_name FROM members WHERE id = ?'
-  ).bind(authorId).first<{ display_name: string }>()
+    'SELECT display_name, avatar_url FROM members WHERE id = ?'
+  ).bind(authorId).first<{ display_name: string; avatar_url: string | null }>()
 
   return Response.json({
     ok: true,
     post: {
-      id:               postId,
-      family_id:        familyId,
-      author_member_id: authorId,
-      author_name:      author?.display_name ?? '',
-      body_text:        bodyText || null,
-      photo_url:        photoUrl || null,
-      created_at:       new Date().toISOString().replace('T', ' ').slice(0, 19),
-      comments:         [],
-      like_count:       0,
-      isLikedByMe:      false,
+      id:                postId,
+      family_id:         familyId,
+      author_member_id:  authorId,
+      author_name:       author?.display_name ?? '',
+      author_avatar_url: author?.avatar_url ?? null,
+      body_text:         bodyText || null,
+      photo_url:         photoUrl || null,
+      created_at:        new Date().toISOString().replace('T', ' ').slice(0, 19),
+      comments:          [],
+      like_count:        0,
+      isLikedByMe:       false,
     },
   }, { status: 201 })
 }
