@@ -1,7 +1,7 @@
 /**
  * FamilyFeed — 家庭圈動態 feed（B4 + B5 提醒卡 + B4 推薦卡）
  * 規格：.coappery/design/B4_family_feed.md + B5_reminder_cards.md
- * v2.5.0：提醒卡「送上祝福」接真功能（自動發賤0，防重複）
+ * v2.6.0：「送上祝福」改為預填 compose sheet，送出成功後才防重複（blessingContext）
  * v2.4.0：提醒卡改為摘要橫幅（可展開/收合）；修正 b5 口語字
  * v2.3.0：貼文 / 留言作者頭像接真相（author_avatar_url），fallback DiceBear
  *          avatarFor() helper 單一來源，所有頭像 URL 經此產生
@@ -131,14 +131,14 @@ export default function FamilyFeed() {
   const [reminders,         setReminders]         = useState<ReminderItem[]>([])
   const [remindersExpanded, setRemindersExpanded] = useState(false)
   // 已送祝福的 reminder key Set：防重複撳、成功後 disable
-  const [blessedSet,   setBlessedSet]   = useState<Set<string>>(new Set())
-  // 送出中的 reminder key Set：防連撳
-  const [blessingBusy, setBlessingBusy] = useState<Set<string>>(new Set())
+  const [blessedSet,      setBlessedSet]      = useState<Set<string>>(new Set())
+  // 記住「呢次 compose 係為邊個 reminder 送祝福」；取消時清 null；送出成功後才 mark blessedSet
+  const [blessingContext, setBlessingContext] = useState<{ key: string } | null>(null)
 
-  /* ── 送上祝福 handler：與 handleComposeSubmit 同樣 POST /api/posts ── */
-  const handleBlessing = async (r: ReminderItem) => {
+  /* ── 送上祝福 handler：打開 compose sheet 並預填賀文 ── */
+  const handleBlessing = (r: ReminderItem) => {
     const key = `${r.member_id}-${r.type}`
-    if (blessedSet.has(key) || blessingBusy.has(key)) return
+    if (blessedSet.has(key)) return
 
     // 賀文：從 type 擇擰對應正式書面繁中文字句
     let bodyText: string
@@ -151,25 +151,12 @@ export default function FamilyFeed() {
       return
     }
 
-    // 標記發送中
-    setBlessingBusy(prev => new Set(prev).add(key))
-    try {
-      const res  = await fetch('/api/posts', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ body_text: bodyText, photo_url: null }),
-      })
-      const data = await res.json() as { ok: boolean; post?: ApiPost; error?: string }
-      if (data.ok && data.post) {
-        // 成功：新貼文加到 feed 頂，標記為已送
-        setPosts(prev  => [data.post!, ...prev])
-        setBlessedSet(prev => new Set(prev).add(key))
-      }
-      // 失敗：靈默不崩頁，blessingBusy 移除後可再試
-    } catch { /* 靈默 */ }
-    finally {
-      setBlessingBusy(prev => { const s = new Set(prev); s.delete(key); return s })
-    }
+    // 先 reset（清 photo / err / loading），再 set 草稿（避免被 reset 清走）
+    resetCompose()
+    setComposeDraft(bodyText)
+    // 記住呢次 compose 係為邊個 reminder 觸發，送出成功後才 mark blessedSet
+    setBlessingContext({ key })
+    setComposeOpen(true)
   }
 
   /* ── B5 mock（保留不動）── */
@@ -364,6 +351,11 @@ export default function FamilyFeed() {
         setComposeErr(data.error ?? t('b4.error_generic')); return
       }
       setPosts(prev => [data.post!, ...prev])
+      // 若係透過「送上祝福」觸發嘅 compose，送出成功後才標記為已送（防重複）
+      if (blessingContext !== null) {
+        setBlessedSet(prev => new Set(prev).add(blessingContext.key))
+        setBlessingContext(null)
+      }
       resetCompose(); setComposeOpen(false)
     } catch {
       setComposeErr(t('b4.error_generic'))
@@ -480,11 +472,10 @@ export default function FamilyFeed() {
                 backgroundColor: 'var(--color-bg)',
               }}>
                 {reminders.map(r => {
-                  const key       = `${r.member_id}-${r.type}`
-                  const isSent    = blessedSet.has(key)
-                  const isBusy    = blessingBusy.has(key)
-                  // birthday / memorial 才有送祝福功能；已送出 / custom-festival 则 no-op
-                  const canBless  = (r.type === 'birthday' || r.type === 'memorial') && !isSent
+                  const key      = `${r.member_id}-${r.type}`
+                  const isSent   = blessedSet.has(key)
+                  // birthday / memorial 才有送祝福功能；已送出 / custom / festival 則 no-op
+                  const canBless = (r.type === 'birthday' || r.type === 'memorial') && !isSent
                   return (
                     <ReminderCard
                       key={key}
@@ -493,8 +484,8 @@ export default function FamilyFeed() {
                       titleText={getReminderTitle(r)}
                       subtitleText={getReminderSubtitle(r)}
                       blessingLabel={isSent ? t('b5.blessing_sent') : undefined}
-                      blessingDisabled={!canBless || isBusy}
-                      onBlessing={canBless && !isBusy ? () => handleBlessing(r) : undefined}
+                      blessingDisabled={!canBless}
+                      onBlessing={canBless ? () => handleBlessing(r) : undefined}
                       onArrange={undefined}
                     />
                   )
@@ -520,7 +511,7 @@ export default function FamilyFeed() {
 
   /* ── Compose sheet UI ── */
   const renderCompose = () => (
-    <div style={overlayStyle} onClick={() => { if (!composeLoading) { resetCompose(); setComposeOpen(false) } }}>
+    <div style={overlayStyle} onClick={() => { if (!composeLoading) { setBlessingContext(null); resetCompose(); setComposeOpen(false) } }}>
       <div style={sheetStyle} onClick={e => e.stopPropagation()}>
         <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold', color: 'var(--color-text)' }}>
           {t('b4.compose_title')}
@@ -598,7 +589,7 @@ export default function FamilyFeed() {
         {/* 操作按鈕列 */}
         <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
           <button
-            onClick={() => { resetCompose(); setComposeOpen(false) }}
+            onClick={() => { setBlessingContext(null); resetCompose(); setComposeOpen(false) }}
             disabled={composeLoading}
             style={{
               minHeight: '44px', padding: '0 20px', borderRadius: '10px',
