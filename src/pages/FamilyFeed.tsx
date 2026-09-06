@@ -7,6 +7,8 @@
  *         Plan B：削除掣一律顯示，後端回 403 時顯示禁止提示（無 /api/me）
  * v2.9.0：加 GET /api/me — 得 currentMemberId，canDelete 改由 author_member_id === currentMemberId 計算
  *         貼文 / 留言刪除掣改為 ⋮ 選單（只有本人內容才顯示）
+ * v2.10.0：⋮ 選單加「編輯」— 接駁 PATCH /api/posts/:id 及 PATCH /api/posts/:id/comments
+ *          handleEditPost / handleEditComment；失敗/403 共用現有錯誤橫幅
  * v2.4.0：提醒卡改為摘要橫幅（可展開/收合）；修正 b5 口語字
  * v2.3.0：貼文 / 留言作者頭像接真相（author_avatar_url），fallback DiceBear
  *          avatarFor() helper 單一來源，所有頭像 URL 經此產生
@@ -276,6 +278,51 @@ export default function FamilyFeed() {
 
   useEffect(() => { loadPosts() }, [loadPosts])
 
+  /* ── 貼文編輯 ── */
+  const handleEditPost = async (post: ApiPost, newText: string) => {
+    setDeleteErrMsg('')
+    try {
+      const res  = await fetch(`/api/posts/${post.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body:   JSON.stringify({ body_text: newText || null }),
+      })
+      if (res.status === 403) { setDeleteErrMsg(t('b4.edit_forbidden')); return }
+      const data = await res.json() as { ok: boolean; post?: ApiPost; error?: string }
+      if (!data.ok || !data.post) { setDeleteErrMsg(t('b4.edit_failed')); return }
+      setPosts(prev => prev.map(p =>
+        p.id !== post.id ? p : { ...p, body_text: data.post!.body_text }
+      ))
+    } catch {
+      setDeleteErrMsg(t('b4.edit_failed'))
+    }
+  }
+
+  /* ── 留言編輯 ── */
+  const handleEditComment = async (post: ApiPost, commentId: string, newText: string) => {
+    setDeleteErrMsg('')
+    try {
+      const res  = await fetch(`/api/posts/${post.id}/comments`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body:   JSON.stringify({ comment_id: commentId, body: newText }),
+      })
+      if (res.status === 403) { setDeleteErrMsg(t('b4.edit_forbidden')); return }
+      const data = await res.json() as { ok: boolean; comment?: { id: string; body: string }; error?: string }
+      if (!data.ok || !data.comment) { setDeleteErrMsg(t('b4.edit_failed')); return }
+      setPosts(prev => prev.map(p =>
+        p.id !== post.id ? p : {
+          ...p,
+          comments: p.comments.map(c =>
+            c.id !== commentId ? c : { ...c, body: data.comment!.body }
+          ),
+        }
+      ))
+    } catch {
+      setDeleteErrMsg(t('b4.edit_failed'))
+    }
+  }
+
   /* ── 貼文削除 ── */
   const handleDeletePost = async (postId: string) => {
     if (!window.confirm(t('b4.delete_post_confirm'))) return
@@ -452,6 +499,8 @@ export default function FamilyFeed() {
       canDelete={currentMemberId !== null && p.author_member_id === currentMemberId}
       onDelete={() => handleDeletePost(p.id)}
       onDeleteComment={(commentId) => handleDeleteComment(p, commentId)}
+      onEdit={(newText) => handleEditPost(p, newText)}
+      onEditComment={(commentId, newText) => handleEditComment(p, commentId, newText)}
     />
   )
 

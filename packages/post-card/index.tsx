@@ -9,8 +9,13 @@
  * v1.3.0：加 canDelete / onDelete / onDeleteComment — 刪除由頁面層確認並呼叫 API
  *         CommentItem 加 id + canDelete；掣本身唔彈對話框，由頁面層處理
  * v1.4.0：散開刪除掣 → 右上角「⋮」選單（只有本人內容才顯示）
- *         留言行同理：canDelete=true 才顯示「⋮」；選單目前只有「刪除」一項
- *         點擊選單外（透明全屏遮罩）收埋；選完一項後亦自動收埋
+ *         留言行同理：canDelete=true 才顯示「⋮」；選單只有「刪除」
+ *         點擊選單外（透明全屏遮罩）收埋
+ * v1.5.0：「⋮」選單加「編輯」項（排喺「刪除」之上，中性文字色）
+ *         貼文 inline 編輯：bodyText 換成 textarea + 儲存/取消（本地 editingPost state）
+ *         留言 inline 編輯：body 換成 textarea + 儲存/取消（本地 editingComment state）
+ *         onEdit / onEditComment props 由頁面層實現 PATCH API 呼叫
+ *         貼文空白亦可儲存（body_text 允許 null）；留言空白時「儲存」disabled
  */
 
 import { useState } from 'react'
@@ -59,6 +64,10 @@ export interface PostCardProps {
   onDelete?: () => void
   /** 留言刪除回調（頁面層先確認再呼叫）*/
   onDeleteComment?: (commentId: string) => void
+  /** 貼文編輯回調（儲存後由頁面層呼叫 PATCH API 並更新 state）*/
+  onEdit?: (newText: string) => void
+  /** 留言編輯回調（儲存後由頁面層呼叫 PATCH API 並更新 state）*/
+  onEditComment?: (commentId: string, newText: string) => void
 }
 
 /* ── 讚好名單格式化（用名，以頓號連接）── */
@@ -75,6 +84,7 @@ export default function PostCard({
   photoUrl, photoAlt, bodyText, likers, comments,
   isLiked, onToggleLike, onAddComment, onPhotoClick,
   canDelete, onDelete, onDeleteComment,
+  onEdit, onEditComment,
 }: PostCardProps) {
   const { t } = useTranslation()
 
@@ -84,10 +94,16 @@ export default function PostCard({
   const [draft, setDraft] = useState('')
 
   /* ── ⋮ 選單狀態：'post' | commentId | null ── */
-  /* null = 全收埋；'post' = 貼文選單開；字串 = 對應 commentId 選單開 */
   const [menuOpen, setMenuOpen] = useState<'post' | string | null>(null)
 
-  /* ── 送出留言 ── */
+  /* ── inline 編輯狀態 ── */
+  const [editingPost, setEditingPost]       = useState(false)
+  const [postEditDraft, setPostEditDraft]   = useState('')
+  /* editingComment: null = 唔係編輯留言；字串 = 正在編輯的 commentId */
+  const [editingComment, setEditingComment]         = useState<string | null>(null)
+  const [commentEditDraft, setCommentEditDraft]     = useState('')
+
+  /* ── 送出新留言 ── */
   const handleSubmitComment = () => {
     const trimmed = draft.trim()
     if (!trimmed) return
@@ -98,6 +114,48 @@ export default function PostCard({
 
   /* ── 關閉所有選單 ── */
   const closeMenu = () => setMenuOpen(null)
+
+  /* ── 開始編輯貼文 ── */
+  const startEditPost = () => {
+    closeMenu()
+    setPostEditDraft(bodyText)
+    setEditingPost(true)
+  }
+
+  /* ── 儲存編輯貼文 ── */
+  const saveEditPost = () => {
+    if (!onEdit) return
+    onEdit(postEditDraft.trim())
+    setEditingPost(false)
+  }
+
+  /* ── 取消編輯貼文 ── */
+  const cancelEditPost = () => {
+    setEditingPost(false)
+    setPostEditDraft('')
+  }
+
+  /* ── 開始編輯留言 ── */
+  const startEditComment = (c: CommentItem) => {
+    closeMenu()
+    setCommentEditDraft(c.body)
+    setEditingComment(c.id)
+  }
+
+  /* ── 儲存編輯留言 ── */
+  const saveEditComment = (commentId: string) => {
+    const trimmed = commentEditDraft.trim()
+    if (!trimmed || !onEditComment) return
+    onEditComment(commentId, trimmed)
+    setEditingComment(null)
+    setCommentEditDraft('')
+  }
+
+  /* ── 取消編輯留言 ── */
+  const cancelEditComment = () => {
+    setEditingComment(null)
+    setCommentEditDraft('')
+  }
 
   /* ── 共用樣式 token ── */
   const avatarStyle: React.CSSProperties = {
@@ -114,7 +172,7 @@ export default function PostCard({
     borderRadius: '8px',
   }
 
-  /* ── ⋮ 掣樣式（貼文 / 留言共用，尺寸略有別）── */
+  /* ── ⋮ 掣樣式 ── */
   const morePostBtnStyle: React.CSSProperties = {
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     minWidth: '44px', minHeight: '44px',
@@ -134,7 +192,7 @@ export default function PostCard({
     borderRadius: '6px', flexShrink: 0,
   }
 
-  /* ── 選單浮層（inline，right 對齊，z-index 50）── */
+  /* ── 選單浮層 ── */
   const menuDropStyle: React.CSSProperties = {
     position: 'absolute', top: '100%', right: 0, zIndex: 50,
     minWidth: '140px',
@@ -145,7 +203,17 @@ export default function PostCard({
     overflow: 'hidden',
     marginTop: '4px',
   }
-  const menuItemStyle: React.CSSProperties = {
+  /* 選單項：編輯用中性文字色，刪除用 danger 紅色 */
+  const menuItemEditStyle: React.CSSProperties = {
+    display: 'flex', alignItems: 'center', gap: '8px',
+    width: '100%', minHeight: '44px',
+    padding: '0 16px',
+    background: 'none', border: 'none', cursor: 'pointer',
+    fontSize: '16px', fontFamily: 'inherit', textAlign: 'left',
+    color: 'var(--color-text)',
+    borderBottom: '1px solid var(--color-divider)',
+  }
+  const menuItemDeleteStyle: React.CSSProperties = {
     display: 'flex', alignItems: 'center', gap: '8px',
     width: '100%', minHeight: '44px',
     padding: '0 16px',
@@ -154,16 +222,39 @@ export default function PostCard({
     color: 'var(--color-danger, #dc2626)',
   }
 
+  /* ── inline 編輯共用樣式 ── */
+  const editTextareaStyle: React.CSSProperties = {
+    width: '100%', fontSize: '18px', fontFamily: 'inherit',
+    color: 'var(--color-text)', backgroundColor: 'var(--color-bg)',
+    border: '1.5px solid var(--color-primary)',
+    borderRadius: '10px', padding: '10px 12px',
+    resize: 'vertical', boxSizing: 'border-box', outline: 'none',
+    lineHeight: 1.6,
+  }
+  const editSaveBtnStyle = (disabled: boolean): React.CSSProperties => ({
+    minHeight: '44px', minWidth: '88px', padding: '0 18px',
+    borderRadius: '10px', border: 'none',
+    backgroundColor: disabled ? 'var(--color-divider)' : 'var(--color-primary)',
+    color: disabled ? 'var(--color-text-secondary)' : 'var(--color-card)',
+    fontSize: '16px', fontWeight: 'bold', fontFamily: 'inherit',
+    cursor: disabled ? 'not-allowed' : 'pointer',
+  })
+  const editCancelBtnStyle: React.CSSProperties = {
+    minHeight: '44px', minWidth: '88px', padding: '0 18px',
+    borderRadius: '10px',
+    border: '1.5px solid var(--color-divider)',
+    background: 'var(--color-card)',
+    color: 'var(--color-text)', fontSize: '16px',
+    fontFamily: 'inherit', cursor: 'pointer',
+  }
+
   return (
     <>
-      {/* ── 透明全屏遮罩：任何選單開啟時覆蓋在卡片下方，點擊收埋 ── */}
+      {/* ── 透明全屏遮罩：任何選單開啟時覆蓋，點擊收埋 ── */}
       {menuOpen !== null && (
         <div
           onClick={closeMenu}
-          style={{
-            position: 'fixed', inset: 0, zIndex: 40,
-            background: 'transparent',
-          }}
+          style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'transparent' }}
           aria-hidden="true"
         />
       )}
@@ -171,15 +262,15 @@ export default function PostCard({
       <article
         aria-label={t('b4.post_img_alt', { name: authorName })}
         style={{
-          position: 'relative',   /* 讓選單可用 position: absolute 定位 */
+          position: 'relative',
           backgroundColor: 'var(--color-card)',
           borderRadius: '16px',
           boxShadow: 'var(--shadow-subtle)',
-          overflow: 'visible',    /* 允許選單浮出卡片邊界 */
+          overflow: 'visible',
           marginBottom: '16px',
         }}
       >
-        {/* ── 頂部：頭像 + 名 + 時間 + 「關於」pill + ⋮ 掣 ── */}
+        {/* ── 頂部：頭像 + 名 + 時間 + pill + ⋮ ── */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px 16px 8px' }}>
           <img
             src={authorAvatarUrl}
@@ -194,7 +285,6 @@ export default function PostCard({
               {timeText}
             </p>
           </div>
-          {/* 「關於：X」pill（aboutText 為空時唔顯示）*/}
           {aboutText && (
             <span style={{
               fontSize: '18px', padding: '4px 12px', borderRadius: '20px',
@@ -207,8 +297,8 @@ export default function PostCard({
             </span>
           )}
 
-          {/* ── 貼文「⋮」掣 + 選單（canDelete=true 才顯示）── */}
-          {canDelete && onDelete && (
+          {/* ── 貼文「⋮」掣 + 選單（canDelete=true 才顯示；含「編輯」+「刪除」）── */}
+          {canDelete && (onDelete || onEdit) && (
             <div style={{ position: 'relative', flexShrink: 0 }}>
               <button
                 type="button"
@@ -222,22 +312,35 @@ export default function PostCard({
               </button>
               {menuOpen === 'post' && (
                 <div role="menu" style={menuDropStyle}>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => { closeMenu(); onDelete() }}
-                    style={menuItemStyle}
-                  >
-                    &#128465; {t('b4.post_delete')}
-                  </button>
+                  {/* 編輯（中性色，排喺刪除之上）*/}
+                  {onEdit && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={startEditPost}
+                      style={menuItemEditStyle}
+                    >
+                      &#9998; {t('b4.post_edit')}
+                    </button>
+                  )}
+                  {/* 刪除（danger 紅色）*/}
+                  {onDelete && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => { closeMenu(); onDelete() }}
+                      style={menuItemDeleteStyle}
+                    >
+                      &#128465; {t('b4.post_delete')}
+                    </button>
+                  )}
                 </div>
               )}
             </div>
           )}
         </div>
 
-        {/* ── 大相（滿卡闊；冇相時唔 render，避免 broken image）── */}
-        {/* overflow: visible 下需自行 clip 相片，用 borderRadius + overflow hidden 包 */}
+        {/* ── 大相 ── */}
         {photoUrl && (
           <div style={{ overflow: 'hidden' }}>
             {onPhotoClick ? (
@@ -245,31 +348,44 @@ export default function PostCard({
                 type="button"
                 onClick={onPhotoClick}
                 aria-label={photoAlt}
-                style={{
-                  display: 'block', width: '100%', padding: 0,
-                  border: 'none', background: 'none', cursor: 'zoom-in',
-                }}
+                style={{ display: 'block', width: '100%', padding: 0, border: 'none', background: 'none', cursor: 'zoom-in' }}
               >
-                <img
-                  src={photoUrl}
-                  alt={photoAlt}
-                  style={{ width: '100%', display: 'block', maxHeight: '320px', objectFit: 'cover' }}
-                />
+                <img src={photoUrl} alt={photoAlt} style={{ width: '100%', display: 'block', maxHeight: '320px', objectFit: 'cover' }} />
               </button>
             ) : (
-              <img
-                src={photoUrl}
-                alt={photoAlt}
-                style={{ width: '100%', display: 'block', maxHeight: '320px', objectFit: 'cover' }}
-              />
+              <img src={photoUrl} alt={photoAlt} style={{ width: '100%', display: 'block', maxHeight: '320px', objectFit: 'cover' }} />
             )}
           </div>
         )}
 
-        {/* ── 內文 ── */}
-        <p style={{ margin: 0, padding: '12px 16px', fontSize: '18px', color: 'var(--color-text)', lineHeight: 1.6 }}>
-          {bodyText}
-        </p>
+        {/* ── 內文（編輯中換成 inline textarea）── */}
+        {editingPost ? (
+          <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <textarea
+              autoFocus
+              value={postEditDraft}
+              onChange={e => setPostEditDraft(e.target.value)}
+              rows={3}
+              style={editTextareaStyle}
+            />
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+              <button type="button" onClick={cancelEditPost} style={editCancelBtnStyle}>
+                {t('b4.edit_cancel')}
+              </button>
+              <button
+                type="button"
+                onClick={saveEditPost}
+                style={editSaveBtnStyle(false)}
+              >
+                {t('b4.edit_save')}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <p style={{ margin: 0, padding: '12px 16px', fontSize: '18px', color: 'var(--color-text)', lineHeight: 1.6 }}>
+            {bodyText}
+          </p>
+        )}
 
         {/* ── 讚好名單 ── */}
         {likers.length > 0 && (
@@ -286,18 +402,11 @@ export default function PostCard({
           <button
             onClick={onToggleLike}
             aria-pressed={isLiked}
-            style={{
-              ...btnStyle,
-              color: isLiked ? 'var(--color-accent)' : 'var(--color-text-secondary)',
-            }}
+            style={{ ...btnStyle, color: isLiked ? 'var(--color-accent)' : 'var(--color-text-secondary)' }}
           >
             {isLiked ? '❤️' : '🤍'} {t('b4.like_btn').replace('❤️ ', '')}
           </button>
-          <button
-            onClick={() => setCommentOpen(o => !o)}
-            aria-expanded={commentOpen}
-            style={btnStyle}
-          >
+          <button onClick={() => setCommentOpen(o => !o)} aria-expanded={commentOpen} style={btnStyle}>
             {t('b4.comment_btn')}
           </button>
         </div>
@@ -311,35 +420,19 @@ export default function PostCard({
               placeholder={t('b4.comment_placeholder')}
               rows={2}
               style={{
-                width: '100%',
-                minHeight: '52px',
-                fontSize: '18px',
-                fontFamily: 'inherit',
-                color: 'var(--color-text)',
-                backgroundColor: 'var(--color-bg)',
-                border: '1.5px solid var(--color-divider)',
-                borderRadius: '10px',
-                padding: '10px 12px',
-                resize: 'vertical',
-                boxSizing: 'border-box',
-                outline: 'none',
+                width: '100%', minHeight: '52px', fontSize: '18px', fontFamily: 'inherit',
+                color: 'var(--color-text)', backgroundColor: 'var(--color-bg)',
+                border: '1.5px solid var(--color-divider)', borderRadius: '10px',
+                padding: '10px 12px', resize: 'vertical', boxSizing: 'border-box', outline: 'none',
               }}
             />
             <button
               onClick={handleSubmitComment}
               style={{
-                alignSelf: 'flex-end',
-                minHeight: '44px',
-                minWidth: '120px',
-                padding: '0 20px',
-                borderRadius: '10px',
-                border: 'none',
-                backgroundColor: 'var(--color-primary)',
-                color: 'var(--color-card)',
-                fontSize: '18px',
-                fontWeight: 'bold',
-                fontFamily: 'inherit',
-                cursor: 'pointer',
+                alignSelf: 'flex-end', minHeight: '44px', minWidth: '120px', padding: '0 20px',
+                borderRadius: '10px', border: 'none', backgroundColor: 'var(--color-primary)',
+                color: 'var(--color-card)', fontSize: '18px', fontWeight: 'bold',
+                fontFamily: 'inherit', cursor: 'pointer',
               }}
             >
               {t('b4.comment_submit')}
@@ -364,7 +457,7 @@ export default function PostCard({
                       {c.name}
                     </p>
                     {/* ── 留言「⋮」掣 + 選單（c.canDelete=true 才顯示）── */}
-                    {c.canDelete && onDeleteComment && (
+                    {c.canDelete && (onDeleteComment || onEditComment) && (
                       <div style={{ position: 'relative', flexShrink: 0 }}>
                         <button
                           type="button"
@@ -378,22 +471,63 @@ export default function PostCard({
                         </button>
                         {menuOpen === c.id && (
                           <div role="menu" style={menuDropStyle}>
-                            <button
-                              type="button"
-                              role="menuitem"
-                              onClick={() => { closeMenu(); onDeleteComment(c.id) }}
-                              style={menuItemStyle}
-                            >
-                              &#128465; {t('b4.comment_delete')}
-                            </button>
+                            {/* 編輯（中性色，排喺刪除之上）*/}
+                            {onEditComment && (
+                              <button
+                                type="button"
+                                role="menuitem"
+                                onClick={() => startEditComment(c)}
+                                style={menuItemEditStyle}
+                              >
+                                &#9998; {t('b4.comment_edit')}
+                              </button>
+                            )}
+                            {/* 刪除（danger 紅色）*/}
+                            {onDeleteComment && (
+                              <button
+                                type="button"
+                                role="menuitem"
+                                onClick={() => { closeMenu(); onDeleteComment(c.id) }}
+                                style={menuItemDeleteStyle}
+                              >
+                                &#128465; {t('b4.comment_delete')}
+                              </button>
+                            )}
                           </div>
                         )}
                       </div>
                     )}
                   </div>
-                  <p style={{ margin: '4px 0 0', fontSize: '18px', color: 'var(--color-text)', lineHeight: 1.5 }}>
-                    {c.body}
-                  </p>
+
+                  {/* 留言 body（編輯中換成 inline textarea）*/}
+                  {editingComment === c.id ? (
+                    <div style={{ marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <textarea
+                        autoFocus
+                        value={commentEditDraft}
+                        onChange={e => setCommentEditDraft(e.target.value)}
+                        rows={2}
+                        style={{ ...editTextareaStyle, fontSize: '16px' }}
+                      />
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                        <button type="button" onClick={cancelEditComment} style={{ ...editCancelBtnStyle, fontSize: '15px', minWidth: '72px' }}>
+                          {t('b4.edit_cancel')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => saveEditComment(c.id)}
+                          disabled={!commentEditDraft.trim()}
+                          style={{ ...editSaveBtnStyle(!commentEditDraft.trim()), fontSize: '15px', minWidth: '72px' }}
+                        >
+                          {t('b4.edit_save')}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p style={{ margin: '4px 0 0', fontSize: '18px', color: 'var(--color-text)', lineHeight: 1.5 }}>
+                      {c.body}
+                    </p>
+                  )}
                 </div>
               </div>
             ))}
