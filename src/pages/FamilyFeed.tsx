@@ -1,6 +1,7 @@
 /**
  * FamilyFeed — 家庭圈動態 feed（B4 + B5 提醒卡 + B4 推薦卡）
  * 規格：.coappery/design/B4_family_feed.md + B5_reminder_cards.md
+ * v2.4.0：提醒卡改為摘要橫幅（可展開/收合）；修正 b5 口語字
  * v2.3.0：貼文 / 留言作者頭像接真相（author_avatar_url），fallback DiceBear
  *          avatarFor() helper 單一來源，所有頭像 URL 經此產生
  * v2.2.0：提醒卡接真 API（GET /api/reminders），parallel fetch，獨立 error
@@ -126,7 +127,8 @@ export default function FamilyFeed() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   /* ── 提醒卡（真 API）── */
-  const [reminders, setReminders] = useState<ReminderItem[]>([])
+  const [reminders,         setReminders]         = useState<ReminderItem[]>([])
+  const [remindersExpanded, setRemindersExpanded] = useState(false)
 
   /* ── B5 mock（保留不動）── */
   const [modalOpen,     setModalOpen]     = useState(false)
@@ -373,22 +375,85 @@ export default function FamilyFeed() {
         <p style={{ margin: 0, fontSize: '14px' }}>{t('b4.empty_sub')}</p>
       </div>
     )
+    // 計算生日 / 忌辰數量（用於摘要文案）
+    const birthdayCount  = reminders.filter(r => r.type === 'birthday').length
+    const memorialCount  = reminders.filter(r => r.type === 'memorial').length
+
     return (
       <>
-        {/* 提醒卡區塊：擺喺 feed 頂，後端已按 days_until 升序排好，前端保持順序 */}
-        {reminders.map(r => (
-          <ReminderCard
-            key={`${r.member_id}-${r.type}`}
-            targetName={r.display_name}
-            icon={r.type === 'memorial' ? '🕯️' : '🎂'}
-            titleText={getReminderTitle(r)}
-            subtitleText={getReminderSubtitle(r)}
-            onBlessing={undefined}
-            onArrange={undefined}
-          />
-        ))}
+        {/* ── 提醒摘要橫幅：有提醒時才顯示 ── */}
+        {reminders.length > 0 && (
+          <div style={{ marginBottom: '8px' }}>
+            {/* 橫幅點擊按鈕（熱區 ≥44px）*/}
+            <button
+              onClick={() => setRemindersExpanded(prev => !prev)}
+              style={{
+                width:           '100%',
+                minHeight:       '52px',
+                display:         'flex',
+                alignItems:      'center',
+                gap:             '10px',
+                padding:         '10px 16px',
+                borderRadius:    remindersExpanded ? '12px 12px 0 0' : '12px',
+                border:          '1.5px solid var(--color-primary)',
+                backgroundColor: 'var(--color-card)',
+                cursor:          'pointer',
+                textAlign:       'left',
+                fontFamily:      'inherit',
+              }}
+              aria-expanded={remindersExpanded}
+            >
+              {/* 摘要文案 */}
+              <span style={{ flex: 1, fontSize: '16px', color: 'var(--color-text)', lineHeight: 1.5 }}>
+                {birthdayCount > 0 && (
+                  <span style={{ display: 'block' }}>
+                    {t('b5.summary_birthday', { count: birthdayCount })}
+                  </span>
+                )}
+                {memorialCount > 0 && (
+                  <span style={{ display: 'block', marginTop: birthdayCount > 0 ? '2px' : 0 }}>
+                    {t('b5.summary_memorial', { count: memorialCount })}
+                  </span>
+                )}
+              </span>
+              {/* 展開/收合提示 */}
+              <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--color-primary)', fontSize: '14px', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                {remindersExpanded ? t('b5.summary_collapse') : t('b5.summary_expand')}
+                <span style={{
+                  display:    'inline-block',
+                  transition: 'transform 0.2s',
+                  transform:  remindersExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                  fontSize:   '12px',
+                }}>▼</span>
+              </span>
+            </button>
 
-        {/* 貼文列表：提醒卡之後，推薦卡插喺 posts[1] 之前 */}
+            {/* 展開內容：順序列出所有 ReminderCard */}
+            {remindersExpanded && (
+              <div style={{
+                border:          '1.5px solid var(--color-primary)',
+                borderTop:       'none',
+                borderRadius:    '0 0 12px 12px',
+                overflow:        'hidden',
+                backgroundColor: 'var(--color-bg)',
+              }}>
+                {reminders.map(r => (
+                  <ReminderCard
+                    key={`${r.member_id}-${r.type}`}
+                    targetName={r.display_name}
+                    icon={r.type === 'memorial' ? '🕯️' : '🎂'}
+                    titleText={getReminderTitle(r)}
+                    subtitleText={getReminderSubtitle(r)}
+                    onBlessing={undefined}
+                    onArrange={undefined}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 貼文列表：摘要橫幅之後，推薦卡插於 posts[1] 之後 */}
         {posts[0] && renderPost(posts[0])}
         {posts[1] && renderPost(posts[1])}
         {!recoDismissed && (
