@@ -305,7 +305,10 @@
     "summary_collapse": "收合提醒",
     "blessing_birthday": "祝{{name}}生日快樂，身體健康，福壽安康。",
     "blessing_memorial": "永遠懷念{{name}}，願家人平安，思念常在。",
-    "blessing_sent": "已送上"
+    "blessing_sent": "已送上",
+    "custom_generic": "重要日子",
+    "custom_subtitle": "{{month}} 月 {{day}} 日・{{count}} 日後",
+    "summary_custom": "📅 未來一個月有 {{count}} 項重要日子"
   },
   "b5_detail": {
     "page_title": "事件詳情",

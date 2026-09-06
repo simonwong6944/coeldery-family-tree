@@ -58,6 +58,7 @@ interface ReminderItem {
   days_until:   number
   age:          number | null
   gender:       string | null
+  label?:       string          // 自訂重要日子標籤（type:'custom' 時使用）
 }
 
 /* ── Cloudinary signed upload（只帶 B1 簽名覆蓋嘅 5 個 field）── */
@@ -199,7 +200,12 @@ export default function FamilyFeed() {
       if (item.days_until === 1) return t('b5.memorial_tomorrow', { name })
       return t('b5.memorial_in_n', { name, count: item.days_until })
     }
-    // birthday（及其他 type 暫以 birthday 格式處理）
+    if (item.type === 'custom') {
+      // 「陳大文 生日快樂」或 fallback 至通用字
+      const label = item.label?.trim() || t('b5.custom_generic')
+      return `${name} ${label}`
+    }
+    // birthday（festival 暫以 birthday 格式處理）
     if (item.days_until === 0) return t('b5.birthday_today',    { name })
     if (item.days_until === 1) return t('b5.birthday_tomorrow', { name })
     return t('b5.birthday_in_n', { name, count: item.days_until })
@@ -214,6 +220,10 @@ export default function FamilyFeed() {
       return item.age != null
         ? t('b5.memorial_subtitle',        { month, day, age: item.age })
         : t('b5.memorial_subtitle_no_age', { month, day })
+    }
+    if (item.type === 'custom') {
+      // 自訂日子：只顯示月日 + N日後，不顯示年數（age 為 null）
+      return t('b5.custom_subtitle', { month, day, count: item.days_until })
     }
     return item.age != null
       ? t('b5.birthday_subtitle',        { month, day, age: item.age })
@@ -577,9 +587,10 @@ export default function FamilyFeed() {
         <p style={{ margin: 0, fontSize: '14px' }}>{t('b4.empty_sub')}</p>
       </div>
     )
-    // 計算生日 / 忌辰數量（用於摘要文案）
+    // 計算生日 / 忌辰 / 自訂日子數量（用於摘要文案）
     const birthdayCount  = reminders.filter(r => r.type === 'birthday').length
     const memorialCount  = reminders.filter(r => r.type === 'memorial').length
+    const customCount    = reminders.filter(r => r.type === 'custom').length
 
     return (
       <>
@@ -617,6 +628,11 @@ export default function FamilyFeed() {
                     {t('b5.summary_memorial', { count: memorialCount })}
                   </span>
                 )}
+                {customCount > 0 && (
+                  <span style={{ display: 'block', marginTop: (birthdayCount > 0 || memorialCount > 0) ? '2px' : 0 }}>
+                    {t('b5.summary_custom', { count: customCount })}
+                  </span>
+                )}
               </span>
               {/* 展開/收合提示 */}
               <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--color-primary)', fontSize: '14px', whiteSpace: 'nowrap', flexShrink: 0 }}>
@@ -644,11 +660,13 @@ export default function FamilyFeed() {
                   const isSent   = blessedSet.has(key)
                   // birthday / memorial 才有送祝福功能；已送出 / custom / festival 則 no-op
                   const canBless = (r.type === 'birthday' || r.type === 'memorial') && !isSent
+                  // icon 三分：birthday→🎂, memorial→🕯️, custom→📅, 其餘→🎂
+                  const icon = r.type === 'memorial' ? '🕯️' : r.type === 'custom' ? '📅' : '🎂'
                   return (
                     <ReminderCard
                       key={key}
                       targetName={r.display_name}
-                      icon={r.type === 'memorial' ? '🕯️' : '🎂'}
+                      icon={icon}
                       titleText={getReminderTitle(r)}
                       subtitleText={getReminderSubtitle(r)}
                       blessingLabel={isSent ? t('b5.blessing_sent') : undefined}
