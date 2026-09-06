@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next'
 import TopBar from '../../packages/top-bar'
 import type { ApiMember, ApiRel } from '../../packages/family-tree-engine'
 import MemberAddRelPanel from './MemberAddRelPanel'
+import ImportantDatesSection from './ImportantDatesSection'
 
 interface TreeData { members: ApiMember[]; relationships: ApiRel[] }
 
@@ -159,6 +160,8 @@ export default function MemberDetail({ memberId }: { memberId: string }) {
     </section>
 
     <MemberAddRelPanel currentMemberId={memberId} allMembers={tree?.members ?? []} onSuccess={fetchTree}/>
+
+    <ImportantDatesSection memberId={memberId}/>
 
     {/* 刪除區 — 4r Task 4：按掣開 modal dialog */}
     <section style={{ ...card, marginTop:'24px', border:'1.5px solid #ef4444' }}>
