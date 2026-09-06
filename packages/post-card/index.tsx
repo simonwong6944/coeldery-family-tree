@@ -6,15 +6,19 @@
  * 文字：全部 via i18n t('key')
  * v1.1.0：接駁 feedRepository — 讚好/留言由頁面層持久化（rules.md §9）
  * v1.2.0：加 onPhotoClick prop — 撳相片時呼叫（由頁面層實現 lightbox）
+ * v1.3.0：加 canDelete / onDelete / onDeleteComment — 刪除由頁面層確認並呼叫 API
+ *         CommentItem 加 id + canDelete；掣本身唔彈對話框，由頁面層處理
  */
 
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export interface CommentItem {
+  id: string
   name: string
   avatarUrl: string
   body: string
+  canDelete?: boolean
 }
 
 export interface PostCardProps {
@@ -46,6 +50,12 @@ export interface PostCardProps {
   onAddComment: (body: string) => void
   /** 撳相片回調（由頁面層實現 lightbox）；無傳入時相片不可點（向後兼容）*/
   onPhotoClick?: () => void
+  /** 是否顯示貼文刪除掣（由頁面層根據 author_member_id 或 fallback Plan B 決定）*/
+  canDelete?: boolean
+  /** 貼文刪除回調（掣本身唔彈對話框，由頁面層先確認再呼叫）*/
+  onDelete?: () => void
+  /** 留言刪除回調（頁面層先確認再呼叫）*/
+  onDeleteComment?: (commentId: string) => void
 }
 
 /* ── 讚好名單格式化（用名，以頓號連接）── */
@@ -59,6 +69,7 @@ export default function PostCard({
   authorName, authorAvatarUrl, timeText, aboutText,
   photoUrl, photoAlt, bodyText, likers, comments,
   isLiked, onToggleLike, onAddComment, onPhotoClick,
+  canDelete, onDelete, onDeleteComment,
 }: PostCardProps) {
   const { t } = useTranslation()
   /* 留言輸入展開狀態（本地 UI state，非持久資料）*/
@@ -127,6 +138,25 @@ export default function PostCard({
           }}>
             {t('b4.about_prefix')}{aboutText}
           </span>
+        )}
+        {/* 刪除貼文掣（canDelete=true 時顯示；掣本身唔彈確認，由頁面層處理）*/}
+        {canDelete && onDelete && (
+          <button
+            type="button"
+            onClick={onDelete}
+            aria-label={t('b4.post_delete')}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              gap: '4px', minHeight: '44px', minWidth: '44px',
+              padding: '0 10px',
+              background: 'none', border: 'none', cursor: 'pointer',
+              fontSize: '16px', fontFamily: 'inherit',
+              color: 'var(--color-danger, #dc2626)',
+              borderRadius: '8px', flexShrink: 0,
+            }}
+          >
+            &#128465; {t('b4.post_delete')}
+          </button>
         )}
       </div>
 
@@ -245,16 +275,37 @@ export default function PostCard({
         <div style={{ padding: '0 16px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <hr style={{ margin: '0 0 4px', border: 'none', borderTop: '1px solid var(--color-divider)' }} />
           {comments.map((c, i) => (
-            <div key={i} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+            <div key={c.id || i} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
               <img
                 src={c.avatarUrl}
                 alt={t('b4.comment_avatar_alt', { name: c.name })}
                 style={{ ...avatarStyle, width: '36px', height: '36px' }}
               />
               <div style={{ flex: 1, backgroundColor: 'var(--color-bg)', borderRadius: '10px', padding: '8px 12px' }}>
-                <p style={{ margin: '0 0 2px', fontSize: '18px', fontWeight: 'bold', color: 'var(--color-text)' }}>
-                  {c.name}
-                </p>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2px' }}>
+                  <p style={{ margin: 0, fontSize: '18px', fontWeight: 'bold', color: 'var(--color-text)' }}>
+                    {c.name}
+                  </p>
+                  {/* 刪除留言掣（c.canDelete=true 時顯示；掣本身唔彈確認，由頁面層處理）*/}
+                  {c.canDelete && onDeleteComment && (
+                    <button
+                      type="button"
+                      onClick={() => onDeleteComment(c.id)}
+                      aria-label={t('b4.comment_delete')}
+                      style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        gap: '4px', minHeight: '44px', minWidth: '44px',
+                        padding: '0 8px',
+                        background: 'none', border: 'none', cursor: 'pointer',
+                        fontSize: '16px', fontFamily: 'inherit',
+                        color: 'var(--color-danger, #dc2626)',
+                        borderRadius: '6px', flexShrink: 0,
+                      }}
+                    >
+                      &#128465; {t('b4.comment_delete')}
+                    </button>
+                  )}
+                </div>
                 <p style={{ margin: 0, fontSize: '18px', color: 'var(--color-text)', lineHeight: 1.5 }}>
                   {c.body}
                 </p>

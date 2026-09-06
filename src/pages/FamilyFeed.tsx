@@ -3,6 +3,8 @@
  * 規格：.coappery/design/B4_family_feed.md + B5_reminder_cards.md
  * v2.6.0：「送上祝福」改為預填 compose sheet，送出成功後才防重複（blessingContext）
  * v2.7.0：相片全屏 lightbox（撳相片放大，可關）
+ * v2.8.0：貼文 / 留言削除（前端）— 接駁 DELETE /api/posts/:id 及 DELETE /api/posts/:id/comments
+ *         Plan B：削除掣一律顯示，後端回 403 時顯示禁止提示（無 /api/me）
  * v2.4.0：提醒卡改為摘要橫幅（可展開/收合）；修正 b5 口語字
  * v2.3.0：貼文 / 留言作者頭像接真相（author_avatar_url），fallback DiceBear
  *          avatarFor() helper 單一來源，所有頭像 URL 經此產生
@@ -83,9 +85,11 @@ function avatarFor(name: string, url: string | null | undefined): string {
 /* ── PostCard 橋接 ── */
 function toCommentItems(comments: ApiComment[]): CommentItem[] {
   return comments.map(c => ({
+    id:        c.id,
     name:      c.author_name,
     avatarUrl: avatarFor(c.author_name, c.author_avatar_url),
     body:      c.body,
+    canDelete: true,   // Plan B: 一律顯示，403 由後端判斷
   }))
 }
 function toLikers(likeCount: number): string[] {
@@ -117,6 +121,9 @@ export default function FamilyFeed() {
 
   /* ── Lightbox ── */
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
+
+  /* ── 削除提示（失敗 / 403）── */
+  const [deleteErrMsg, setDeleteErrMsg] = useState('')
 
   /* ── 貼文狀態 ── */
   const [posts,     setPosts]     = useState<ApiPost[]>([])
@@ -252,6 +259,45 @@ export default function FamilyFeed() {
 
   useEffect(() => { loadPosts() }, [loadPosts])
 
+  /* ── 貼文削除 ── */
+  const handleDeletePost = async (postId: string) => {
+    if (!window.confirm(t('b4.delete_post_confirm'))) return
+    setDeleteErrMsg('')
+    try {
+      const res  = await fetch(`/api/posts/${postId}`, { method: 'DELETE' })
+      if (res.status === 403) { setDeleteErrMsg(t('b4.delete_forbidden')); return }
+      const data = await res.json() as { ok: boolean; error?: string }
+      if (!data.ok) { setDeleteErrMsg(t('b4.delete_failed')); return }
+      setPosts(prev => prev.filter(p => p.id !== postId))
+    } catch {
+      setDeleteErrMsg(t('b4.delete_failed'))
+    }
+  }
+
+  /* ── 留言削除 ── */
+  const handleDeleteComment = async (post: ApiPost, commentId: string) => {
+    if (!window.confirm(t('b4.delete_comment_confirm'))) return
+    setDeleteErrMsg('')
+    try {
+      const res  = await fetch(`/api/posts/${post.id}/comments`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body:   JSON.stringify({ comment_id: commentId }),
+      })
+      if (res.status === 403) { setDeleteErrMsg(t('b4.delete_forbidden')); return }
+      const data = await res.json() as { ok: boolean; error?: string }
+      if (!data.ok) { setDeleteErrMsg(t('b4.delete_failed')); return }
+      setPosts(prev => prev.map(p =>
+        p.id !== post.id ? p : {
+          ...p,
+          comments: p.comments.filter(c => c.id !== commentId),
+        }
+      ))
+    } catch {
+      setDeleteErrMsg(t('b4.delete_failed'))
+    }
+  }
+
   /* ── 讚好 toggle ── */
   const handleToggleLike = async (post: ApiPost) => {
     const method = post.isLikedByMe ? 'DELETE' : 'POST'
@@ -386,6 +432,9 @@ export default function FamilyFeed() {
       onToggleLike={() => handleToggleLike(p)}
       onAddComment={(body) => handleAddComment(p, body)}
       onPhotoClick={p.photo_url ? () => setLightboxUrl(p.photo_url) : undefined}
+      canDelete={true}
+      onDelete={() => handleDeletePost(p.id)}
+      onDeleteComment={(commentId) => handleDeleteComment(p, commentId)}
     />
   )
 
@@ -689,6 +738,37 @@ export default function FamilyFeed() {
         >
           🔔 {t('b5.preview_modal_btn')}
         </button>
+
+        {/* \u524a\u9664\u932f\u8aa4\u63d0\u793a\u6a6b\u5e45\uff08\u5931\u6557 / 403\uff09*/}
+        {deleteErrMsg && (
+          <div
+            role="alert"
+            style={{
+              margin: '0 0 12px', padding: '12px 16px',
+              borderRadius: '12px', border: '1.5px solid var(--color-danger, #dc2626)',
+              backgroundColor: 'var(--color-card)',
+              color: 'var(--color-danger, #dc2626)',
+              fontSize: '16px', lineHeight: 1.5,
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px',
+            }}
+          >
+            <span>{deleteErrMsg}</span>
+            <button
+              type="button"
+              onClick={() => setDeleteErrMsg('')}
+              aria-label="\u95dc\u9589"
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: 'var(--color-danger, #dc2626)', fontSize: '18px',
+                minHeight: '44px', minWidth: '44px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                borderRadius: '6px', flexShrink: 0,
+              }}
+            >
+              \u2715
+            </button>
+          </div>
+        )}
 
         {renderFeedBody()}
       </main>
