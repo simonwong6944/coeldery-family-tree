@@ -1,6 +1,7 @@
 /**
  * POST   /api/posts/:id/comments — 新增留言
  * DELETE /api/posts/:id/comments — 刪除留言（限作者本人）
+ * PATCH  /api/posts/:id/comments — 修改留言內文（限作者本人）
  *
  * POST body:   { body: string }
  *   body 空 → 400
@@ -8,6 +9,12 @@
  *   缺 comment_id → 400
  *   comment 不屬此 post → 404
  *   非作者 → 403
+ * PATCH body or query comment_id + body JSON: { comment_id: string, body: string }
+ *   缺 comment_id → 400
+ *   body 空 → 400
+ *   comment 不屬此 post → 404
+ *   非作者 → 403
+ *   成功 → { ok: true, comment: { id, post_id, author_member_id, body, created_at } }
  *
  * author_member_id 由 _currentMember helper 取得（is_self 成員）
  * 貼文唔存在 → 404（POST）
@@ -123,4 +130,84 @@ export const onRequestDelete: PagesFunction<Env> = async (ctx) => {
     .run()
 
   return Response.json({ ok: true, deleted_comment_id: commentId })
+}
+
+/* ─── PATCH /api/posts/:id/comments ─── */
+export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
+  const postId = ctx.params['id'] as string
+  if (!postId)
+    return Response.json({ ok: false, error: '缺少 post id' }, { status: 400 })
+
+  // 1. 取得當前用戶
+  const cur = await getCurrentMember(ctx.env.DB)
+  if (!cur.ok) return cur.response
+
+  const { memberId } = cur
+
+  // 2. 一次過 parse body（同時取 comment_id 與新 body 文字）
+  //    query string 優先取 comment_id（與 DELETE 一致）；body 文字只從 JSON body 取
+  const url  = new URL(ctx.request.url)
+  const qCid = url.searchParams.get('comment_id')
+
+  let commentId: string | null = qCid ?? null
+  let newBody = ''
+
+  if (!qCid) {
+    // 無 query string → 從 body 同時取兩個欄位
+    let parsed: Record<string, unknown>
+    try { parsed = await ctx.request.json() as Record<string, unknown> }
+    catch { return Response.json({ ok: false, error: '無效的 JSON 格式' }, { status: 400 }) }
+
+    if (typeof parsed.comment_id === 'string') commentId = parsed.comment_id
+    newBody = typeof parsed.body === 'string' ? parsed.body.trim() : ''
+  } else {
+    // 有 query string comment_id → body 文字仍從 JSON body 取
+    let parsed: Record<string, unknown>
+    try { parsed = await ctx.request.json() as Record<string, unknown> }
+    catch { return Response.json({ ok: false, error: '無效的 JSON 格式' }, { status: 400 }) }
+
+    newBody = typeof parsed.body === 'string' ? parsed.body.trim() : ''
+  }
+
+  if (!commentId)
+    return Response.json({ ok: false, error: '缺少 comment_id' }, { status: 400 })
+
+  if (!newBody)
+    return Response.json({ ok: false, error: '留言內容不可為空' }, { status: 400 })
+
+  // 3. 查該留言（確認存在 + 屬於此 post，並取 created_at 供回傳）
+  interface CommentFull {
+    id: string
+    post_id: string
+    author_member_id: string
+    created_at: string
+  }
+  const comment = await ctx.env.DB
+    .prepare('SELECT id, post_id, author_member_id, created_at FROM post_comments WHERE id = ? AND post_id = ?')
+    .bind(commentId, postId)
+    .first<CommentFull>()
+
+  if (!comment)
+    return Response.json({ ok: false, error: '找不到此留言' }, { status: 404 })
+
+  // 4. 確認係作者本人（非作者 → 403）
+  if (comment.author_member_id !== memberId)
+    return Response.json({ ok: false, error: '只可修改或刪除本人建立的內容' }, { status: 403 })
+
+  // 5. 更新留言文字
+  await ctx.env.DB
+    .prepare('UPDATE post_comments SET body = ? WHERE id = ? AND post_id = ?')
+    .bind(newBody, commentId, postId)
+    .run()
+
+  return Response.json({
+    ok: true,
+    comment: {
+      id:               comment.id,
+      post_id:          comment.post_id,
+      author_member_id: comment.author_member_id,
+      body:             newBody,
+      created_at:       comment.created_at,
+    },
+  })
 }
