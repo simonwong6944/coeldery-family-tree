@@ -12,6 +12,7 @@ import TopBar from '../../packages/top-bar'
 import type { ApiMember, ApiRel } from '../../packages/family-tree-engine'
 import MemberAddRelPanel from './MemberAddRelPanel'
 import ImportantDatesSection from './ImportantDatesSection'
+import AvatarSection from './AvatarSection'
 
 interface TreeData { members: ApiMember[]; relationships: ApiRel[] }
 
@@ -122,6 +123,14 @@ export default function MemberDetail({ memberId }: { memberId: string }) {
 
   return wrap(<>
     <section style={card}>
+      {/* 頭像區 */}
+      <AvatarSection
+        memberId={memberId}
+        memberName={member.display_name}
+        avatarUrl={member.avatar_url}
+        onSuccess={fetchTree}
+      />
+
       <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:'12px', flexWrap:'wrap', marginBottom:'12px' }}>
         <div>
           <span style={label}>{t('member_detail.name_label')}</span>
