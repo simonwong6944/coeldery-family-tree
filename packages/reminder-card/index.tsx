@@ -17,16 +17,20 @@ export interface ReminderCardProps {
   icon: string
   /** 主標文字（已格式化，如「陳大文 下個月生日」） */
   titleText: string
-  /** 副標文字（如「10 月 15 日・仲有 30 日」） */
+  /** 副標文字（如「10 月 15 日・尚餘 30 日」） */
   subtitleText: string
   /** 「送上祝福」掣回調（靜態 mockup 可傳 undefined） */
   onBlessing?: () => void
   /** 「去安排」掣回調（靜態 mockup 可傳 undefined） */
   onArrange?: () => void
+  /** 覆蓋祝福掣文字（例如已送出時傳「已送上」）；未傳則顯示 i18n 預設 */
+  blessingLabel?: string
+  /** 是否停用祝福掣（送出中 / 已送出 / 不適用 type）*/
+  blessingDisabled?: boolean
 }
 
 export default function ReminderCard({
-  icon, titleText, subtitleText, onBlessing, onArrange,
+  icon, titleText, subtitleText, onBlessing, onArrange, blessingLabel, blessingDisabled,
 }: ReminderCardProps) {
   const { t } = useTranslation()
   const [blessingPressed, setBlessingPressed] = useState(false)
@@ -101,18 +105,21 @@ export default function ReminderCard({
 
       {/* ── 兩個並列掣 ── */}
       <div style={{ display: 'flex', gap: '12px' }}>
-        {/* 送上祝福 — 線框綠 */}
+        {/* 送上祝福 — 線框綠；disabled 時半透明不可點 */}
         <button
-          onClick={handleBlessing}
+          onClick={blessingDisabled ? undefined : handleBlessing}
+          disabled={blessingDisabled}
           aria-label={t('b5.send_blessing_btn')}
           style={{
             ...basePill,
             background: blessingPressed ? 'var(--color-primary)' : 'var(--color-card)',
             color: blessingPressed ? 'var(--color-card)' : 'var(--color-primary)',
             border: '2px solid var(--color-primary)',
+            opacity: blessingDisabled ? 0.5 : 1,
+            cursor: blessingDisabled ? 'not-allowed' : 'pointer',
           }}
         >
-          {t('b5.send_blessing_btn')}
+          {blessingLabel ?? t('b5.send_blessing_btn')}
         </button>
 
         {/* 去安排 — 實心綠 */}

@@ -1,6 +1,7 @@
 /**
  * FamilyFeed — 家庭圈動態 feed（B4 + B5 提醒卡 + B4 推薦卡）
  * 規格：.coappery/design/B4_family_feed.md + B5_reminder_cards.md
+ * v2.5.0：提醒卡「送上祝福」接真功能（自動發賤0，防重複）
  * v2.4.0：提醒卡改為摘要橫幅（可展開/收合）；修正 b5 口語字
  * v2.3.0：貼文 / 留言作者頭像接真相（author_avatar_url），fallback DiceBear
  *          avatarFor() helper 單一來源，所有頭像 URL 經此產生
@@ -129,6 +130,47 @@ export default function FamilyFeed() {
   /* ── 提醒卡（真 API）── */
   const [reminders,         setReminders]         = useState<ReminderItem[]>([])
   const [remindersExpanded, setRemindersExpanded] = useState(false)
+  // 已送祝福的 reminder key Set：防重複撳、成功後 disable
+  const [blessedSet,   setBlessedSet]   = useState<Set<string>>(new Set())
+  // 送出中的 reminder key Set：防連撳
+  const [blessingBusy, setBlessingBusy] = useState<Set<string>>(new Set())
+
+  /* ── 送上祝福 handler：與 handleComposeSubmit 同樣 POST /api/posts ── */
+  const handleBlessing = async (r: ReminderItem) => {
+    const key = `${r.member_id}-${r.type}`
+    if (blessedSet.has(key) || blessingBusy.has(key)) return
+
+    // 賀文：從 type 擇擰對應正式書面繁中文字句
+    let bodyText: string
+    if (r.type === 'birthday') {
+      bodyText = t('b5.blessing_birthday', { name: r.display_name })
+    } else if (r.type === 'memorial') {
+      bodyText = t('b5.blessing_memorial', { name: r.display_name })
+    } else {
+      // custom / festival 暫不處理，靜默跳過
+      return
+    }
+
+    // 標記發送中
+    setBlessingBusy(prev => new Set(prev).add(key))
+    try {
+      const res  = await fetch('/api/posts', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ body_text: bodyText, photo_url: null }),
+      })
+      const data = await res.json() as { ok: boolean; post?: ApiPost; error?: string }
+      if (data.ok && data.post) {
+        // 成功：新貼文加到 feed 頂，標記為已送
+        setPosts(prev  => [data.post!, ...prev])
+        setBlessedSet(prev => new Set(prev).add(key))
+      }
+      // 失敗：靈默不崩頁，blessingBusy 移除後可再試
+    } catch { /* 靈默 */ }
+    finally {
+      setBlessingBusy(prev => { const s = new Set(prev); s.delete(key); return s })
+    }
+  }
 
   /* ── B5 mock（保留不動）── */
   const [modalOpen,     setModalOpen]     = useState(false)
@@ -437,17 +479,26 @@ export default function FamilyFeed() {
                 overflow:        'hidden',
                 backgroundColor: 'var(--color-bg)',
               }}>
-                {reminders.map(r => (
-                  <ReminderCard
-                    key={`${r.member_id}-${r.type}`}
-                    targetName={r.display_name}
-                    icon={r.type === 'memorial' ? '🕯️' : '🎂'}
-                    titleText={getReminderTitle(r)}
-                    subtitleText={getReminderSubtitle(r)}
-                    onBlessing={undefined}
-                    onArrange={undefined}
-                  />
-                ))}
+                {reminders.map(r => {
+                  const key       = `${r.member_id}-${r.type}`
+                  const isSent    = blessedSet.has(key)
+                  const isBusy    = blessingBusy.has(key)
+                  // birthday / memorial 才有送祝福功能；已送出 / custom-festival 则 no-op
+                  const canBless  = (r.type === 'birthday' || r.type === 'memorial') && !isSent
+                  return (
+                    <ReminderCard
+                      key={key}
+                      targetName={r.display_name}
+                      icon={r.type === 'memorial' ? '🕯️' : '🎂'}
+                      titleText={getReminderTitle(r)}
+                      subtitleText={getReminderSubtitle(r)}
+                      blessingLabel={isSent ? t('b5.blessing_sent') : undefined}
+                      blessingDisabled={!canBless || isBusy}
+                      onBlessing={canBless && !isBusy ? () => handleBlessing(r) : undefined}
+                      onArrange={undefined}
+                    />
+                  )
+                })}
               </div>
             )}
           </div>

@@ -288,7 +288,10 @@
     "summary_birthday": "🎂 未來一個月有 {{count}} 位家人生日",
     "summary_memorial": "🕯️ 未來一個月有 {{count}} 位家人忌辰",
     "summary_expand": "展開提醒",
-    "summary_collapse": "收合提醒"
+    "summary_collapse": "收合提醒",
+    "blessing_birthday": "祝{{name}}生日快樂，身體健康，福壽安康。",
+    "blessing_memorial": "永遠懷念{{name}}，願家人平安，思念常在。",
+    "blessing_sent": "已送上"
   },
   "b5_detail": {
     "page_title": "事件詳情",
