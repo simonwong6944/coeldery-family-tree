@@ -5,6 +5,7 @@
  * 顏色：只用 CSS var，禁止 hardcode hex / rgba
  * 文字：全部 via i18n t('key')
  * v1.1.0：接駁 feedRepository — 讚好/留言由頁面層持久化（rules.md §9）
+ * v1.2.0：加 onPhotoClick prop — 撳相片時呼叫（由頁面層實現 lightbox）
  */
 
 import { useState } from 'react'
@@ -43,6 +44,8 @@ export interface PostCardProps {
   onToggleLike: () => void
   /** 新增留言回調（頁面層呼叫 feedRepository.addComment 並更新 state）*/
   onAddComment: (body: string) => void
+  /** 撳相片回調（由頁面層實現 lightbox）；無傳入時相片不可點（向後兼容）*/
+  onPhotoClick?: () => void
 }
 
 /* ── 讚好名單格式化（用名，以頓號連接）── */
@@ -55,7 +58,7 @@ export default function PostCard({
   postId: _postId,
   authorName, authorAvatarUrl, timeText, aboutText,
   photoUrl, photoAlt, bodyText, likers, comments,
-  isLiked, onToggleLike, onAddComment,
+  isLiked, onToggleLike, onAddComment, onPhotoClick,
 }: PostCardProps) {
   const { t } = useTranslation()
   /* 留言輸入展開狀態（本地 UI state，非持久資料）*/
@@ -129,11 +132,31 @@ export default function PostCard({
 
       {/* ── 大相（滿卡闊；冇相時唔 render，避免 broken image）── */}
       {photoUrl && (
-        <img
-          src={photoUrl}
-          alt={photoAlt}
-          style={{ width: '100%', display: 'block', maxHeight: '320px', objectFit: 'cover' }}
-        />
+        onPhotoClick ? (
+          // 有傳入 onPhotoClick：將相片包成可點擊按鈕（鍵盤可達，cursor: zoom-in）
+          <button
+            type="button"
+            onClick={onPhotoClick}
+            aria-label={photoAlt}
+            style={{
+              display: 'block', width: '100%', padding: 0,
+              border: 'none', background: 'none', cursor: 'zoom-in',
+            }}
+          >
+            <img
+              src={photoUrl}
+              alt={photoAlt}
+              style={{ width: '100%', display: 'block', maxHeight: '320px', objectFit: 'cover' }}
+            />
+          </button>
+        ) : (
+          // 冇傳入 onPhotoClick：維持現狀，相片不可點（向後兼容）
+          <img
+            src={photoUrl}
+            alt={photoAlt}
+            style={{ width: '100%', display: 'block', maxHeight: '320px', objectFit: 'cover' }}
+          />
+        )
       )}
 
       {/* ── 內文 ── */}

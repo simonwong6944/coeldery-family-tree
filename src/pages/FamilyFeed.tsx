@@ -2,6 +2,7 @@
  * FamilyFeed — 家庭圈動態 feed（B4 + B5 提醒卡 + B4 推薦卡）
  * 規格：.coappery/design/B4_family_feed.md + B5_reminder_cards.md
  * v2.6.0：「送上祝福」改為預填 compose sheet，送出成功後才防重複（blessingContext）
+ * v2.7.0：相片全屏 lightbox（撳相片放大，可關）
  * v2.4.0：提醒卡改為摘要橫幅（可展開/收合）；修正 b5 口語字
  * v2.3.0：貼文 / 留言作者頭像接真相（author_avatar_url），fallback DiceBear
  *          avatarFor() helper 單一來源，所有頭像 URL 經此產生
@@ -113,6 +114,9 @@ const sheetStyle: React.CSSProperties = {
 
 export default function FamilyFeed() {
   const { t } = useTranslation()
+
+  /* ── Lightbox ── */
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
 
   /* ── 貼文狀態 ── */
   const [posts,     setPosts]     = useState<ApiPost[]>([])
@@ -381,7 +385,56 @@ export default function FamilyFeed() {
       isLiked={p.isLikedByMe}
       onToggleLike={() => handleToggleLike(p)}
       onAddComment={(body) => handleAddComment(p, body)}
+      onPhotoClick={p.photo_url ? () => setLightboxUrl(p.photo_url) : undefined}
     />
+  )
+
+  /* ── 全屏 Lightbox overlay ── */
+  const renderLightbox = () => (
+    // 麮色半透明底幕（overlay 慣例用黑色，升 z-index 高於 compose sheet 200 及 tab bar）
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={t('b4.photo_close')}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 300,
+        backgroundColor: 'rgba(0,0,0,0.9)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}
+      // 點擊遂幕背景關閉
+      onClick={() => setLightboxUrl(null)}
+    >
+      {/* 關閉援（右上角，熱區 ≥44px）*/}
+      <button
+        type="button"
+        aria-label={t('b4.photo_close')}
+        onClick={() => setLightboxUrl(null)}
+        style={{
+          position: 'absolute', top: '12px', right: '12px',
+          minWidth: '44px', minHeight: '44px',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'rgba(0,0,0,0.55)', border: '1.5px solid rgba(255,255,255,0.35)',
+          borderRadius: '50%', cursor: 'pointer',
+          color: '#fff', fontSize: '22px', lineHeight: 1,
+        }}
+      >
+        ✕
+      </button>
+
+      {/* 大相本體（點擊相片本體不關閉，避免誤觸）*/}
+      {lightboxUrl && (
+        <img
+          src={lightboxUrl}
+          alt={t('b4.post_img_alt', { name: '' }).trim()}
+          onClick={e => e.stopPropagation()}
+          style={{
+            maxWidth: '100%', maxHeight: '100%',
+            objectFit: 'contain', display: 'block',
+            borderRadius: '4px',
+          }}
+        />
+      )}
+    </div>
   )
 
   /* ── Loading / Error / Empty 三態 ── */
@@ -657,6 +710,9 @@ export default function FamilyFeed() {
       </button>
 
       <BottomTabBar current="family_circle" onTabChange={handleTabChange} />
+
+      {/* Lightbox */}
+      {lightboxUrl !== null && renderLightbox()}
 
       {/* Compose Sheet */}
       {composeOpen && renderCompose()}

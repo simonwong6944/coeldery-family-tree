@@ -255,7 +255,8 @@
     "compose_err_too_large": "相片不可超過 5MB",
     "compose_err_sign_fail": "簽名服務暫時不可用，請稍後再試",
     "compose_err_upload_fail": "相片上載失敗，請稍後再試",
-    "compose_both_empty": "請輸入文字或選擇相片"
+    "compose_both_empty": "請輸入文字或選擇相片",
+    "photo_close": "關閉"
   },
   "b4_reco": {
     "label": "為您推薦",
