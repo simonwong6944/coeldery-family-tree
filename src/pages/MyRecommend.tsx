@@ -3,10 +3,12 @@
  * 路由：#/my-recommend
  * 規格：.coappery/merchant_platform.md 第三節
  *
- * v2.0：接駁 GET /api/merchants；全屏 scroll-snap 上下掃；
- *        頂部浮 bar（分類 + 地區篩選 + 視覺搜尋框）；
- *        右邊直排掣（讚 / 分享 / WhatsApp / 電話 / 地圖）；
- *        贊助角標（ad_tier >= 1）；長者友善（≥16px / ≥44px）。
+ * v2.1：在 v2.0 基礎上加入影片自動播放能力。
+ *   - 有 video_url → 全屏 <video> 取代 <img> 背景（muted loop playsInline）
+ *   - 冇 video_url → fallback 現有 banner_url / photo_url / 漸層純色底邏輯
+ *   - IntersectionObserver（threshold 0.6）偵測入畫：入畫播、掃走停+reset
+ *   - 同一時間最多一條片播放；play() reject 靜默處理
+ *   - 篩選重載 / unmount 時 observer.disconnect() 清理
  *
  * 重要：呢頁係用戶主動瀏覽，不作任何自動推送，不觸發忌辰相關邏輯。
  *       殯儀商戶照常顯示（spec §5.2：用戶主動搜尋則另計）。
@@ -110,16 +112,87 @@ export default function MyRecommend() {
   const [toast, setToast] = useState('')
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const showToast = (msg: string) => {
-    setToast(msg)
-    if (toastTimer.current) clearTimeout(toastTimer.current)
-    toastTimer.current = setTimeout(() => setToast(''), 2200)
-  }
+  /*
+   * ── IntersectionObserver 相關 refs ──────────────────────────
+   *
+   * cardRefs:  Map<merchantId, <article> DOM element>
+   *   → callback ref 方式，每張卡 mount 時登記、unmount 時清除
+   *
+   * videoRefs: Map<merchantId, <video> DOM element>
+   *   → 只有 video_url 商戶才會有條目
+   *
+   * observerRef: 持有 IntersectionObserver 實例
+   *   → 每次 merchants 變更後重建；unmount 時 disconnect()
+   *
+   * 設計決策：
+   *   - 用 Map 而非 array-index，即使篩選後商戶 id 順序變化亦正確
+   *   - observer deps = [merchants]，確保篩選重載後重新綁定所有卡
+   *   - threshold 0.6 → 60% 入畫才觸發，避免掃動過程中誤播
+   *   - 同一時間最多一條片播：入畫 play()，唔入畫 pause()+reset
+   * ────────────────────────────────────────────────────────────
+   */
+  const cardRefs  = useRef<Map<string, HTMLElement>>(new Map())
+  const videoRefs = useRef<Map<string, HTMLVideoElement>>(new Map())
+  const observerRef = useRef<IntersectionObserver | null>(null)
+
+  /* ── 建立 / 重建 IntersectionObserver（依賴 merchants 陣列）── */
+  useEffect(() => {
+    /* 上一個 observer 先 disconnect，避免重複觀察 / memory leak */
+    if (observerRef.current) {
+      observerRef.current.disconnect()
+      observerRef.current = null
+    }
+
+    /* 冇商戶時唔需要 observer */
+    if (merchants.length === 0) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach(entry => {
+          /* 從 article 的 data-merchant-id 屬性讀取 id */
+          const id = (entry.target as HTMLElement).dataset.merchantId
+          if (!id) return
+
+          const video = videoRefs.current.get(id)
+          if (!video) return   /* 呢張卡冇影片，跳過 */
+
+          if (entry.isIntersecting) {
+            /* 入畫：播片；play() 可能被 autoplay policy reject，靜默處理 */
+            video.play().catch(() => { /* autoplay rejected, 靜默 */ })
+          } else {
+            /* 離畫：停片 + reset，令下次掃返嚟從頭播 */
+            video.pause()
+            video.currentTime = 0
+          }
+        })
+      },
+      { threshold: 0.6 }
+    )
+
+    observerRef.current = observer
+
+    /* 觀察所有已知商戶卡 */
+    cardRefs.current.forEach((el) => {
+      observer.observe(el)
+    })
+
+    /* Cleanup：unmount 或 merchants 變更時 disconnect */
+    return () => {
+      observer.disconnect()
+      observerRef.current = null
+    }
+  }, [merchants])
 
   /* ── Fetch 商戶（篩選變更時重新 fetch）── */
   const loadMerchants = useCallback(async () => {
     setLoadState('loading')
     setErrorMsg('')
+
+    /* 篩選變更前先停所有正在播的片 */
+    videoRefs.current.forEach(v => {
+      v.pause()
+      v.currentTime = 0
+    })
 
     const qs = new URLSearchParams()
     if (activeCat)    qs.set('category_id',      activeCat)
@@ -189,6 +262,12 @@ export default function MyRecommend() {
     }
   }
 
+  const showToast = (msg: string) => {
+    setToast(msg)
+    if (toastTimer.current) clearTimeout(toastTimer.current)
+    toastTimer.current = setTimeout(() => setToast(''), 2200)
+  }
+
   /* ── 頂部篩選 bar 樣式 ── */
   const chipStyle = (active: boolean): React.CSSProperties => ({
     display:         'inline-flex',
@@ -254,12 +333,52 @@ export default function MyRecommend() {
   /* ── 單張商戶卡（全屏一張）── */
   const renderCard = (m: MerchantItem) => {
     const like = likeMap[m.id] ?? { liked: false, count: 0 }
-    const bgUrl = m.banner_url ?? m.photo_url ?? null
     const isSponsored = m.ad_tier >= 1
+
+    /*
+     * 背景層優先順序（v2.1 加入影片）：
+     *   1. video_url 有值 → <video>（取代圖片，成為背景）
+     *   2. 冇 video_url，但有 banner_url / photo_url → <img>
+     *   3. 全部冇 → 漸層純色底
+     *
+     * <video> 屬性說明：
+     *   muted      — iOS autoplay 必須靜音
+     *   loop       — 循環播放
+     *   playsInline — React prop（對應 HTML playsinline），iOS 不全屏騎劫
+     *   preload="metadata" — 只預載 metadata，節省流量；封面由 poster 顯示
+     *   poster     — 未 load 完前顯示封面（poster_url → banner_url → undefined）
+     */
+    const bgUrl = m.banner_url ?? m.photo_url ?? null
+
+    /* callback ref：article 掛上 DOM 時登記到 cardRefs，卸下時清除 */
+    const cardRefCallback = (el: HTMLElement | null) => {
+      if (el) {
+        cardRefs.current.set(m.id, el)
+        /* 若 observer 已存在，立即觀察新卡（篩選後新增的卡）*/
+        if (observerRef.current) observerRef.current.observe(el)
+      } else {
+        cardRefs.current.delete(m.id)
+        /* 卸下時停片並清除 videoRef */
+        const v = videoRefs.current.get(m.id)
+        if (v) { v.pause(); v.currentTime = 0 }
+        videoRefs.current.delete(m.id)
+      }
+    }
+
+    /* callback ref：video 掛上 DOM 時登記到 videoRefs，卸下時清除 */
+    const videoRefCallback = (el: HTMLVideoElement | null) => {
+      if (el) {
+        videoRefs.current.set(m.id, el)
+      } else {
+        videoRefs.current.delete(m.id)
+      }
+    }
 
     return (
       <article
         key={m.id}
+        ref={cardRefCallback}
+        data-merchant-id={m.id}
         style={{
           position:        'relative',
           height:          '100svh',
@@ -271,23 +390,46 @@ export default function MyRecommend() {
         }}
         aria-label={m.name}
       >
-        {/* ── 背景圖 ── */}
-        {bgUrl ? (
+        {/* ── 背景層：影片 / 圖片 / 漸層底 ── */}
+        {m.video_url ? (
+          /*
+           * 有 video_url → <video> 全屏背景（取代圖片）
+           * 靠 IntersectionObserver 控制播放，無 controls（背景片，同抖音）
+           */
+          <video
+            ref={videoRefCallback}
+            src={m.video_url}
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            poster={m.poster_url ?? m.banner_url ?? undefined}
+            style={{
+              position:       'absolute',
+              inset:          0,
+              width:          '100%',
+              height:         '100%',
+              objectFit:      'cover',
+              objectPosition: 'center',
+            }}
+          />
+        ) : bgUrl ? (
+          /* 冇影片，有 banner / photo → <img> */
           <img
             src={bgUrl}
             alt={m.name}
             style={{
-              position:   'absolute',
-              inset:      0,
-              width:      '100%',
-              height:     '100%',
-              objectFit:  'cover',
+              position:       'absolute',
+              inset:          0,
+              width:          '100%',
+              height:         '100%',
+              objectFit:      'cover',
               objectPosition: 'center',
             }}
             loading="lazy"
           />
         ) : (
-          /* 無圖時用漸層純色底 */
+          /* 全部冇 → 漸層純色底 */
           <div
             style={{
               position:   'absolute',
@@ -297,12 +439,12 @@ export default function MyRecommend() {
           />
         )}
 
-        {/* ── 底部由深到淺漸變遮罩 ── */}
+        {/* ── 底部由深到淺漸變遮罩（疊在背景上，令白字清楚）── */}
         <div
           style={{
-            position:   'absolute',
-            inset:      0,
-            background: 'linear-gradient(to top, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.45) 40%, rgba(0,0,0,0.08) 70%, transparent 100%)',
+            position:      'absolute',
+            inset:         0,
+            background:    'linear-gradient(to top, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.45) 40%, rgba(0,0,0,0.08) 70%, transparent 100%)',
             pointerEvents: 'none',
           }}
         />
@@ -312,35 +454,35 @@ export default function MyRecommend() {
           <span
             aria-label={t('merchant.sponsored_label')}
             style={{
-              position:        'absolute',
-              top:             '76px',
-              right:           '16px',
-              backgroundColor: 'rgba(80,80,80,0.75)',
-              color:           '#e5e5e5',
-              fontSize:        '13px',
-              fontWeight:      'bold',
-              padding:         '4px 10px',
-              borderRadius:    '8px',
-              letterSpacing:   '0.5px',
-              backdropFilter:  'blur(4px)',
-              WebkitBackdropFilter: 'blur(4px)',
+              position:            'absolute',
+              top:                 '76px',
+              right:               '16px',
+              backgroundColor:     'rgba(80,80,80,0.75)',
+              color:               '#e5e5e5',
+              fontSize:            '13px',
+              fontWeight:          'bold',
+              padding:             '4px 10px',
+              borderRadius:        '8px',
+              letterSpacing:       '0.5px',
+              backdropFilter:      'blur(4px)',
+              WebkitBackdropFilter:'blur(4px)',
             }}
           >
             {t('merchant.sponsored_label')}
           </span>
         )}
 
-        {/* ── 右邊直排掣 ── */}
+        {/* ── 右邊直排掣（疊在背景上，zIndex:10）── */}
         <div
           style={{
-            position:       'absolute',
-            right:          '14px',
-            bottom:         '160px',
-            display:        'flex',
-            flexDirection:  'column',
-            gap:            '18px',
-            alignItems:     'center',
-            zIndex:         10,
+            position:      'absolute',
+            right:         '14px',
+            bottom:        '160px',
+            display:       'flex',
+            flexDirection: 'column',
+            gap:           '18px',
+            alignItems:    'center',
+            zIndex:        10,
           }}
         >
           {/* 讚掣（純前端 state，不呼叫 API）*/}
@@ -409,17 +551,17 @@ export default function MyRecommend() {
           )}
         </div>
 
-        {/* ── 左下商戶資訊 ── */}
+        {/* ── 左下商戶資訊（疊在背景 + 漸變上，zIndex:10）── */}
         <div
           style={{
-            position:    'absolute',
-            left:        '16px',
-            right:       '84px',   /* 留空給右排掣 */
-            bottom:      '100px',  /* 底 tab bar 上方留空 */
-            zIndex:      10,
+            position: 'absolute',
+            left:     '16px',
+            right:    '84px',   /* 留空給右排掣 */
+            bottom:   '100px',  /* 底 tab bar 上方留空 */
+            zIndex:   10,
           }}
         >
-          {/* 商戶名稱（+ 贊助角標緊跟，視覺輔助）*/}
+          {/* 商戶名稱 */}
           <h2
             style={{
               margin:     '0 0 6px',
@@ -451,15 +593,15 @@ export default function MyRecommend() {
           {m.description && (
             <p
               style={{
-                margin:           '0 0 10px',
-                fontSize:         '16px',
-                color:            'rgba(255,255,255,0.82)',
-                lineHeight:       1.5,
-                textShadow:       '0 1px 3px rgba(0,0,0,0.5)',
-                display:          '-webkit-box',
-                WebkitLineClamp:  2,
-                WebkitBoxOrient:  'vertical' as const,
-                overflow:         'hidden',
+                margin:          '0 0 10px',
+                fontSize:        '16px',
+                color:           'rgba(255,255,255,0.82)',
+                lineHeight:      1.5,
+                textShadow:      '0 1px 3px rgba(0,0,0,0.5)',
+                display:         '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical' as const,
+                overflow:        'hidden',
               }}
             >
               {m.description}
@@ -468,29 +610,22 @@ export default function MyRecommend() {
 
           {/* Tags 細膠囊（橫排）*/}
           {m.tags.length > 0 && (
-            <div
-              style={{
-                display:    'flex',
-                flexWrap:   'wrap',
-                gap:        '6px',
-                marginTop:  '2px',
-              }}
-            >
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '2px' }}>
               {m.tags.map(tag => (
                 <span
                   key={tag.id}
                   style={{
-                    display:         'inline-flex',
-                    alignItems:      'center',
-                    height:          '28px',
-                    padding:         '0 10px',
-                    borderRadius:    '14px',
-                    backgroundColor: 'rgba(255,255,255,0.18)',
-                    border:          '1px solid rgba(255,255,255,0.35)',
-                    fontSize:        '13px',
-                    color:           '#fff',
-                    backdropFilter:  'blur(4px)',
-                    WebkitBackdropFilter: 'blur(4px)',
+                    display:             'inline-flex',
+                    alignItems:          'center',
+                    height:              '28px',
+                    padding:             '0 10px',
+                    borderRadius:        '14px',
+                    backgroundColor:     'rgba(255,255,255,0.18)',
+                    border:              '1px solid rgba(255,255,255,0.35)',
+                    fontSize:            '13px',
+                    color:               '#fff',
+                    backdropFilter:      'blur(4px)',
+                    WebkitBackdropFilter:'blur(4px)',
                   }}
                 >
                   {tag.name}
@@ -499,9 +634,6 @@ export default function MyRecommend() {
             </div>
           )}
         </div>
-
-        {/* ── 上掃提示（第一張才顯示）── */}
-        {/* 由呼叫端按 index 控制，此處不加邏輯 */}
       </article>
     )
   }
@@ -524,14 +656,7 @@ export default function MyRecommend() {
       }}
     >
       <span style={{ fontSize: '48px' }}>🏪</span>
-      <p
-        style={{
-          margin:    0,
-          fontSize:  '18px',
-          color:     'var(--color-text-secondary)',
-          textAlign: 'center',
-        }}
-      >
+      <p style={{ margin: 0, fontSize: '18px', color: 'var(--color-text-secondary)', textAlign: 'center' }}>
         {t('merchant.empty')}
       </p>
       {(activeCat || activeRegion) && (
@@ -632,10 +757,10 @@ export default function MyRecommend() {
   return (
     <div
       style={{
-        position:   'relative',
-        width:      '100%',
-        height:     '100svh',
-        overflow:   'hidden',
+        position:        'relative',
+        width:           '100%',
+        height:          '100svh',
+        overflow:        'hidden',
         backgroundColor: 'var(--color-bg)',
       }}
     >
@@ -645,24 +770,24 @@ export default function MyRecommend() {
       {/* ── 頂部浮篩選 bar（TopBar 下方，半透明）── */}
       <div
         style={{
-          position:        'fixed',
-          top:             '56px',   /* TopBar 高度 */
-          left:            0,
-          right:           0,
-          zIndex:          20,
-          background:      'linear-gradient(to bottom, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0) 100%)',
-          padding:         '8px 12px 12px',
-          backdropFilter:  'blur(2px)',
-          WebkitBackdropFilter: 'blur(2px)',
+          position:            'fixed',
+          top:                 '56px',   /* TopBar 高度 */
+          left:                0,
+          right:               0,
+          zIndex:              20,
+          background:          'linear-gradient(to bottom, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0) 100%)',
+          padding:             '8px 12px 12px',
+          backdropFilter:      'blur(2px)',
+          WebkitBackdropFilter:'blur(2px)',
         }}
       >
         <div
           style={{
-            display:    'flex',
-            alignItems: 'center',
-            gap:        '8px',
-            overflowX:  'auto',
-            scrollbarWidth: 'none',
+            display:                 'flex',
+            alignItems:              'center',
+            gap:                     '8px',
+            overflowX:               'auto',
+            scrollbarWidth:          'none',
             WebkitOverflowScrolling: 'touch',
           } as React.CSSProperties}
         >
@@ -672,20 +797,20 @@ export default function MyRecommend() {
             placeholder={t('merchant.search_placeholder')}
             disabled
             style={{
-              flexShrink:      0,
-              width:           '120px',
-              height:          '44px',
-              borderRadius:    '22px',
-              border:          '1.5px solid rgba(255,255,255,0.35)',
-              background:      'rgba(0,0,0,0.35)',
-              color:           'rgba(255,255,255,0.6)',
-              fontSize:        '15px',
-              padding:         '0 14px',
-              outline:         'none',
-              backdropFilter:  'blur(4px)',
-              WebkitBackdropFilter: 'blur(4px)',
-              cursor:          'not-allowed',
-              fontFamily:      'inherit',
+              flexShrink:          0,
+              width:               '120px',
+              height:              '44px',
+              borderRadius:        '22px',
+              border:              '1.5px solid rgba(255,255,255,0.35)',
+              background:          'rgba(0,0,0,0.35)',
+              color:               'rgba(255,255,255,0.6)',
+              fontSize:            '15px',
+              padding:             '0 14px',
+              outline:             'none',
+              backdropFilter:      'blur(4px)',
+              WebkitBackdropFilter:'blur(4px)',
+              cursor:              'not-allowed',
+              fontFamily:          'inherit',
             }}
           />
 
@@ -735,9 +860,9 @@ export default function MyRecommend() {
       {/* ── 全屏 scroll-snap 容器 ── */}
       <div
         style={{
-          height:            '100svh',
-          overflowY:         'scroll',
-          scrollSnapType:    'y mandatory',
+          height:                  '100svh',
+          overflowY:               'scroll',
+          scrollSnapType:          'y mandatory',
           WebkitOverflowScrolling: 'touch',
         } as React.CSSProperties}
       >
