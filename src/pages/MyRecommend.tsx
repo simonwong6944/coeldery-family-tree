@@ -1,16 +1,18 @@
 /**
- * MyRecommend — 我的推薦：本地商戶列表
+ * MyRecommend — 我的推薦：全屏抖音式商戶流
  * 路由：#/my-recommend
- * 規格：.coappery/merchant_platform.md 第三節（三段式佈局 + 贊助標示）
+ * 規格：.coappery/merchant_platform.md 第三節
  *
- * v1.0：接駁 GET /api/merchants；三段式（sponsored / promoted / natural）；
- *        分類 × 地區雙篩選（寫死 seed id）；贊助標籤；長者友善（≥16px / ≥44px）。
+ * v2.0：接駁 GET /api/merchants；全屏 scroll-snap 上下掃；
+ *        頂部浮 bar（分類 + 地區篩選 + 視覺搜尋框）；
+ *        右邊直排掣（讚 / 分享 / WhatsApp / 電話 / 地圖）；
+ *        贊助角標（ad_tier >= 1）；長者友善（≥16px / ≥44px）。
  *
  * 重要：呢頁係用戶主動瀏覽，不作任何自動推送，不觸發忌辰相關邏輯。
  *       殯儀商戶照常顯示（spec §5.2：用戶主動搜尋則另計）。
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import TopBar from '../../packages/top-bar'
 import BottomTabBar from '../../packages/bottom-tab-bar'
@@ -18,13 +20,13 @@ import type { TabId } from '../../packages/bottom-tab-bar'
 
 /* ── Tab 路由（與其他頁面保持一致）── */
 const TAB_ROUTES: Record<TabId, string> = {
-  family_tree:      '#/',
-  family_circle:    '#/family-feed',
-  family_gathering: '#/family-gather',
+  family_tree:        '#/',
+  family_circle:      '#/family-feed',
+  family_gathering:   '#/family-gather',
   my_recommendations: '#/my-recommend',
 }
 
-/* ── API 回應型別（對應 functions/api/merchants.ts）── */
+/* ── API 回應型別（對應 functions/api/merchants.ts，含 migration 0008 媒體欄位）── */
 interface MerchantTag {
   id:   string
   name: string
@@ -39,6 +41,11 @@ interface MerchantItem {
   address:             string | null
   description:         string | null
   photo_url:           string | null
+  whatsapp:            string | null
+  map_url:             string | null
+  banner_url:          string | null
+  video_url:           string | null
+  poster_url:          string | null
   landmark_id:         string | null
   landmark_name:       string | null
   district_name:       string | null
@@ -75,6 +82,12 @@ const REGION_FILTERS: FilterOption[] = [
   { id: 'dg-nt',        labelKey: 'merchant.region_nt'        },
 ]
 
+/* ── 讚掣獨立 state（每張卡自己一個，純前端，不呼叫任何 API，refresh 會 reset）── */
+interface LikeState {
+  liked: boolean
+  count: number
+}
+
 /* ════════════════════════════════════════════════════════════ */
 
 export default function MyRecommend() {
@@ -86,11 +99,22 @@ export default function MyRecommend() {
   const [activeRegion, setActiveRegion] = useState<string | null>(null)
 
   /* ── 資料狀態 ── */
-  const [loadState, setLoadState] = useState<'loading' | 'ok' | 'error'>('loading')
-  const [errorMsg,  setErrorMsg]  = useState('')
-  const [sponsored, setSponsored] = useState<MerchantItem[]>([])
-  const [promoted,  setPromoted]  = useState<MerchantItem[]>([])
-  const [natural,   setNatural]   = useState<MerchantItem[]>([])
+  const [loadState,  setLoadState]  = useState<'loading' | 'ok' | 'error'>('loading')
+  const [errorMsg,   setErrorMsg]   = useState('')
+  const [merchants,  setMerchants]  = useState<MerchantItem[]>([])
+
+  /* ── 讚掣狀態 Map（key = merchant.id）── */
+  const [likeMap, setLikeMap] = useState<Record<string, LikeState>>({})
+
+  /* ── toast 提示（分享 fallback 複製）── */
+  const [toast, setToast] = useState('')
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const showToast = (msg: string) => {
+    setToast(msg)
+    if (toastTimer.current) clearTimeout(toastTimer.current)
+    toastTimer.current = setTimeout(() => setToast(''), 2200)
+  }
 
   /* ── Fetch 商戶（篩選變更時重新 fetch）── */
   const loadMerchants = useCallback(async () => {
@@ -111,9 +135,18 @@ export default function MyRecommend() {
         setLoadState('error')
         return
       }
-      setSponsored(data.sponsored ?? [])
-      setPromoted(data.promoted   ?? [])
-      setNatural(data.natural     ?? [])
+      /* 用 API 回傳的 merchants 扁平陣列（已按 ad_tier DESC, created_at ASC 排好）*/
+      const flat = data.merchants ?? []
+      setMerchants(flat)
+
+      /* 初始化新商戶的 like state（count 從 0 開始，最誠實）*/
+      setLikeMap(prev => {
+        const next = { ...prev }
+        flat.forEach(m => {
+          if (!next[m.id]) next[m.id] = { liked: false, count: 0 }
+        })
+        return next
+      })
       setLoadState('ok')
     } catch {
       setErrorMsg(t('merchant.load_failed'))
@@ -123,16 +156,51 @@ export default function MyRecommend() {
 
   useEffect(() => { void loadMerchants() }, [loadMerchants])
 
-  /* ── 篩選掣通用樣式 ── */
-  const filterBtnStyle = (active: boolean): React.CSSProperties => ({
+  /* ── 讚掣 toggle（純前端，不呼叫任何 API）── */
+  const handleLike = (id: string) => {
+    setLikeMap(prev => {
+      const cur = prev[id] ?? { liked: false, count: 0 }
+      return {
+        ...prev,
+        [id]: {
+          liked: !cur.liked,
+          count: cur.liked ? Math.max(0, cur.count - 1) : cur.count + 1,
+        },
+      }
+    })
+  }
+
+  /* ── 分享（navigator.share → clipboard fallback）── */
+  const handleShare = async (m: MerchantItem) => {
+    const text = m.address ? `${m.name}｜${m.address}` : m.name
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: m.name, text })
+      } catch {
+        /* 用戶取消視為正常，不顯示錯誤 */
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(text)
+        showToast(t('merchant.share_copied'))
+      } catch {
+        showToast(t('merchant.share_copied'))
+      }
+    }
+  }
+
+  /* ── 頂部篩選 bar 樣式 ── */
+  const chipStyle = (active: boolean): React.CSSProperties => ({
+    display:         'inline-flex',
+    alignItems:      'center',
     minHeight:       '44px',
     padding:         '0 18px',
     borderRadius:    '22px',
     border:          active
       ? '2px solid var(--color-primary)'
-      : '1.5px solid var(--color-divider)',
-    background:      active ? 'var(--color-primary)' : 'var(--color-card)',
-    color:           active ? '#fff' : 'var(--color-text)',
+      : '1.5px solid rgba(255,255,255,0.45)',
+    background:      active ? 'var(--color-primary)' : 'rgba(0,0,0,0.35)',
+    color:           '#fff',
     fontSize:        '16px',
     fontFamily:      'inherit',
     fontWeight:      active ? 'bold' : 'normal',
@@ -140,419 +208,571 @@ export default function MyRecommend() {
     whiteSpace:      'nowrap' as const,
     transition:      'all 0.15s',
     flexShrink:      0,
+    backdropFilter:  'blur(4px)',
+    WebkitBackdropFilter: 'blur(4px)',
   })
 
-  /* ── 商戶卡（大卡：有相 / 有標示）── */
-  const renderFeaturedCard = (m: MerchantItem, showTag: boolean) => (
-    <div
-      key={m.id}
-      style={{
-        position:        'relative',
-        backgroundColor: 'var(--color-card)',
-        borderRadius:    '16px',
-        overflow:        'hidden',
-        boxShadow:       '0 2px 8px rgba(0,0,0,0.08)',
-        marginBottom:    '12px',
-      }}
-    >
-      {/* 商戶圖片（有 photo_url 才顯示）*/}
-      {m.photo_url && (
-        <img
-          src={m.photo_url}
-          alt={m.name}
-          style={{
-            width:      '100%',
-            height:     '180px',
-            objectFit:  'cover',
-            display:    'block',
-          }}
-        />
-      )}
+  /* ── 右排圓形掣樣式 ── */
+  const actionBtnStyle: React.CSSProperties = {
+    display:         'flex',
+    flexDirection:   'column',
+    alignItems:      'center',
+    gap:             '4px',
+    minWidth:        '56px',
+    minHeight:       '56px',
+    justifyContent:  'center',
+    cursor:          'pointer',
+    background:      'none',
+    border:          'none',
+    padding:         '0',
+    fontFamily:      'inherit',
+  }
 
-      {/* 贊助標籤（右上角細灰標）*/}
-      {showTag && (
-        <span
-          aria-label={t('merchant.sponsored_tag')}
-          style={{
-            position:        'absolute',
-            top:             '10px',
-            right:           '10px',
-            backgroundColor: 'rgba(0,0,0,0.45)',
-            color:           '#fff',
-            fontSize:        '13px',
-            fontWeight:      'bold',
-            padding:         '3px 9px',
-            borderRadius:    '8px',
-            letterSpacing:   '0.5px',
-          }}
-        >
-          {t('merchant.sponsored_tag')}
-        </span>
-      )}
+  const actionCircleStyle = (active?: boolean): React.CSSProperties => ({
+    width:           '56px',
+    height:          '56px',
+    borderRadius:    '50%',
+    background:      active ? 'rgba(220,38,38,0.85)' : 'rgba(0,0,0,0.45)',
+    backdropFilter:  'blur(4px)',
+    WebkitBackdropFilter: 'blur(4px)',
+    display:         'flex',
+    alignItems:      'center',
+    justifyContent:  'center',
+    fontSize:        '22px',
+    transition:      'background 0.15s',
+  })
 
-      {/* 卡片內容 */}
-      <div style={{ padding: '16px' }}>
-        {renderCardContent(m)}
-      </div>
-    </div>
-  )
+  const actionLabelStyle: React.CSSProperties = {
+    fontSize:   '12px',
+    color:      '#fff',
+    fontWeight: 'bold',
+    textShadow: '0 1px 3px rgba(0,0,0,0.7)',
+    textAlign:  'center',
+    lineHeight: 1.2,
+  }
 
-  /* ── 商戶卡（文字卡：自然排位，無圖無標籤）── */
-  const renderNaturalCard = (m: MerchantItem) => (
-    <div
-      key={m.id}
-      style={{
-        backgroundColor: 'var(--color-card)',
-        borderRadius:    '12px',
-        padding:         '16px',
-        marginBottom:    '10px',
-        boxShadow:       '0 1px 4px rgba(0,0,0,0.06)',
-      }}
-    >
-      {renderCardContent(m)}
-    </div>
-  )
-
-  /* ── 卡片共用內容（名稱 / 分類地區 / 電話 / 地址 / 簡介 / 標籤）── */
-  const renderCardContent = (m: MerchantItem) => (
-    <>
-      {/* 商戶名稱 */}
-      <h3
-        style={{
-          margin:     '0 0 6px',
-          fontSize:   '20px',
-          fontWeight: 'bold',
-          color:      'var(--color-text)',
-          lineHeight: 1.3,
-        }}
-      >
-        {m.name}
-      </h3>
-
-      {/* 分類 + 地區 */}
-      {(m.category_name || m.district_name) && (
-        <p
-          style={{
-            margin:   '0 0 8px',
-            fontSize: '15px',
-            color:    'var(--color-text-secondary)',
-          }}
-        >
-          {[m.category_name, m.district_name].filter(Boolean).join(' · ')}
-        </p>
-      )}
-
-      {/* 電話（tel: link，字體 ≥16px，熱區 ≥44px）*/}
-      {m.phone && (
-        <a
-          href={`tel:${m.phone}`}
-          style={{
-            display:        'inline-flex',
-            alignItems:     'center',
-            gap:            '6px',
-            minHeight:      '44px',
-            fontSize:       '18px',
-            fontWeight:     'bold',
-            color:          'var(--color-primary)',
-            textDecoration: 'none',
-            marginBottom:   '6px',
-          }}
-          aria-label={`${t('merchant.call')} ${m.name} ${m.phone}`}
-        >
-          📞 {m.phone}
-        </a>
-      )}
-
-      {/* 地址 */}
-      {m.address && (
-        <p
-          style={{
-            margin:     '0 0 8px',
-            fontSize:   '16px',
-            color:      'var(--color-text-secondary)',
-            lineHeight: 1.5,
-          }}
-        >
-          📍 {m.address}
-        </p>
-      )}
-
-      {/* 簡介 */}
-      {m.description && (
-        <p
-          style={{
-            margin:     '0 0 10px',
-            fontSize:   '16px',
-            color:      'var(--color-text)',
-            lineHeight: 1.6,
-          }}
-        >
-          {m.description}
-        </p>
-      )}
-
-      {/* 標籤 chips */}
-      {m.tags.length > 0 && (
-        <div
-          style={{
-            display:   'flex',
-            flexWrap:  'wrap',
-            gap:       '6px',
-            marginTop: '4px',
-          }}
-        >
-          {m.tags.map(tag => (
-            <span
-              key={tag.id}
-              style={{
-                display:         'inline-flex',
-                alignItems:      'center',
-                height:          '28px',
-                padding:         '0 12px',
-                borderRadius:    '14px',
-                backgroundColor: 'var(--color-bg)',
-                border:          '1px solid var(--color-divider)',
-                fontSize:        '14px',
-                color:           'var(--color-text-secondary)',
-              }}
-            >
-              {tag.name}
-            </span>
-          ))}
-        </div>
-      )}
-    </>
-  )
-
-  /* ── 區段標題 ── */
-  const renderSectionTitle = (labelKey: string, emoji: string) => (
-    <div
-      style={{
-        display:      'flex',
-        alignItems:   'center',
-        gap:          '8px',
-        marginBottom: '12px',
-        marginTop:    '8px',
-      }}
-    >
-      <span aria-hidden="true" style={{ fontSize: '22px' }}>{emoji}</span>
-      <h2
-        style={{
-          margin:     0,
-          fontSize:   '18px',
-          fontWeight: 'bold',
-          color:      'var(--color-text)',
-        }}
-      >
-        {t(labelKey)}
-      </h2>
-    </div>
-  )
-
-  /* ── 主體渲染 ── */
-  const renderBody = () => {
-    if (loadState === 'loading') {
-      return (
-        <p
-          style={{
-            textAlign: 'center',
-            color:     'var(--color-text-secondary)',
-            fontSize:  '18px',
-            padding:   '60px 0',
-          }}
-        >
-          {t('merchant.loading')}
-        </p>
-      )
-    }
-
-    if (loadState === 'error') {
-      return (
-        <div
-          role="alert"
-          style={{
-            margin:          '24px 0',
-            padding:         '16px',
-            borderRadius:    '12px',
-            backgroundColor: 'var(--color-card)',
-            border:          '1.5px solid var(--color-danger, #dc2626)',
-            color:           'var(--color-danger, #dc2626)',
-            fontSize:        '16px',
-            lineHeight:      1.6,
-          }}
-        >
-          {errorMsg}
-        </div>
-      )
-    }
-
-    const totalCount = sponsored.length + promoted.length + natural.length
-    if (totalCount === 0) {
-      return (
-        <div
-          style={{
-            textAlign: 'center',
-            padding:   '60px 0',
-            color:     'var(--color-text-secondary)',
-          }}
-        >
-          <p style={{ fontSize: '40px', margin: '0 0 12px' }}>🏪</p>
-          <p
-            style={{
-              margin:     0,
-              fontSize:   '18px',
-              color:      'var(--color-text-secondary)',
-            }}
-          >
-            {t('merchant.empty')}
-          </p>
-        </div>
-      )
-    }
+  /* ── 單張商戶卡（全屏一張）── */
+  const renderCard = (m: MerchantItem) => {
+    const like = likeMap[m.id] ?? { liked: false, count: 0 }
+    const bgUrl = m.banner_url ?? m.photo_url ?? null
+    const isSponsored = m.ad_tier >= 1
 
     return (
-      <>
-        {/* ── 頂部「贊助」區（tier 2）── */}
-        {sponsored.length > 0 && (
-          <section aria-label={t('merchant.sponsored_section')}>
-            {renderSectionTitle('merchant.sponsored_section', '⭐')}
-            {sponsored.map(m => renderFeaturedCard(m, true))}
-          </section>
+      <article
+        key={m.id}
+        style={{
+          position:        'relative',
+          height:          '100svh',
+          width:           '100%',
+          scrollSnapAlign: 'start',
+          overflow:        'hidden',
+          flexShrink:      0,
+          backgroundColor: 'var(--color-card)',
+        }}
+        aria-label={m.name}
+      >
+        {/* ── 背景圖 ── */}
+        {bgUrl ? (
+          <img
+            src={bgUrl}
+            alt={m.name}
+            style={{
+              position:   'absolute',
+              inset:      0,
+              width:      '100%',
+              height:     '100%',
+              objectFit:  'cover',
+              objectPosition: 'center',
+            }}
+            loading="lazy"
+          />
+        ) : (
+          /* 無圖時用漸層純色底 */
+          <div
+            style={{
+              position:   'absolute',
+              inset:      0,
+              background: 'linear-gradient(160deg, var(--color-primary, #6366f1) 0%, var(--color-card, #1e1b4b) 100%)',
+            }}
+          />
         )}
 
-        {/* ── 中間「推廣」區（tier 1）── */}
-        {promoted.length > 0 && (
-          <section aria-label={t('merchant.promoted_section')}>
-            {renderSectionTitle('merchant.promoted_section', '📌')}
-            {promoted.map(m => renderFeaturedCard(m, true))}
-          </section>
+        {/* ── 底部由深到淺漸變遮罩 ── */}
+        <div
+          style={{
+            position:   'absolute',
+            inset:      0,
+            background: 'linear-gradient(to top, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.45) 40%, rgba(0,0,0,0.08) 70%, transparent 100%)',
+            pointerEvents: 'none',
+          }}
+        />
+
+        {/* ── 贊助角標（ad_tier >= 1）── */}
+        {isSponsored && (
+          <span
+            aria-label={t('merchant.sponsored_label')}
+            style={{
+              position:        'absolute',
+              top:             '76px',
+              right:           '16px',
+              backgroundColor: 'rgba(80,80,80,0.75)',
+              color:           '#e5e5e5',
+              fontSize:        '13px',
+              fontWeight:      'bold',
+              padding:         '4px 10px',
+              borderRadius:    '8px',
+              letterSpacing:   '0.5px',
+              backdropFilter:  'blur(4px)',
+              WebkitBackdropFilter: 'blur(4px)',
+            }}
+          >
+            {t('merchant.sponsored_label')}
+          </span>
         )}
 
-        {/* ── 下方「一般商戶」區（tier 0）── */}
-        {natural.length > 0 && (
-          <section aria-label={t('merchant.natural_section')}>
-            {renderSectionTitle('merchant.natural_section', '🏪')}
-            {natural.map(m => renderNaturalCard(m))}
-          </section>
-        )}
-      </>
+        {/* ── 右邊直排掣 ── */}
+        <div
+          style={{
+            position:       'absolute',
+            right:          '14px',
+            bottom:         '160px',
+            display:        'flex',
+            flexDirection:  'column',
+            gap:            '18px',
+            alignItems:     'center',
+            zIndex:         10,
+          }}
+        >
+          {/* 讚掣（純前端 state，不呼叫 API）*/}
+          <button
+            type="button"
+            style={actionBtnStyle}
+            aria-label={`${t('merchant.btn_like')} ${like.count}`}
+            aria-pressed={like.liked}
+            onClick={() => handleLike(m.id)}
+          >
+            <div style={actionCircleStyle(like.liked)}>
+              {like.liked ? '❤️' : '🤍'}
+            </div>
+            <span style={actionLabelStyle}>
+              {like.count > 0 ? String(like.count) : t('merchant.btn_like')}
+            </span>
+          </button>
+
+          {/* 分享 */}
+          <button
+            type="button"
+            style={actionBtnStyle}
+            aria-label={t('merchant.btn_share')}
+            onClick={() => void handleShare(m)}
+          >
+            <div style={actionCircleStyle()}>↗️</div>
+            <span style={actionLabelStyle}>{t('merchant.btn_share')}</span>
+          </button>
+
+          {/* 聯絡商家（WhatsApp）— whatsapp 為 null 時隱藏 */}
+          {m.whatsapp && (
+            <button
+              type="button"
+              style={actionBtnStyle}
+              aria-label={t('merchant.btn_whatsapp')}
+              onClick={() => window.open(`https://wa.me/${m.whatsapp}`)}
+            >
+              <div style={actionCircleStyle()}>💬</div>
+              <span style={actionLabelStyle}>{t('merchant.btn_whatsapp')}</span>
+            </button>
+          )}
+
+          {/* 打電話 — phone 為 null 時隱藏 */}
+          {m.phone && (
+            <a
+              href={`tel:${m.phone}`}
+              style={{ ...actionBtnStyle, textDecoration: 'none' }}
+              aria-label={`${t('merchant.btn_call')} ${m.phone}`}
+            >
+              <div style={actionCircleStyle()}>📞</div>
+              <span style={actionLabelStyle}>{t('merchant.btn_call')}</span>
+            </a>
+          )}
+
+          {/* 地圖 — map_url 為 null 時隱藏 */}
+          {m.map_url && (
+            <button
+              type="button"
+              style={actionBtnStyle}
+              aria-label={t('merchant.btn_map')}
+              onClick={() => window.open(m.map_url!)}
+            >
+              <div style={actionCircleStyle()}>📍</div>
+              <span style={actionLabelStyle}>{t('merchant.btn_map')}</span>
+            </button>
+          )}
+        </div>
+
+        {/* ── 左下商戶資訊 ── */}
+        <div
+          style={{
+            position:    'absolute',
+            left:        '16px',
+            right:       '84px',   /* 留空給右排掣 */
+            bottom:      '100px',  /* 底 tab bar 上方留空 */
+            zIndex:      10,
+          }}
+        >
+          {/* 商戶名稱（+ 贊助角標緊跟，視覺輔助）*/}
+          <h2
+            style={{
+              margin:     '0 0 6px',
+              fontSize:   '22px',
+              fontWeight: 'bold',
+              color:      '#fff',
+              lineHeight: 1.3,
+              textShadow: '0 1px 6px rgba(0,0,0,0.6)',
+            }}
+          >
+            {m.name}
+          </h2>
+
+          {/* 分類 ・ 地區 */}
+          {(m.category_name || m.district_name) && (
+            <p
+              style={{
+                margin:     '0 0 8px',
+                fontSize:   '16px',
+                color:      'rgba(255,255,255,0.88)',
+                textShadow: '0 1px 4px rgba(0,0,0,0.5)',
+              }}
+            >
+              {[m.category_name, m.district_name].filter(Boolean).join(' ・ ')}
+            </p>
+          )}
+
+          {/* 簡介（最多兩行，超出 ellipsis）*/}
+          {m.description && (
+            <p
+              style={{
+                margin:           '0 0 10px',
+                fontSize:         '16px',
+                color:            'rgba(255,255,255,0.82)',
+                lineHeight:       1.5,
+                textShadow:       '0 1px 3px rgba(0,0,0,0.5)',
+                display:          '-webkit-box',
+                WebkitLineClamp:  2,
+                WebkitBoxOrient:  'vertical' as const,
+                overflow:         'hidden',
+              }}
+            >
+              {m.description}
+            </p>
+          )}
+
+          {/* Tags 細膠囊（橫排）*/}
+          {m.tags.length > 0 && (
+            <div
+              style={{
+                display:    'flex',
+                flexWrap:   'wrap',
+                gap:        '6px',
+                marginTop:  '2px',
+              }}
+            >
+              {m.tags.map(tag => (
+                <span
+                  key={tag.id}
+                  style={{
+                    display:         'inline-flex',
+                    alignItems:      'center',
+                    height:          '28px',
+                    padding:         '0 10px',
+                    borderRadius:    '14px',
+                    backgroundColor: 'rgba(255,255,255,0.18)',
+                    border:          '1px solid rgba(255,255,255,0.35)',
+                    fontSize:        '13px',
+                    color:           '#fff',
+                    backdropFilter:  'blur(4px)',
+                    WebkitBackdropFilter: 'blur(4px)',
+                  }}
+                >
+                  {tag.name}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* ── 上掃提示（第一張才顯示）── */}
+        {/* 由呼叫端按 index 控制，此處不加邏輯 */}
+      </article>
     )
   }
+
+  /* ── 空結果全屏提示 ── */
+  const renderEmpty = () => (
+    <div
+      style={{
+        height:          '100svh',
+        width:           '100%',
+        scrollSnapAlign: 'start',
+        flexShrink:      0,
+        display:         'flex',
+        flexDirection:   'column',
+        alignItems:      'center',
+        justifyContent:  'center',
+        backgroundColor: 'var(--color-bg)',
+        gap:             '16px',
+        padding:         '0 32px',
+      }}
+    >
+      <span style={{ fontSize: '48px' }}>🏪</span>
+      <p
+        style={{
+          margin:    0,
+          fontSize:  '18px',
+          color:     'var(--color-text-secondary)',
+          textAlign: 'center',
+        }}
+      >
+        {t('merchant.empty')}
+      </p>
+      {(activeCat || activeRegion) && (
+        <button
+          type="button"
+          onClick={() => { setActiveCat(null); setActiveRegion(null) }}
+          style={{
+            minHeight:    '44px',
+            padding:      '0 24px',
+            borderRadius: '22px',
+            border:       '1.5px solid var(--color-divider)',
+            background:   'var(--color-card)',
+            color:        'var(--color-text)',
+            fontSize:     '16px',
+            fontFamily:   'inherit',
+            cursor:       'pointer',
+          }}
+        >
+          ✕ {t('merchant.filter_clear')}
+        </button>
+      )}
+    </div>
+  )
+
+  /* ── 載入中全屏提示 ── */
+  const renderLoading = () => (
+    <div
+      style={{
+        height:          '100svh',
+        width:           '100%',
+        scrollSnapAlign: 'start',
+        flexShrink:      0,
+        display:         'flex',
+        alignItems:      'center',
+        justifyContent:  'center',
+        backgroundColor: 'var(--color-bg)',
+      }}
+    >
+      <p style={{ fontSize: '18px', color: 'var(--color-text-secondary)' }}>
+        {t('merchant.loading')}
+      </p>
+    </div>
+  )
+
+  /* ── 錯誤全屏提示 ── */
+  const renderError = () => (
+    <div
+      style={{
+        height:          '100svh',
+        width:           '100%',
+        scrollSnapAlign: 'start',
+        flexShrink:      0,
+        display:         'flex',
+        flexDirection:   'column',
+        alignItems:      'center',
+        justifyContent:  'center',
+        backgroundColor: 'var(--color-bg)',
+        gap:             '16px',
+        padding:         '0 32px',
+      }}
+    >
+      <div
+        role="alert"
+        style={{
+          padding:         '16px 20px',
+          borderRadius:    '12px',
+          backgroundColor: 'var(--color-card)',
+          border:          '1.5px solid var(--color-danger, #dc2626)',
+          color:           'var(--color-danger, #dc2626)',
+          fontSize:        '16px',
+          lineHeight:      1.6,
+          textAlign:       'center',
+        }}
+      >
+        {errorMsg}
+      </div>
+      <button
+        type="button"
+        onClick={() => void loadMerchants()}
+        style={{
+          minHeight:    '44px',
+          padding:      '0 28px',
+          borderRadius: '22px',
+          border:       '1.5px solid var(--color-primary)',
+          background:   'var(--color-primary)',
+          color:        '#fff',
+          fontSize:     '16px',
+          fontFamily:   'inherit',
+          cursor:       'pointer',
+        }}
+      >
+        🔄 {t('merchant.load_failed')}
+      </button>
+    </div>
+  )
 
   /* ── Main render ── */
   return (
     <div
       style={{
-        display:         'flex',
-        flexDirection:   'column',
-        minHeight:       '100svh',
+        position:   'relative',
+        width:      '100%',
+        height:     '100svh',
+        overflow:   'hidden',
         backgroundColor: 'var(--color-bg)',
       }}
     >
+      {/* ── TopBar（固定在上方）── */}
       <TopBar titleKey="merchant.page_title" />
 
-      <main
-        role="main"
+      {/* ── 頂部浮篩選 bar（TopBar 下方，半透明）── */}
+      <div
         style={{
-          flex:       1,
-          overflowY:  'auto',
-          padding:    '72px 16px 100px',   /* 72px = TopBar 56px + 16px gap */
+          position:        'fixed',
+          top:             '56px',   /* TopBar 高度 */
+          left:            0,
+          right:           0,
+          zIndex:          20,
+          background:      'linear-gradient(to bottom, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0) 100%)',
+          padding:         '8px 12px 12px',
+          backdropFilter:  'blur(2px)',
+          WebkitBackdropFilter: 'blur(2px)',
         }}
       >
-        {/* ── 篩選區 ── */}
         <div
           style={{
-            marginBottom: '20px',
-          }}
+            display:    'flex',
+            alignItems: 'center',
+            gap:        '8px',
+            overflowX:  'auto',
+            scrollbarWidth: 'none',
+            WebkitOverflowScrolling: 'touch',
+          } as React.CSSProperties}
         >
-          {/* 分類篩選 */}
-          <p
+          {/* 視覺搜尋框（v1 唔接真搜尋，API 未有 ?q=）*/}
+          <input
+            type="search"
+            placeholder={t('merchant.search_placeholder')}
+            disabled
             style={{
-              margin:     '0 0 8px',
-              fontSize:   '16px',
-              fontWeight: 'bold',
-              color:      'var(--color-text)',
+              flexShrink:      0,
+              width:           '120px',
+              height:          '44px',
+              borderRadius:    '22px',
+              border:          '1.5px solid rgba(255,255,255,0.35)',
+              background:      'rgba(0,0,0,0.35)',
+              color:           'rgba(255,255,255,0.6)',
+              fontSize:        '15px',
+              padding:         '0 14px',
+              outline:         'none',
+              backdropFilter:  'blur(4px)',
+              WebkitBackdropFilter: 'blur(4px)',
+              cursor:          'not-allowed',
+              fontFamily:      'inherit',
             }}
-          >
-            {t('merchant.filter_category')}
-          </p>
-          <div
-            style={{
-              display:    'flex',
-              gap:        '8px',
-              overflowX:  'auto',
-              paddingBottom: '4px',
-              /* 長者友善：捲動軸不佔位 */
-              scrollbarWidth: 'thin',
-            }}
-          >
-            {CATEGORY_FILTERS.map(opt => (
-              <button
-                key={opt.id}
-                type="button"
-                onClick={() => setActiveCat(prev => prev === opt.id ? null : opt.id)}
-                style={filterBtnStyle(activeCat === opt.id)}
-                aria-pressed={activeCat === opt.id}
-              >
-                {t(opt.labelKey)}
-              </button>
-            ))}
-          </div>
+          />
 
-          {/* 地區篩選 */}
-          <p
-            style={{
-              margin:     '14px 0 8px',
-              fontSize:   '16px',
-              fontWeight: 'bold',
-              color:      'var(--color-text)',
-            }}
-          >
-            {t('merchant.filter_region')}
-          </p>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            {REGION_FILTERS.map(opt => (
-              <button
-                key={opt.id}
-                type="button"
-                onClick={() => setActiveRegion(prev => prev === opt.id ? null : opt.id)}
-                style={filterBtnStyle(activeRegion === opt.id)}
-                aria-pressed={activeRegion === opt.id}
-              >
-                {t(opt.labelKey)}
-              </button>
-            ))}
-          </div>
+          {/* 分類篩選（6 個，CATEGORY_FILTERS id 嚴格對應 seed）*/}
+          {CATEGORY_FILTERS.map(opt => (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => setActiveCat(prev => prev === opt.id ? null : opt.id)}
+              style={chipStyle(activeCat === opt.id)}
+              aria-pressed={activeCat === opt.id}
+            >
+              {t(opt.labelKey)}
+            </button>
+          ))}
 
-          {/* 已篩選時顯示「清除篩選」 */}
+          {/* 地區篩選（3 個，REGION_FILTERS id 嚴格對應 seed）*/}
+          {REGION_FILTERS.map(opt => (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => setActiveRegion(prev => prev === opt.id ? null : opt.id)}
+              style={chipStyle(activeRegion === opt.id)}
+              aria-pressed={activeRegion === opt.id}
+            >
+              {t(opt.labelKey)}
+            </button>
+          ))}
+
+          {/* 清除篩選（有篩選時顯示）*/}
           {(activeCat || activeRegion) && (
             <button
               type="button"
               onClick={() => { setActiveCat(null); setActiveRegion(null) }}
               style={{
-                display:    'block',
-                marginTop:  '10px',
-                minHeight:  '44px',
-                padding:    '0 20px',
-                borderRadius: '10px',
-                border:     '1.5px solid var(--color-divider)',
-                background: 'var(--color-card)',
-                color:      'var(--color-text-secondary)',
-                fontSize:   '16px',
-                fontFamily: 'inherit',
-                cursor:     'pointer',
+                ...chipStyle(false),
+                border: '1.5px solid rgba(255,100,100,0.7)',
+                color:  '#ffaaaa',
               }}
             >
               ✕ {t('merchant.filter_clear')}
             </button>
           )}
         </div>
+      </div>
 
-        {/* ── 商戶列表本體 ── */}
-        {renderBody()}
-      </main>
+      {/* ── 全屏 scroll-snap 容器 ── */}
+      <div
+        style={{
+          height:            '100svh',
+          overflowY:         'scroll',
+          scrollSnapType:    'y mandatory',
+          WebkitOverflowScrolling: 'touch',
+        } as React.CSSProperties}
+      >
+        {loadState === 'loading' && renderLoading()}
+        {loadState === 'error'   && renderError()}
+        {loadState === 'ok' && merchants.length === 0 && renderEmpty()}
+        {loadState === 'ok' && merchants.length > 0 && merchants.map(m => renderCard(m))}
+      </div>
 
+      {/* ── 底部 TabBar ── */}
       <BottomTabBar current="my_recommendations" onTabChange={handleTabChange} />
+
+      {/* ── Toast 提示（分享 fallback）── */}
+      {toast && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            position:        'fixed',
+            bottom:          '90px',
+            left:            '50%',
+            transform:       'translateX(-50%)',
+            backgroundColor: 'rgba(0,0,0,0.75)',
+            color:           '#fff',
+            fontSize:        '16px',
+            padding:         '10px 20px',
+            borderRadius:    '24px',
+            zIndex:          100,
+            pointerEvents:   'none',
+            whiteSpace:      'nowrap',
+          }}
+        >
+          {toast}
+        </div>
+      )}
     </div>
   )
 }
