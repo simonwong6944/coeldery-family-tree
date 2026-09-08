@@ -28,12 +28,7 @@
  */
 
 import type { Env } from '../_types'
-
-/* 85AI base URL 集中一處，方便將來更換 */
-const API85_BASE = 'https://www.coeldery85.com'
-
-/* upstream fetch timeout（毫秒） */
-const UPSTREAM_TIMEOUT_MS = 10_000
+import { call85AiVerify } from './_verify85ai'
 
 export const onRequestPost: PagesFunction<Env> = async (ctx) => {
   /* ── 1. 讀 key（讀唔到 → 503，跟 cloudinary-sign 慣例）── */
@@ -73,36 +68,8 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
     )
   }
 
-  /* ── 3. 向 85AI 代理請求（10s timeout）── */
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS)
-
-  let upstreamRes: Response
-  try {
-    upstreamRes = await fetch(
-      `${API85_BASE}/api/member/verify`,
-      {
-        method:  'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type':  'application/json',
-        },
-        /* 原樣轉傳 member_no + phone；唔多傳其他欄位 */
-        body:    JSON.stringify({ member_no: member_no.trim(), phone: phone.trim() }),
-        signal:  controller.signal,
-      }
-    )
-  } catch (err) {
-    /* fetch 拋異常（包括 AbortError timeout）→ 502 */
-    const isTimeout = err instanceof Error && err.name === 'AbortError'
-    console.error(`[family/verify] upstream fetch ${isTimeout ? 'timeout' : 'error'}`)
-    return Response.json(
-      { ok: false, error: '家族樹服務暫時不可用' },
-      { status: 502 }
-    )
-  } finally {
-    clearTimeout(timer)
-  }
+  /* ── 3. 呼叫共用 helper 向 85AI 代理請求（10s timeout）── */
+  const result = await call85AiVerify(apiKey, member_no.trim(), phone.trim())
 
   /* ── 4. 原樣透傳 upstream status + JSON body，剝走所有 upstream header ── */
   /*
@@ -111,16 +78,8 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
    *     - 避免透傳錯誤的 Content-Length（body 重新序列化後長度可能變）
    *     - 前端只需 status + JSON，header 無用
    */
-  let upstreamJson: unknown
-  try {
-    upstreamJson = await upstreamRes.json()
-  } catch {
-    /* upstream 回嘅唔係 JSON（罕見，但防禦）*/
-    return Response.json(
-      { ok: false, error: '家族樹服務回應格式異常' },
-      { status: 502 }
-    )
+  if (result.ok) {
+    return Response.json(result.data, { status: 200 })
   }
-
-  return Response.json(upstreamJson, { status: upstreamRes.status })
+  return Response.json(result.body, { status: result.httpStatus })
 }
