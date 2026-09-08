@@ -118,19 +118,24 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
    * - 搵到 node 且 coeldery85_member_id IS NULL → UPDATE 寫入 memberNoClean
    * - 搵到 node 但已有值 → 唔郁（避免覆蓋）
    * - 搵唔到 node（電話未被加入任何樹）→ skip 綁定，log，session 照種
-   * try/catch 保底：綁定出錯唔阻塞 session
+   * try/catch 保底：綁定出錯唔阻塞 session，needsSetup 保守預設 true
    */
+  let needsSetup = true  // 保守預設：寧可引導 setup
+
   try {
     const node = await db
       .prepare(
-        `SELECT id, coeldery85_member_id
+        `SELECT id, coeldery85_member_id, password_hash
          FROM members
          WHERE phone = ? AND member_kind = 'person'`
       )
       .bind(phoneClean)
-      .first<{ id: string; coeldery85_member_id: string | null }>()
+      .first<{ id: string; coeldery85_member_id: string | null; password_hash: string | null }>()
 
     if (node) {
+      /* 有 password_hash → 熟客；null/空 → 首次登入 */
+      needsSetup = !node.password_hash
+
       if (node.coeldery85_member_id === null) {
         await db
           .prepare(`UPDATE members SET coeldery85_member_id = ? WHERE id = ?`)
@@ -139,10 +144,11 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
       }
       /* coeldery85_member_id 已有值 → 唔郁 */
     } else {
+      /* 搵唔到 node → 電話未被加過，一定係首次，needsSetup 維持 true */
       console.log('[family/session] phone 未對應 node，skip 綁定，session 照種')
     }
   } catch (e) {
-    /* 綁定失敗唔阻塞 session，記 log 後繼續 */
+    /* 綁定失敗唔阻塞 session，記 log 後繼續；needsSetup 維持保守預設 true */
     console.error('[family/session] UPDATE coeldery85_member_id 失敗:', e)
   }
 
@@ -163,12 +169,13 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
 
   return new Response(
     JSON.stringify({
-      ok:        true,
-      member_no: memberNoClean,
+      ok:          true,
+      member_no:   memberNoClean,
       name_zh,
       tier,
       parent_no,
       relation,
+      needs_setup: needsSetup,
     }),
     {
       status:  200,
