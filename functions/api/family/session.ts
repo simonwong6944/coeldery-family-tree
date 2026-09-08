@@ -12,9 +12,10 @@
  *   2. 呼叫共用 helper call85AiVerify（唔重複帶 key 邏輯）向 85AI 確認身份
  *   3. verify 失敗：原樣回失敗（守 85AI 三態 401 防列舉，唔加料）
  *   4. verify 成功：
- *      a. 查家庭樹本地 is_self = 1 成員，攞 local_member_id + local_family_id
+ *      a. UPDATE members SET coeldery85_member_id = member_no WHERE is_self=1 AND coeldery85_member_id IS NULL
+ *         （過渡：單棵樹單一 is_self；無 is_self → skip 綁定，記 log，session 照種）
  *      b. 生成 64-char hex token（256-bit random）
- *      c. INSERT family_sessions（member_no, local_member_id, local_family_id, expires_at）
+ *      c. INSERT family_sessions（token, member_no, expires_at）—— 唔再存 local id
  *      d. 種 family_session cookie（HttpOnly, Secure, SameSite=Lax, Path=/, MaxAge=30d）
  *      e. 回 { ok: true, member_no, name_zh, tier, ...（verify 返嘅資訊）}
  *
@@ -26,8 +27,8 @@
  *   503  FAMILY_TREE_API_KEY 未設定
  *   400  缺必填欄位
  *   502  upstream fetch 拋出異常 / 10s timeout
- *   409  驗身成功但找不到 is_self member（引導用戶先設定本人）
  *   upstream 非 200 原樣透傳（含 401 防列舉）
+ *   （無 is_self member 只 skip 綁定 + log，session 照種，唔回 409）
  *
  * Cloudflare Pages Function — edge runtime
  * binding: DB (D1)
@@ -109,47 +110,46 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
     return Response.json(verifyResult.body, { status: verifyResult.httpStatus })
   }
 
-  /* ── 4. verify 成功 → 查本地 is_self member ── */
+  /* ── 4. verify 成功 → 嘗試將 is_self member 綁定到此 85AI 會員號 ── */
   const db = ctx.env.DB
 
   /*
-   * 攞第一棵 family + 對應 is_self = 1 成員
-   * 邏輯同 _currentMember.ts 一致，確保回傳嘅 local_family_id / local_member_id
-   * 與現有所有 route 一致
+   * 過渡做法：單棵樹單一 is_self。
+   * UPDATE 只在 coeldery85_member_id IS NULL 時才寫，避免重複登入覆蓋已綁定值。
+   * 無 is_self member（樹未建 / 多租戶待處理）→ skip 綁定，session 照種。
    */
-  const family = await db
-    .prepare('SELECT id FROM families ORDER BY created_at ASC LIMIT 1')
-    .first<{ id: string }>()
+  try {
+    const family = await db
+      .prepare('SELECT id FROM families ORDER BY created_at ASC LIMIT 1')
+      .first<{ id: string }>()
 
-  if (!family) {
-    return Response.json(
-      { ok: false, error: '找不到家族，請先建立成員' },
-      { status: 409 }
-    )
+    if (family) {
+      await db
+        .prepare(
+          `UPDATE members
+           SET coeldery85_member_id = ?
+           WHERE family_id = ? AND is_self = 1 AND coeldery85_member_id IS NULL`
+        )
+        .bind(memberNoClean, family.id)
+        .run()
+    } else {
+      console.log('[family/session] 尚未建立 family，skip coeldery85_member_id 綁定')
+    }
+  } catch (e) {
+    /* 綁定失敗唔阻塞 session，記 log 後繼續 */
+    console.error('[family/session] UPDATE coeldery85_member_id 失敗:', e)
   }
 
-  const selfMember = await db
-    .prepare('SELECT id FROM members WHERE family_id = ? AND is_self = 1 LIMIT 1')
-    .bind(family.id)
-    .first<{ id: string }>()
-
-  if (!selfMember) {
-    return Response.json(
-      { ok: false, error: '未設定本人，請先於成員資料設定本人' },
-      { status: 409 }
-    )
-  }
-
-  /* ── 5. 生成 token、INSERT family_sessions ── */
+  /* ── 5. 生成 token、INSERT family_sessions（只存 member_no，唔存 local id）── */
   const token     = makeToken()
   const expiresAt = sessionExpiry(SESSION_DAYS)
 
   await db
     .prepare(
-      `INSERT INTO family_sessions (token, member_no, local_member_id, local_family_id, expires_at)
-       VALUES (?, ?, ?, ?, ?)`
+      `INSERT INTO family_sessions (token, member_no, expires_at)
+       VALUES (?, ?, ?)`
     )
-    .bind(token, memberNoClean, selfMember.id, family.id, expiresAt)
+    .bind(token, memberNoClean, expiresAt)
     .run()
 
   /* ── 6. 種 family_session cookie + 回傳成功 ── */

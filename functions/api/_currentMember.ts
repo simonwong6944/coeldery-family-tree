@@ -5,9 +5,10 @@
  *
  * ── 優先路徑（有 family_session cookie）──
  *   1. 從 request Cookie header 讀 family_session token
- *   2. 查 family_sessions WHERE token=? AND expires_at > datetime('now')
- *   3. 搵到: 直接用 local_family_id + local_member_id 回傳（唔需要額外 JOIN）
- *   4. 搵唔到 / token 無效 / 過期: fallback 返 is_self 路徑
+ *   2. SELECT member_no FROM family_sessions WHERE token=? AND expires_at > datetime('now')
+ *   3. 搵到 member_no → SELECT id, family_id FROM members WHERE coeldery85_member_id=? LIMIT 1
+ *   4. 搵到 → 回 { ok:true, familyId, memberId }
+ *   5. 搵唔到（對應未建 / 被清）→ fallback 返 is_self 路徑（向後兼容）
  *
  * ── Fallback 路徑（冇 cookie 或 session 無效）——現有行為完全不變 ──
  *   1. SELECT 最早建立的 family（created_at ASC LIMIT 1）
@@ -77,23 +78,36 @@ export async function getCurrentMember(
     const token        = parseCookieValue(cookieHeader, 'family_session')
 
     if (token) {
-      /* 查 DB（同時檢查 token 存在 + 未過期）*/
+      /* 步 1：查 family_sessions 取 member_no */
       const sess = await db
         .prepare(
-          `SELECT local_member_id, local_family_id
+          `SELECT member_no
            FROM family_sessions
            WHERE token = ? AND expires_at > datetime('now')`
         )
         .bind(token)
-        .first<{ local_member_id: string; local_family_id: string }>()
+        .first<{ member_no: string }>()
 
       if (sess) {
-        /* ✅ 有效 session → 直接回真身份，唔走 is_self fallback */
-        return {
-          ok:       true,
-          familyId: sess.local_family_id,
-          memberId: sess.local_member_id,
+        /* 步 2：由 member_no 反查本地 member（經 coeldery85_member_id 對應）*/
+        const member = await db
+          .prepare(
+            `SELECT id, family_id
+             FROM members
+             WHERE coeldery85_member_id = ? LIMIT 1`
+          )
+          .bind(sess.member_no)
+          .first<{ id: string; family_id: string }>()
+
+        if (member) {
+          /* ✅ 有效 session + 對應存在 → 回真身份，唔走 is_self fallback */
+          return {
+            ok:       true,
+            familyId: member.family_id,
+            memberId: member.id,
+          }
         }
+        /* 對應未建（coeldery85_member_id 仍 null）或被清 → fall through 到 is_self fallback */
       }
       /* session 過期 / token 無效 → fall through 到 is_self fallback */
     }
