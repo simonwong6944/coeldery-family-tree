@@ -126,3 +126,76 @@
 **第二人稱：** 一律用「您」，不用「你」。
 
 - 私隱缺口（樹內遠近可見範圍）：已記於 product_decisions.md「[待議 / Backlog] 樹內可見範圍與遠親私隱」，待 SSO／多用戶落實時處理，v1 不做。
+
+# memory_vault.md — CoEldery 85 家庭樹
+
+> 呢份檔案記錄跨 session 嘅重要決策、真實進度、待辦事項。
+> 每次開新 session 前必須讀呢份檔案。
+> ⚠️ 本檔必須反映「實際 code / repo 現況」，唔可以停留喺過時記憶。
+> 任何架構判斷，先對返 schema（migrations）+ Core Document + product_decisions，唔好靠記憶推論。
+
+---
+
+## 真實進度（截至 2026-09，據 repo 實查）
+
+### 已落地到 code / schema
+- **關係模型（edge-based）已建**：`0001_initial_schema.sql` 已有 `families`、`members`、`relationships` 三表。
+  - `members` 有 `member_kind`（person/pet）、`coeldery85_member_id`（預留 SSO 接入，現全 null）。
+  - `relationships` 為 edge-based：`edge_type`（parent_child/marriage/pet_owner）、`relation_type`（biological/adopted/step）、`status`（current/divorced/widowed/separated）。符合 product_decisions v1.4。
+- **成員欄位擴充**：0002 deceased_date、0003 is_self、0004 gender。
+- **家庭圈**：0005 family_feed。
+- **重要日子**：0006 important_dates。
+- **商戶平台**：0007 merchant、0008 merchant_media、0009 merchant_video_sample（含 TikTok 式全屏 video 背景 + IntersectionObserver 自動播放，MyRecommend.tsx v2.1）。
+- **家庭聚會 spec**：`.coappery/family_gather.md` v1.1（聚會發起 + 投票分階段，投票/RSVP 待 SSO 解鎖）。
+
+### 身份接通（路線二 · 弱綁定）進度
+- **85AI 母體側已交付 + live**（www.coeldery85.com）：
+  - `POST /api/member/verify`：member_no + phone 弱綁定比對（非 OTP），成功回 member_no/status/name_zh/tier/parent_no/relation，失敗三態統一 401（防列舉）。
+  - `GET /api/family-tree/members/:no/children`：mode=self/root，同查 parent_no + managed_by，涵蓋 NODE_ONLY 節點。
+  - 認證：Authorization: Bearer <FAMILY_TREE_API_KEY>。
+- **家庭樹側已完成（commit 10b9dfe）**：
+  - server 側代理 route：`functions/api/family/verify.ts`、`functions/api/family/tree/[no].ts`。key 只喺 server 讀（env.FAMILY_TREE_API_KEY），前端永不接觸 key。
+  - `_types.ts` 加 FAMILY_TREE_API_KEY?: string。
+  - 呢兩條代理 route 已 live 但未通電（未有任何 code call 緊佢哋）。
+- **secret 已設**：家庭樹 Pages project + 85AI 兩邊都有 FAMILY_TREE_API_KEY（production，encrypted）。兩邊 key 值必須一致，若食 401 先核對 key 值。
+
+### 進行中 / 設計已定但未寫
+- **session 機制設計已定**（跟 CoLinkery 模式：opaque random token + DB lookup，唔用 HMAC/JWT）。
+  - 新表 family_sessions（token PK、member_no、expires_at、created_at），host-only cookie（httpOnly/secure/sameSite=Lax/path=/、30日）。
+  - 種 cookie 用獨立 route POST /api/family/session；verify.ts 保持純代理。
+  - logout route 清 session。
+- **⚠️ SSO 接駁關鍵（校準後）**：`members.coeldery85_member_id` 係 schema 預留嘅 SSO 接入欄。正確做法 = verify 成功 → 將 member_no 寫入對應 member 嘅 coeldery85_member_id；`_currentMember` 改成「有 session → 用 coeldery85_member_id 認人；冇 → fallback is_self」。唔另創 owner_member_no 等新欄。
+
+---
+
+## 關鍵決策
+
+- **身份接通行路線二（弱綁定）**：member_no + phone 比對，非 OTP。真 SSO（路線一，OTP/JWT）留待將來。（覆蓋 product_decisions 舊「多人投票 out of scope」——已改為分階段，投票/RSVP 待 SSO。）
+- **遷移策略：乙（漸進式）**：`_currentMember` 保留 is_self fallback，有真身份用真、冇跌返 is_self，避免一改全 app 認人邏輯即爛。
+- **session 綁 coeldery85_member_id（schema 預留欄），唔另創新欄。**
+- **家庭樹係共享家族樹（非單人樹）**：據 Core Doc 第五節（SSO + 首次自動建根關係）、3.5（邀請家人加入、自然生長）。多個 person 成員屬同一 family_id = 同一棵樹，各自登入見同一棵、各自貢獻。schema 已支援。
+- **cookie domain：host-only**（跟 85AI colinkery_session 一致）。85AI 現亦 host-only，改母域換唔到即時 SSO 好處又降安全；真 SSO 將來兩邊一齊設計。
+- **Domain：家庭樹正式入口 = https://family.coeldery85.com**（Cloudflare Pages custom domain，Active）。舊 tree.coeldery.com 可設 301（收尾，未做）。同母域 .coeldery85.com 為將來路線一 SSO 鋪路。
+- **測試資料**：現有樹屬測試性質，計劃 fresh start 清理（獨立小動作，非架構重構）。清理範圍：家族樹內容（families/members/relationships/family_feed/important_dates），保留 merchant + 結構 + secret。（未執行，待確認範圍 + 環境。）
+
+---
+
+## 待辦 / 下一步（校準後順序）
+
+1. **（進行中）Task I：session 機制 + _currentMember 改造**，分兩 commit：
+   - Commit 1：加 family_sessions 表 + POST /api/family/session（種 cookie，內部重用代理 verify）+ logout + _currentMember 改 (db, request?) 向後兼容（有 session 用真、冇 fallback is_self），**唔郁 14 個 call site**。verify 成功時寫入 coeldery85_member_id。
+   - Commit 2：逐個 call site 傳 request 通電。
+2. 清測試資料（fresh start）——待確認範圍/環境後執行。
+3. 建樹 / 邀請流程（SSO + edge 模型；含 85AI children route 帶出根關係之接法）。
+4. 前端 gating + 登入 UI。
+5. **tab bar 改動（85AI 母 app）**：底部「心聲💬/工作💼」移去右上角圖示，空出兩格放「家庭樹🌳/CoFilmery🎬」。家庭樹 tab 指 family.coeldery85.com；CoFilmery 未 ready 顯示 coming-soon。⚠️ tab survey S1–S4 仲未交俾 85AI session。
+
+---
+
+## 依賴 _currentMember 嘅 call site（改造時 14 處，7 檔）
+me.ts / reminders.ts / posts.ts(x2) / posts/[id]/comments.ts(x3) / posts/[id]/like.ts(x2) / posts/[id]/index.ts(x2) / members/[id]/important-dates.ts(x3)。統一 pattern：`const cur = await getCurrentMember(ctx.env.DB); if(!cur.ok) return cur.response`。
+
+---
+
+## 教訓（避免重蹈）
+- 2026-09：曾憑走樣記憶推論架構，發明 owner_member_no、質疑共享樹定位，與 Core Doc（SSO 共享樹）+ schema（coeldery85_member_id 預留、relationships edge 表已建）相悖。教訓：任何架構判斷前，先對返 migrations + Core Document + product_decisions，唔靠記憶。
