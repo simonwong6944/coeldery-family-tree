@@ -21,7 +21,8 @@
  *   promoted   = ad_tier === 1（前端做廣告名單）
  *   natural    = ad_tier === 0（前端做自然名單）
  *
- * 每個商戶帶：tags 陣列 [{id, name}]，不回 paid_note（內部營運資料）。
+ * 每個商戶帶：tags 陣列 [{id, name}]；媒體/聯絡欄位 whatsapp / map_url / banner_url /
+ *   video_url / poster_url（migration 0008 新增，nullable）；不回 paid_note（內部營運資料）。
  *
  * 登入 Gate 決策：
  *   商戶列表係全平台公開瀏覽型功能，不綁 family，不需要 getCurrentMember。
@@ -44,6 +45,11 @@ interface MerchantRow {
   address:            string | null
   description:        string | null
   photo_url:          string | null
+  whatsapp:           string | null
+  map_url:            string | null
+  banner_url:         string | null
+  video_url:          string | null
+  poster_url:         string | null
   landmark_id:        string | null
   landmark_name:      string | null
   district_name:      string | null
@@ -69,6 +75,11 @@ interface MerchantItem {
   address:             string | null
   description:         string | null
   photo_url:           string | null
+  whatsapp:            string | null
+  map_url:             string | null
+  banner_url:          string | null
+  video_url:           string | null
+  poster_url:          string | null
   landmark_id:         string | null
   landmark_name:       string | null
   district_name:       string | null
@@ -130,6 +141,11 @@ export const onRequestGet: PagesFunction<Env> = async (ctx) => {
       m.address,
       m.description,
       m.photo_url,
+      m.whatsapp,
+      m.map_url,
+      m.banner_url,
+      m.video_url,
+      m.poster_url,
       m.landmark_id,
       m.category_id,
       m.created_at,
@@ -206,6 +222,11 @@ export const onRequestGet: PagesFunction<Env> = async (ctx) => {
     address:             r.address,
     description:         r.description,
     photo_url:           r.photo_url,
+    whatsapp:            r.whatsapp,
+    map_url:             r.map_url,
+    banner_url:          r.banner_url,
+    video_url:           r.video_url,
+    poster_url:          r.poster_url,
     landmark_id:         r.landmark_id,
     landmark_name:       r.landmark_name,
     district_name:       r.district_name,
