@@ -110,30 +110,36 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
     return Response.json(verifyResult.body, { status: verifyResult.httpStatus })
   }
 
-  /* ── 4. verify 成功 → 嘗試將 is_self member 綁定到此 85AI 會員號 ── */
+  /* ── 4. verify 成功 → 用電話查本人 node，按需寫入 coeldery85_member_id ── */
   const db = ctx.env.DB
 
   /*
-   * 過渡做法：單棵樹單一 is_self。
-   * UPDATE 只在 coeldery85_member_id IS NULL 時才寫，避免重複登入覆蓋已綁定值。
-   * 無 is_self member（樹未建 / 多租戶待處理）→ skip 綁定，session 照種。
+   * 用 phoneClean 查 members，唔再靠「最早 family + is_self」過渡做法。
+   * - 搵到 node 且 coeldery85_member_id IS NULL → UPDATE 寫入 memberNoClean
+   * - 搵到 node 但已有值 → 唔郁（避免覆蓋）
+   * - 搵唔到 node（電話未被加入任何樹）→ skip 綁定，log，session 照種
+   * try/catch 保底：綁定出錯唔阻塞 session
    */
   try {
-    const family = await db
-      .prepare('SELECT id FROM families ORDER BY created_at ASC LIMIT 1')
-      .first<{ id: string }>()
+    const node = await db
+      .prepare(
+        `SELECT id, coeldery85_member_id
+         FROM members
+         WHERE phone = ? AND member_kind = 'person'`
+      )
+      .bind(phoneClean)
+      .first<{ id: string; coeldery85_member_id: string | null }>()
 
-    if (family) {
-      await db
-        .prepare(
-          `UPDATE members
-           SET coeldery85_member_id = ?
-           WHERE family_id = ? AND is_self = 1 AND coeldery85_member_id IS NULL`
-        )
-        .bind(memberNoClean, family.id)
-        .run()
+    if (node) {
+      if (node.coeldery85_member_id === null) {
+        await db
+          .prepare(`UPDATE members SET coeldery85_member_id = ? WHERE id = ?`)
+          .bind(memberNoClean, node.id)
+          .run()
+      }
+      /* coeldery85_member_id 已有值 → 唔郁 */
     } else {
-      console.log('[family/session] 尚未建立 family，skip coeldery85_member_id 綁定')
+      console.log('[family/session] phone 未對應 node，skip 綁定，session 照種')
     }
   } catch (e) {
     /* 綁定失敗唔阻塞 session，記 log 後繼續 */
