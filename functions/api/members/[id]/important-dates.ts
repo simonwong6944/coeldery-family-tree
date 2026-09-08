@@ -55,7 +55,7 @@ export const onRequestGet: PagesFunction<Env> = async (ctx) => {
     return Response.json({ ok: false, error: '缺少 member id' }, { status: 400 })
 
   // 1. 取得當前用戶（確認 family 歸屬）
-  const cur = await getCurrentMember(ctx.env.DB)
+  const cur = await getCurrentMember(ctx.env.DB, ctx.request)
   if (!cur.ok) return cur.response
 
   const { familyId } = cur
@@ -84,7 +84,7 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
     return Response.json({ ok: false, error: '缺少 member id' }, { status: 400 })
 
   // 1. 取得當前用戶
-  const cur = await getCurrentMember(ctx.env.DB)
+  const cur = await getCurrentMember(ctx.env.DB, ctx.request)
   if (!cur.ok) return cur.response
 
   const { familyId } = cur
@@ -138,7 +138,7 @@ export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
     return Response.json({ ok: false, error: '缺少 member id' }, { status: 400 })
 
   // 1. 取得當前用戶（確認 family 歸屬）
-  const cur = await getCurrentMember(ctx.env.DB)
+  const cur = await getCurrentMember(ctx.env.DB, ctx.request)
   if (!cur.ok) return cur.response
 
   const { familyId } = cur
@@ -230,7 +230,7 @@ export const onRequestDelete: PagesFunction<Env> = async (ctx) => {
     return Response.json({ ok: false, error: '缺少 member id' }, { status: 400 })
 
   // 1. 取得當前用戶
-  const cur = await getCurrentMember(ctx.env.DB)
+  const cur = await getCurrentMember(ctx.env.DB, ctx.request)
   if (!cur.ok) return cur.response
 
   const { familyId } = cur

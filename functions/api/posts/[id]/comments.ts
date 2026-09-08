@@ -36,7 +36,7 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
   if (!postId) return Response.json({ ok: false, error: '缺少 post id' }, { status: 400 })
 
   // 1. 取得當前用戶
-  const cur = await getCurrentMember(ctx.env.DB)
+  const cur = await getCurrentMember(ctx.env.DB, ctx.request)
   if (!cur.ok) return cur.response
 
   const { memberId: authorId } = cur
@@ -87,7 +87,7 @@ export const onRequestDelete: PagesFunction<Env> = async (ctx) => {
     return Response.json({ ok: false, error: '缺少 post id' }, { status: 400 })
 
   // 1. 取得當前用戶
-  const cur = await getCurrentMember(ctx.env.DB)
+  const cur = await getCurrentMember(ctx.env.DB, ctx.request)
   if (!cur.ok) return cur.response
 
   const { memberId } = cur
@@ -139,7 +139,7 @@ export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
     return Response.json({ ok: false, error: '缺少 post id' }, { status: 400 })
 
   // 1. 取得當前用戶
-  const cur = await getCurrentMember(ctx.env.DB)
+  const cur = await getCurrentMember(ctx.env.DB, ctx.request)
   if (!cur.ok) return cur.response
 
   const { memberId } = cur

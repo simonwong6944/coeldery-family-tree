@@ -15,7 +15,7 @@ import type { Env } from './_types'
 import { getCurrentMember } from './_currentMember'
 
 export const onRequestGet: PagesFunction<Env> = async (ctx) => {
-  const cur = await getCurrentMember(ctx.env.DB)
+  const cur = await getCurrentMember(ctx.env.DB, ctx.request)
 
   if (!cur.ok) {
     // 沿用 _currentMember 已建構好的 409 Response（含 JSON body）

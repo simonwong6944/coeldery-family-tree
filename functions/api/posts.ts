@@ -50,7 +50,7 @@ interface MyLikeRow {
 
 /* ─── GET /api/posts ─── */
 export const onRequestGet: PagesFunction<Env> = async (ctx) => {
-  const cur = await getCurrentMember(ctx.env.DB)
+  const cur = await getCurrentMember(ctx.env.DB, ctx.request)
   if (!cur.ok) return cur.response
 
   const { familyId, memberId: selfMemberId } = cur
@@ -146,7 +146,7 @@ export const onRequestGet: PagesFunction<Env> = async (ctx) => {
 /* ─── POST /api/posts ─── */
 export const onRequestPost: PagesFunction<Env> = async (ctx) => {
   // 1. 取得當前用戶
-  const cur = await getCurrentMember(ctx.env.DB)
+  const cur = await getCurrentMember(ctx.env.DB, ctx.request)
   if (!cur.ok) return cur.response
 
   const { familyId, memberId: authorId } = cur

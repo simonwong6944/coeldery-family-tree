@@ -109,7 +109,7 @@ function nextAnniversary(
 /* ── GET /api/reminders ── */
 export const onRequestGet: PagesFunction<Env> = async (ctx) => {
   // 1. 攞當前 family（搵唔到 → helper 已含清晰 4xx）
-  const cur = await getCurrentMember(ctx.env.DB)
+  const cur = await getCurrentMember(ctx.env.DB, ctx.request)
   if (!cur.ok) return cur.response
 
   const { familyId } = cur
