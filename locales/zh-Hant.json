@@ -196,7 +196,10 @@
     "relation_sentence_is": "是",
     "label_phone": "電話號碼",
     "placeholder_phone": "例：91234567",
-    "phone_hint": "請輸入 8 位香港電話號碼"
+    "phone_hint": "請輸入 8 位香港電話號碼",
+    "invite_auto_sent": "已自動發送 WhatsApp 邀請",
+    "invite_pending": "邀請將於系統就緒後發送",
+    "invite_failed": "邀請發送失敗，可稍後於成員頁重試"
   },
   "placeholder": {
     "family_feed_title": "家庭圈",

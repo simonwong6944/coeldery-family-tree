@@ -32,6 +32,7 @@ export default function B3AddMember() {
   const [phone, setPhone] = useState('')
   const [birthDate, setBirthDate] = useState('')
   const [submitStatus, setSubmitStatus] = useState<SubmitStatus>('idle')
+  const [inviteSent, setInviteSent] = useState<'idle'|'sent'|'skipped'|'failed'>('idle')
   const [existingPersons, setExistingPersons] = useState<ExistingMember[]>([])
 
   useEffect(() => {
@@ -58,6 +59,21 @@ export default function B3AddMember() {
       const res = await fetch('/api/members', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setSubmitStatus('done')
+      /* ── person only：加人成功後自動發 WhatsApp 邀請（失敗唔影響加人狀態）── */
+      if (!isPet) {
+        try {
+          const invRes = await fetch('/api/family/invite', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone: phoneNorm, invitee_name: personName.trim() }),
+          })
+          const invData = invRes.ok ? await invRes.json() as { sent?: boolean } : { sent: false }
+          setInviteSent(invData.sent ? 'sent' : 'skipped')
+        } catch {
+          setInviteSent('failed')
+        }
+      }
     } catch { setSubmitStatus('error') }
   }
 
@@ -166,7 +182,10 @@ export default function B3AddMember() {
       {Array.from({length:81},(_,i)=><div key={i} style={{ backgroundColor:((i+Math.floor(i/9))%2===0)?'var(--color-primary)':'var(--color-bg)' }} />)}
     </div>
     <p style={{ textAlign:'center', margin:'0 0 20px', fontSize:'18px', color:'var(--color-text-secondary)' }}>{t('b3.qr_helper')}</p>
-    <button style={{ ...pill(), width:'100%', marginBottom:'16px' }}>{t('b3.whatsapp_invite_btn')}</button>
+    {/* 自動邀請狀態文字（取代死掣） */}
+    {inviteSent === 'sent'    && <p style={{ textAlign:'center', margin:'0 0 16px', fontSize:'16px', color:'var(--color-primary)', fontWeight:'bold' }}>{t('b3.invite_auto_sent')}</p>}
+    {inviteSent === 'skipped' && <p style={{ textAlign:'center', margin:'0 0 16px', fontSize:'16px', color:'var(--color-text-secondary)' }}>{t('b3.invite_pending')}</p>}
+    {inviteSent === 'failed'  && <p style={{ textAlign:'center', margin:'0 0 16px', fontSize:'16px', color:'var(--color-accent)' }}>{t('b3.invite_failed')}</p>}
     <p style={{ textAlign:'center', margin:'0 0 20px', fontSize:'18px', color:'var(--color-text-secondary)' }}>{t('b3.invite_footnote')}</p>
     <div style={{ display:'flex', gap:'12px' }}>
       <button onClick={()=>setStep(2)} style={{ ...pillGhost, flex:1 }}>{t('b3.btn_prev')}</button>
@@ -182,6 +201,10 @@ export default function B3AddMember() {
       {isErr ? circle('var(--color-accent)',<span style={{ fontSize:'40px', color:'var(--color-card)' }}>！</span>) : circle('var(--color-primary)',<svg width="52" height="52" viewBox="0 0 52 52" fill="none" aria-hidden="true"><path d="M10 28L22 40L42 14" stroke="white" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"/></svg>)}
       <h2 style={{ fontSize:'22px', fontWeight:'bold', color:isErr?'var(--color-accent)':'var(--color-primary)', margin:0 }}>{t(isErr?'b3.error_heading':'b3.success_heading')}</h2>
       <p style={{ fontSize:'18px', color:'var(--color-text-secondary)', margin:0, textAlign:'center' }}>{isErr?t('b3.error_sub'):t('b3.success_sub',{name:isPet?petName:personName})}</p>
+      {/* person 成功時顯示邀請狀態提示 */}
+      {!isErr && !isPet && inviteSent === 'sent'    && <p style={{ fontSize:'16px', color:'var(--color-primary)', margin:'4px 0 0', textAlign:'center' }}>{t('b3.invite_auto_sent')}</p>}
+      {!isErr && !isPet && inviteSent === 'skipped' && <p style={{ fontSize:'16px', color:'var(--color-text-secondary)', margin:'4px 0 0', textAlign:'center' }}>{t('b3.invite_pending')}</p>}
+      {!isErr && !isPet && inviteSent === 'failed'  && <p style={{ fontSize:'16px', color:'var(--color-accent)', margin:'4px 0 0', textAlign:'center' }}>{t('b3.invite_failed')}</p>}
       {isErr ? <button onClick={()=>{ setSubmitStatus('idle'); setStep(isPet?2:3) }} style={{ ...pillGhost, marginTop:'8px' }}>{t('b3.btn_retry')}</button>
              : <button onClick={()=>{ window.location.hash='#/' }} style={{ ...pill(), marginTop:'8px' }}>{t('b3.btn_back_home')}</button>}
     </div>
