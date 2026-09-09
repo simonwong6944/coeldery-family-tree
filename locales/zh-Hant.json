@@ -193,7 +193,10 @@
     "relation_mother": "母親",
     "relation_son": "兒子",
     "relation_daughter": "女兒",
-    "relation_sentence_is": "是"
+    "relation_sentence_is": "是",
+    "label_phone": "電話號碼",
+    "placeholder_phone": "例：91234567",
+    "phone_hint": "請輸入 8 位香港電話號碼"
   },
   "placeholder": {
     "family_feed_title": "家庭圈",

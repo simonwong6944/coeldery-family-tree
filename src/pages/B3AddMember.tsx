@@ -29,6 +29,7 @@ export default function B3AddMember() {
   const [petOwnerIds, setPetOwnerIds] = useState<Set<string>>(new Set())
   const [petName, setPetName] = useState('')
   const [personName, setPersonName] = useState('')
+  const [phone, setPhone] = useState('')
   const [birthDate, setBirthDate] = useState('')
   const [submitStatus, setSubmitStatus] = useState<SubmitStatus>('idle')
   const [existingPersons, setExistingPersons] = useState<ExistingMember[]>([])
@@ -51,6 +52,7 @@ export default function B3AddMember() {
     try {
       const backendRelation = relationUi ? UI_TO_BACKEND[relationUi] : undefined
       const body: Record<string, unknown> = { member_kind: memberType, display_name: isPet ? petName.trim() : personName.trim(), birth_date: birthDate || undefined, gender: gender ?? undefined }
+      if (!isPet) body.phone = phoneNorm
       if (!isPet && backendRelation) { body.relation_key = backendRelation; if (targetId) body.target_member_id = targetId }
       if (isPet) body.owner_member_ids = Array.from(petOwnerIds)
       const res = await fetch('/api/members', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -84,7 +86,11 @@ export default function B3AddMember() {
     </div>
   )
 
-  const step2PersonValid = !!personName.trim() && (isFirstMember || !!targetId)
+  /* phone normalize + 驗證（同 setup.ts/login.ts 同一套） */
+  const phoneNorm = (() => { let n = phone.replace(/\D/g, ''); if (n.startsWith('852')) n = n.slice(3); if (n.length > 8) n = n.slice(-8); return n })()
+  const phoneValid = /^\d{8}$/.test(phoneNorm)
+
+  const step2PersonValid = !!personName.trim() && phoneValid && (isFirstMember || !!targetId)
 
   /* ─── Step 1 ─── */
   if (step === 1) return <Shell onBack={()=>{ window.location.hash='#/' }} totalDots={totalDots} dotStep={dotStep}>
@@ -103,6 +109,9 @@ export default function B3AddMember() {
     <h2 style={{ fontSize:'20px', fontWeight:'bold', margin:'0 0 16px' }}>{t('b3.step2_person_title')}</h2>
     {lbl('b3.label_name')}
     <input type="text" placeholder={t('b3.placeholder_name')} value={personName} onChange={e=>setPersonName(e.target.value)} style={{ ...input, marginBottom:'16px' }} />
+    {lbl('b3.label_phone')}
+    <input type="tel" inputMode="numeric" placeholder={t('b3.placeholder_phone')} value={phone} onChange={e=>setPhone(e.target.value)} style={{ ...input, marginBottom: phone && !phoneValid ? '4px' : '16px' }} />
+    {phone && !phoneValid && <p style={{ margin:'0 0 12px', fontSize:'16px', color:'#d32f2f' }}>{t('b3.phone_hint')}</p>}
     {genderPicker}
     <label style={{ display:'block', fontSize:'18px', fontWeight:'bold', marginBottom:'8px' }}>{t('b3.relation_sentence_label')}</label>
     {/* 對象選擇 */}
