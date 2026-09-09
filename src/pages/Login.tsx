@@ -72,7 +72,8 @@ export default function Login({ handoffSetup = false }: LoginProps) {
         credentials:'include', body:JSON.stringify({ phone:phone.trim(), password }),
       })
       const data = await res.json() as Record<string,unknown>
-      if (res.ok && data.needs_setup === false) { window.location.hash='#/'; return }
+      // 強制整頁重載確保新 family_session cookie 在 /api/family/me 生效，消除 race condition
+      if (res.ok && data.needs_setup === false) { window.location.assign('/'); return }
       if (res.ok && data.needs_setup === true)  {
         // 帶電話去 setup 版，密碼清空（setup 版重新設定）
         setPassword(''); setPwConfirm('')
@@ -102,7 +103,8 @@ export default function Login({ handoffSetup = false }: LoginProps) {
           body:JSON.stringify({ password, nickname:nickname.trim(), birth_date:birthDate }),
         })
         const data = await res.json() as Record<string,unknown>
-        if (res.ok && data.ok)    { window.location.hash='#/'; return }
+        // 強制整頁重載（同 handleLogin），確保 cookie 在 /api/family/me 生效
+        if (res.ok && data.ok)    { window.location.assign('/'); return }
         if (res.status===401)     { setError(t('login.error_generic')); return }  // session 失效
         if (res.status===403)     { setError(t('login.setup_not_member'));  return }
         if (res.status===409)     { setError(t('login.setup_node_exists')); return }
@@ -115,7 +117,8 @@ export default function Login({ handoffSetup = false }: LoginProps) {
           body:JSON.stringify({ phone:phone.trim(), password, nickname:nickname.trim(), birth_date:birthDate }),
         })
         const data = await res.json() as Record<string,unknown>
-        if (res.ok && data.ok)    { window.location.hash='#/'; return }
+        // 強制整頁重載（同 handleLogin），確保 cookie 在 /api/family/me 生效
+        if (res.ok && data.ok)    { window.location.assign('/'); return }
         if (res.status===403)     { setError(t('login.setup_not_member'));  return }
         if (res.status===409)     { setError(t('login.setup_node_exists')); return }
         setError(String(data.error ?? t('login.error_generic')))
