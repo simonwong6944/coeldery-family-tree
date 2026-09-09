@@ -111,7 +111,7 @@ export default function B3AddMember() {
     <input type="text" placeholder={t('b3.placeholder_name')} value={personName} onChange={e=>setPersonName(e.target.value)} style={{ ...input, marginBottom:'16px' }} />
     {lbl('b3.label_phone')}
     <input type="tel" inputMode="numeric" placeholder={t('b3.placeholder_phone')} value={phone} onChange={e=>setPhone(e.target.value)} style={{ ...input, marginBottom: phone && !phoneValid ? '4px' : '16px' }} />
-    {phone && !phoneValid && <p style={{ margin:'0 0 12px', fontSize:'16px', color:'#d32f2f' }}>{t('b3.phone_hint')}</p>}
+    {phone && !phoneValid && <p style={{ margin:'0 0 12px', fontSize:'16px', color:'var(--color-accent)' }}>{t('b3.phone_hint')}</p>}
     {genderPicker}
     <label style={{ display:'block', fontSize:'18px', fontWeight:'bold', marginBottom:'8px' }}>{t('b3.relation_sentence_label')}</label>
     {/* 對象選擇 */}
