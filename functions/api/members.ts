@@ -25,8 +25,11 @@
  * person 加人流程（額外步驟）：
  *   1. 讀 family_session cookie → SELECT family_sessions → 攞 actorMemberNo（加人者）
  *      攞唔到 → 401（確保操作者已登入）
- *   2. 85AI lookup → lk.isMember=true → linkedMemberNo = lk.memberNo；否則 null
- *   3. INSERT members 帶 coeldery85_member_id（會員 member_no 或 NULL）
+ *   2. 85AI lookup → lk.isMember=true → linkedMemberNo = lk.memberNo
+ *                   lk.isMember=false → call createNode85ai 建 NODE_ONLY
+ *                     成功 → linkedMemberNo = cn.memberNo
+ *                     失敗 → 硬淨 return 502（唔 INSERT 家庭樹 node）
+ *   3. INSERT members 帶 coeldery85_member_id（必有值，除非提早 return）
  *
  * pet 加人：唔強制 cookie 認證，coeldery85_member_id 維持 NULL，其餘邏輯不變。
  *
@@ -40,6 +43,7 @@
 
 import type { Env } from './_types'
 import { lookup85AiByPhone } from './family/_lookup85ai'
+import { createNode85ai } from './family/_createNode85ai'
 
 /* ════════════════════════════════════════════════════════════
  * 工具函式
@@ -117,7 +121,7 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
   // person 專屬流程（pet 跳過此整個區塊）
   // ════════════════════════════════════════════════════════
   let phoneNorm: string | null = null
-  let linkedMemberNo: string | null = null   // 85AI lookup 得到的 member_no（或 null）
+  let linkedMemberNo: string | null = null   // 85AI lookup / createNode85ai 得到的 member_no
 
   if (member_kind === 'person') {
 
@@ -133,8 +137,8 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
     if (!sessionRow) {
       return Response.json({ ok: false, error: '請先登入' }, { status: 401 })
     }
-    // actorMemberNo 記入（可供日後 audit log 使用）
-    const _actorMemberNo = sessionRow.member_no   // eslint-disable-line @typescript-eslint/no-unused-vars
+    // actorMemberNo：加人者 member_no，用作 NODE_ONLY 建立時的 managed_by
+    const actorMemberNo = sessionRow.member_no
 
     // ── ② phone normalize ──
     const rawPhone = typeof phone === 'string' ? phone : ''
@@ -164,8 +168,37 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
     if (lk.isMember === true) {
       // 被加者係 85AI 會員 → 記住其 member_no 以便寫入 coeldery85_member_id
       linkedMemberNo = lk.memberNo
+    } else {
+      // ── ④ 被加者非會員 → 向 85AI 建立 NODE_ONLY 純節點 ──
+      // 抽 birthYear：birth_date 有值且符合 YYYY-MM-DD 格式才傳
+      const birthYearNum: number | undefined = (() => {
+        if (typeof birth_date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(birth_date)) {
+          return parseInt(birth_date.slice(0, 4), 10)
+        }
+        return undefined
+      })()
+
+      const cn = await createNode85ai(apiKey, {
+        nameZh:    display_name.trim(),
+        managedBy: actorMemberNo,
+        ...(gender     !== undefined ? { gender }              : {}),
+        ...(birthYearNum !== undefined ? { birthYear: birthYearNum } : {}),
+        // deceasedDate 呢個加人流程冇收，唔傳
+      })
+
+      if (!cn.ok) {
+        // 硬淨失敗：唔好 INSERT 家庭樹 node，確保本地 node 一定有 85AI 對應
+        // 只記事件 log，唔記 upstream body 敏感內容
+        console.error(`[members/createNode] NODE_ONLY build failed, httpStatus=${cn.httpStatus}`)
+        return Response.json(
+          { ok: false, error: '無法在會員系統建立成員記錄，請稍後再試' },
+          { status: 502 }
+        )
+      }
+
+      // NODE_ONLY 建立成功 → 綁新 member_no
+      linkedMemberNo = cn.memberNo
     }
-    // lk.isMember === false → linkedMemberNo 維持 null（非會員照建 node，唔綁 member_no）
   }
 
   // ── 建立成員節點 ──
@@ -181,7 +214,7 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
       birth_date ?? null,
       gender ?? null,
       phoneNorm,          // person → normalize 後電話；pet → null
-      linkedMemberNo,     // person 85AI 會員 → member_no；person 非會員 / pet → null
+      linkedMemberNo,     // person 會員 → lookup member_no；非會員 → NODE_ONLY member_no；pet → null
     ).run()
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e)
