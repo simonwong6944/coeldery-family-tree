@@ -453,7 +453,7 @@
     "error_password_empty": "請輸入密碼",
     "error_credentials": "電話或密碼錯誤",
     "error_generic": "發生錯誤，請稍後再試",
-    "setup_hint": "您係新用戶，請先完成基本設定",
+    "setup_hint": "您是新用戶，請先完成基本設定",
     "setup_title": "首次設定",
     "nickname_label": "暱稱",
     "nickname_placeholder": "請輸入您的暱稱",
