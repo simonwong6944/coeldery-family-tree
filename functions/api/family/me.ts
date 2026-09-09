@@ -11,7 +11,7 @@
  *   1. 讀 Cookie header → parse family_session token
  *   2. SELECT member_no FROM family_sessions WHERE token = ? AND expires_at > datetime('now')
  *   3. 冇 cookie / 查唔到 / 過期 → 401 { ok: false }
- *   4. 有效 → 用 member_no 反查本人 node
+ *   4. 有效 → 呼叫 resolvePrimaryTree(db, memberNo) 計算主樹
  *
  * 分支：
  *   A. session 無效 → 401 { ok: false }
@@ -19,6 +19,10 @@
  *      → 200 { ok: true, member_no, member_id, family_id, nickname, display_name }
  *   C. session 有效，但 node 未建（剛 verify 未 setup）
  *      → 200 { ok: true, member_no, member_id: null, family_id: null, nickname: null, display_name: null }
+ *
+ * 主樹計算由 _resolvePrimaryTree 共用 helper 負責（同 _currentMember.ts 一致）：
+ *   舊版「SELECT ... WHERE coeldery85_member_id = ? LIMIT 1」已替換為 resolvePrimaryTree，
+ *   確保兩個 endpoint 對同一用戶永遠選出相同的主樹節點。
  *
  * 錯誤：
  *   401  無效 session（冇 cookie / 過期 / 查唔到）
@@ -29,6 +33,7 @@
  */
 
 import type { Env } from '../_types'
+import { resolvePrimaryTree } from '../_resolvePrimaryTree'
 
 /* ────────────────────────────────────────────────────────────
  * 從 Cookie header string parse 出指定 cookie 值
@@ -78,30 +83,44 @@ export const onRequestGet: PagesFunction<Env> = async (ctx) => {
 
     const memberNo = sess.member_no
 
-    /* ── 3. 用 member_no 反查本人 node ── */
-    const node = await db
-      .prepare(
-        `SELECT id, family_id, nickname, display_name
-         FROM members
-         WHERE coeldery85_member_id = ? AND member_kind = 'person'
-         LIMIT 1`
-      )
-      .bind(memberNo)
-      .first<{
-        id:           string
-        family_id:    string
-        nickname:     string | null
-        display_name: string
-      }>()
+    /* ── 3. 呼叫 resolvePrimaryTree 計算主樹 ──
+     *
+     * 移除位置：原「SELECT id, family_id, nickname, display_name
+     *                    FROM members WHERE coeldery85_member_id = ? AND member_kind = 'person'
+     *                    LIMIT 1」
+     * 改為呼叫 resolvePrimaryTree，與 _currentMember.ts 使用相同主樹計算邏輯。
+     */
+    const pt = await resolvePrimaryTree(db, memberNo)
 
-    /* ── B/C. 回應（ok 均為 true，node 未建時 id/family_id 回 null）── */
+    /* ── C branch：session 有效但 node 未建（pt === null）── */
+    if (pt === null) {
+      return Response.json({
+        ok:           true,
+        member_no:    memberNo,
+        member_id:    null,
+        family_id:    null,
+        nickname:     null,
+        display_name: null,
+      })
+    }
+
+    /* ── B branch：有主樹，查 nickname / display_name ── */
+    const nodeDetail = await db
+      .prepare(
+        `SELECT nickname, display_name
+         FROM members
+         WHERE id = ?`
+      )
+      .bind(pt.primaryMemberId)
+      .first<{ nickname: string | null; display_name: string }>()
+
     return Response.json({
       ok:           true,
       member_no:    memberNo,
-      member_id:    node?.id           ?? null,
-      family_id:    node?.family_id    ?? null,
-      nickname:     node?.nickname     ?? null,
-      display_name: node?.display_name ?? null,
+      member_id:    pt.primaryMemberId,
+      family_id:    pt.primaryFamilyId,
+      nickname:     nodeDetail?.nickname     ?? null,
+      display_name: nodeDetail?.display_name ?? null,
     })
 
   } catch (e) {
