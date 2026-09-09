@@ -467,6 +467,12 @@
     "birth_date_label": "生日",
     "setup_submit": "完成設定",
     "error_nickname_empty": "請輸入暱稱",
-    "error_birth_date": "請輸入有效生日（YYYY-MM-DD）"
+    "error_birth_date": "請輸入有效生日（YYYY-MM-DD）",
+    "setup_pwd_label": "密碼",
+    "setup_pwd_confirm_label": "確認密碼",
+    "setup_pwd_mismatch": "兩次密碼不一致",
+    "setup_pwd_too_short": "密碼至少 8 個字元",
+    "setup_not_member": "此電話尚未登記為 CoEldery 85 會員，請先完成會員登記",
+    "setup_node_exists": "此電話已設定過，請返回以電話 + 密碼登入"
   }
 }
