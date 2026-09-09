@@ -15,7 +15,7 @@
  *   4. 攞到 member_no（只信 DB，唔信前端）
  *
  * 收 body：
- *   { password: string, nickname: string, birth_date: string (YYYY-MM-DD) }
+ *   { password: string, nickname: string, birth_date: string (YYYY-MM-DD), phone: string }
  *
  * 寫入邏輯（用 member_no 認本人 node）：
  *   A. SELECT id, family_id FROM members WHERE coeldery85_member_id = ? AND member_kind = 'person'
@@ -23,8 +23,9 @@
  *   B. 搵唔到 → 建新樹 + 開自己 node
  *      → INSERT families (id, name)
  *      → INSERT members (id, family_id, member_kind, display_name, birth_date,
- *                        coeldery85_member_id, nickname, password_hash)
- *      → phone 暫留 NULL（cookie 只有 member_no，反查唔到電話；將來由 profile 補）
+ *                        coeldery85_member_id, nickname, password_hash, phone)
+ *      → phone normalize 後填入（去非數字、去 852/+852 前綴、留最後 8 位）
+ *      → 電話重複（partial unique index）→ 409（此電話已有節點，請改用登入）
  *
  * 回應（200）：
  *   { ok: true, member_id, family_id, created_new: boolean }
@@ -32,7 +33,8 @@
  *
  * 錯誤：
  *   401  冇 / 過期 session
- *   400  欄位不合格（密碼 < 8、nickname 空、birth_date 格式錯）
+ *   400  欄位不合格（密碼 < 8、nickname 空、birth_date 格式錯、phone 格式錯）
+ *   409  電話已有節點（partial unique index 撞 UNIQUE）
  *   500  DB 錯（記 log）
  *
  * Cloudflare Pages Function — edge runtime（Web Crypto 可用）
@@ -198,6 +200,33 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
   }
   const birthDate = birthDateRaw.trim()
 
+  /* phone — normalize：去非數字 → 去 852/+852 前綴 → 留最後 8 位 */
+  const phoneRaw = body.phone
+  if (!phoneRaw || typeof phoneRaw !== 'string') {
+    return Response.json(
+      { ok: false, error: '電話格式錯誤' },
+      { status: 400 },
+    )
+  }
+  /* 1. 只保留數字 */
+  let phoneNorm = phoneRaw.replace(/\D/g, '')
+  /* 2. 去 852 前綴（+852 已被上一步變成 852）*/
+  if (phoneNorm.startsWith('852')) {
+    phoneNorm = phoneNorm.slice(3)
+  }
+  /* 3. 留最後 8 位（防帶國碼卻非 852 嘅情況）*/
+  if (phoneNorm.length > 8) {
+    phoneNorm = phoneNorm.slice(-8)
+  }
+  /* 4. 必須恰好 8 位純數字 */
+  if (!/^\d{8}$/.test(phoneNorm)) {
+    return Response.json(
+      { ok: false, error: '電話格式錯誤' },
+      { status: 400 },
+    )
+  }
+  const phone = phoneNorm
+
   /* ── 計算 password hash（PBKDF2-SHA256）── */
   let passwordHash: string
   try {
@@ -244,8 +273,8 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
     }
 
     /* ── B. 搵唔到 node → 建新樹 + 開自己 node ── */
-    const familyId  = makeId()
-    const memberId  = makeId()
+    const familyId   = makeId()
+    const memberId   = makeId()
     const familyName = `${nickname}家族樹`
 
     /* B-1. INSERT families */
@@ -257,24 +286,37 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
       .bind(familyId, familyName)
       .run()
 
-    /* B-2. INSERT members
-     *  - phone 暫留 NULL：cookie 只有 member_no，反查唔到電話
-     *    （被加入嘅 node 本身已有電話；自建 node 首次冇電話，可接受，將來由 profile 補）
+    /* B-2. INSERT members（含 phone，防止換機重複開樹）
+     *  - phone 填 normalize 後 8 位；partial unique index 保護唔重複
      *  - display_name 暫用 nickname
+     *  若電話撞 unique index → catch 接住回 409
      */
-    await db
-      .prepare(
-        `INSERT INTO members
-           (id, family_id, member_kind, display_name, birth_date,
-            coeldery85_member_id, nickname, password_hash)
-         VALUES (?, ?, 'person', ?, ?, ?, ?, ?)`
-      )
-      .bind(memberId, familyId, nickname, birthDate, memberNo, nickname, passwordHash)
-      .run()
+    try {
+      await db
+        .prepare(
+          `INSERT INTO members
+             (id, family_id, member_kind, display_name, birth_date,
+              coeldery85_member_id, nickname, password_hash, phone)
+           VALUES (?, ?, 'person', ?, ?, ?, ?, ?, ?)`
+        )
+        .bind(memberId, familyId, nickname, birthDate, memberNo, nickname, passwordHash, phone)
+        .run()
+    } catch (insertErr) {
+      /* 電話重複觸發 partial unique index → 回 409 */
+      const msg = insertErr instanceof Error ? insertErr.message : String(insertErr)
+      if (msg.toLowerCase().includes('unique')) {
+        console.warn(`[family/setup] phone ${phone} 撞 unique index（member_no=${memberNo}）`)
+        return Response.json(
+          { ok: false, error: '此電話已有節點，請改用登入' },
+          { status: 409 },
+        )
+      }
+      throw insertErr   // 其他 DB 錯 → 交由外層 catch 處理
+    }
 
     console.log(
-      `[family/setup] 新建 family ${familyId}、member ${memberId}（member_no=${memberNo}）`,
-      '⚠️ phone 暫留 NULL，將來由 profile 補'
+      `[family/setup] 新建 family ${familyId}、member ${memberId}` +
+      `（member_no=${memberNo}，phone=${phone}）`
     )
 
     return Response.json({
