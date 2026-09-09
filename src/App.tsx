@@ -1,6 +1,7 @@
 import './utils/i18n'
 import './index.css'
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import B1HomePage from './pages/B1HomePage'
 import B2PersonDetail from './pages/B2PersonDetail'
 import B2PetDetail from './pages/B2PetDetail'
@@ -13,11 +14,17 @@ import EventDetail from '../packages/event-detail'
 import Login from './pages/Login'
 
 /**
- * App root — 全域桌面置中限寬容器 + 輕量 Hash Router
+ * App root — 全域桌面置中限寬容器 + 輕量 Hash Router + Auth Gate
  *
  * 桌面（>480px）：最大闊度 480px，水平置中，側邊留白。
  * 手機（≤480px）：滿版（width: 100%），無側邊留白。
- * backgroundColor 與 --color-bg 一致，令側邊留白區域色調融合。
+ *
+ * Auth Gate（mount 時跑一次 GET /api/family/me）：
+ *   checking → 顯示載入畫面
+ *   authed   → 行現有 hash route（須 200 && ok && member_id 非 null）
+ *   guest    → useEffect 導向 #/login（唔喺 render 同步改 hash）
+ *
+ * #/login 一律直通，唔受 gate 攔截（避免死循環）。
  *
  * Routes（hash-based，無需 npm package）：
  *   #/            → B1HomePage（家庭樹主頁，預設）
@@ -30,7 +37,10 @@ import Login from './pages/Login'
  *   #/my-recommend → MyRecommend（我的推薦 placeholder）
  *   #/event-celebration → EventDetail（慶祝版，陳大文生日）
  *   #/event-memorial    → EventDetail（忌辰莊重版，陳李秀英）
+ *   #/login             → Login（登入 / 首次設定）
  */
+
+type AuthState = 'checking' | 'authed' | 'guest'
 
 function useHashRoute(): string {
   const [hash, setHash] = useState(() => window.location.hash || '#/')
@@ -42,9 +52,98 @@ function useHashRoute(): string {
   return hash
 }
 
+/* ── 載入畫面（同 B1HomePage loading 同款 style）── */
+function LoadingScreen() {
+  const { t } = useTranslation()
+  return (
+    <div style={{
+      minHeight: '100svh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'var(--color-bg)',
+      color: 'var(--color-text-secondary)',
+      fontSize: '16px',
+    }}>
+      {t('common.loading')}
+    </div>
+  )
+}
+
 function App() {
   const hash = useHashRoute()
+  const [authState, setAuthState] = useState<AuthState>('checking')
 
+  /* ── mount 時查 session（跑一次）── */
+  useEffect(() => {
+    fetch('/api/family/me', { credentials: 'include' })
+      .then(async (res) => {
+        if (!res.ok) { setAuthState('guest'); return }
+        const body = await res.json() as Record<string, unknown>
+        /* 須 ok:true 且 member_id 非 null → authed；其餘（未 setup）→ guest */
+        if (body.ok === true && body.member_id != null) {
+          setAuthState('authed')
+        } else {
+          setAuthState('guest')
+        }
+      })
+      .catch(() => setAuthState('guest'))
+  }, [])
+
+  /* ── guest 時用 useEffect 導向 #/login（唔喺 render 同步改 hash）── */
+  useEffect(() => {
+    if (authState === 'guest' && hash !== '#/login') {
+      window.location.hash = '#/login'
+    }
+  }, [authState, hash])
+
+  /* ── #/login 一律直通，唔受 gate 攔截 ── */
+  if (hash === '#/login') {
+    return (
+      <div style={{
+        maxWidth: '480px',
+        margin: '0 auto',
+        minHeight: '100svh',
+        position: 'relative',
+        backgroundColor: 'var(--color-bg)',
+        boxShadow: 'var(--shadow-soft)',
+      }}>
+        <Login />
+      </div>
+    )
+  }
+
+  /* ── checking → 載入畫面 ── */
+  if (authState === 'checking') {
+    return (
+      <div style={{
+        maxWidth: '480px',
+        margin: '0 auto',
+        minHeight: '100svh',
+        position: 'relative',
+        backgroundColor: 'var(--color-bg)',
+        boxShadow: 'var(--shadow-soft)',
+      }}>
+        <LoadingScreen />
+      </div>
+    )
+  }
+
+  /* ── guest（非 #/login）→ 空畫面，useEffect 會導向 #/login ── */
+  if (authState === 'guest') {
+    return (
+      <div style={{
+        maxWidth: '480px',
+        margin: '0 auto',
+        minHeight: '100svh',
+        position: 'relative',
+        backgroundColor: 'var(--color-bg)',
+        boxShadow: 'var(--shadow-soft)',
+      }} />
+    )
+  }
+
+  /* ── authed → 現有 hash route 判斷（完全不動）── */
   let page: React.ReactNode
   if (hash === '#/b2-person') {
     page = <B2PersonDetail />
@@ -65,8 +164,6 @@ function App() {
     page = <EventDetail variant="celebration" />
   } else if (hash === '#/event-memorial') {
     page = <EventDetail variant="memorial" />
-  } else if (hash === '#/login') {
-    page = <Login />
   } else {
     page = <B1HomePage />
   }
@@ -79,7 +176,6 @@ function App() {
         minHeight: '100svh',
         position: 'relative',
         backgroundColor: 'var(--color-bg)',
-        /* 桌面下令容器有輕微陰影，令「手機居中」視覺更突出 */
         boxShadow: 'var(--shadow-soft)',
       }}
     >

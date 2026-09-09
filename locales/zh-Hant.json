@@ -91,7 +91,8 @@
     "dots_label": "第 {{current}} 個，共 {{total}} 個成員"
   },
   "common": {
-    "indicator_position": "第 {{active}} 個，共 {{total}} 個"
+    "indicator_position": "第 {{active}} 個，共 {{total}} 個",
+    "loading": "載入中⋯"
   },
   "empty_state": {
     "heading": "開始建立您的家庭樹吧！",
