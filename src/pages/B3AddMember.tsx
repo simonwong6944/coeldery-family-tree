@@ -56,7 +56,7 @@ export default function B3AddMember() {
       if (!isPet) body.phone = phoneNorm
       if (!isPet && backendRelation) { body.relation_key = backendRelation; if (targetId) body.target_member_id = targetId }
       if (isPet) body.owner_member_ids = Array.from(petOwnerIds)
-      const res = await fetch('/api/members', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      const res = await fetch('/api/members', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setSubmitStatus('done')
       /* ── person only：加人成功後自動發 WhatsApp 邀請（失敗唔影響加人狀態）── */
