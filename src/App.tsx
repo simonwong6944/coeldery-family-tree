@@ -19,7 +19,19 @@ import Login from './pages/Login'
  * 桌面（>480px）：最大闊度 480px，水平置中，側邊留白。
  * 手機（≤480px）：滿版（width: 100%），無側邊留白。
  *
- * Auth Gate（mount 時跑一次 GET /api/family/me）：
+ * ── Handoff Token 流程（85AI → 家族樹）──
+ *   mount 時，若 URL 帶 ?token=<signed_token>#/enter：
+ *   1. 讀 token → POST /api/family/enter { token }（credentials:'include'）
+ *   2. 成功後 history.replaceState 洗走 query（避免 token 留在 URL / 歷史）
+ *   3. 按 needs_setup 路由：
+ *      needs_setup:true  → Login（handoff setup 模式，唔需電話）
+ *      needs_setup:false → 直接入樹（authed）
+ *   4. 失敗（401 / 網絡錯）→ 回落現有 /api/family/me 流程
+ *
+ * ⚠️ 安全：完全唔讀、唔信任 ?member= 或其他明文身份參數。
+ *    只有簽名通過嘅 token 才觸發 enter 流程。
+ *
+ * ── 現有 Auth Gate（無 token 時）──
  *   checking → 顯示載入畫面
  *   authed   → 行現有 hash route（須 200 && ok && member_id 非 null）
  *   guest    → useEffect 導向 #/login（唔喺 render 同步改 hash）
@@ -41,6 +53,9 @@ import Login from './pages/Login'
  */
 
 type AuthState = 'checking' | 'authed' | 'guest'
+
+/* handoff setup 模式：入嚟後需要設密碼，但唔需電話 */
+type HandoffSetupState = false | 'needs_setup'
 
 function useHashRoute(): string {
   const [hash, setHash] = useState(() => window.location.hash || '#/')
@@ -72,22 +87,85 @@ function LoadingScreen() {
 
 function App() {
   const hash = useHashRoute()
-  const [authState, setAuthState] = useState<AuthState>('checking')
+  const [authState, setAuthState]           = useState<AuthState>('checking')
+  const [handoffSetup, setHandoffSetup]     = useState<HandoffSetupState>(false)
 
-  /* ── mount 時查 session（跑一次）── */
+  /* ── mount 時：先嘗試 handoff token，否則走現有 /api/family/me flow ── */
   useEffect(() => {
-    fetch('/api/family/me', { credentials: 'include' })
-      .then(async (res) => {
-        if (!res.ok) { setAuthState('guest'); return }
-        const body = await res.json() as Record<string, unknown>
-        /* 須 ok:true 且 member_id 非 null → authed；其餘（未 setup）→ guest */
-        if (body.ok === true && body.member_id != null) {
-          setAuthState('authed')
-        } else {
-          setAuthState('guest')
-        }
+    /* ══════════════════════════════════════════════════════
+     * 安全：只讀 ?token= 簽名參數，完全唔讀 ?member= 或任何明文身份
+     * ══════════════════════════════════════════════════════ */
+    const searchParams = new URLSearchParams(window.location.search)
+    const handoffToken = searchParams.get('token')
+
+    if (handoffToken) {
+      /* 有 token：POST /api/family/enter 驗證 */
+      fetch('/api/family/enter', {
+        method:      'POST',
+        credentials: 'include',
+        headers:     { 'Content-Type': 'application/json' },
+        body:        JSON.stringify({ token: handoffToken }),
       })
-      .catch(() => setAuthState('guest'))
+        .then(async (res) => {
+          /* 無論成功與否，先清走 URL 中的 token（避免留喺位址列 / 歷史）*/
+          window.history.replaceState(
+            {},
+            document.title,
+            window.location.pathname + (window.location.hash || ''),
+          )
+
+          if (!res.ok) {
+            /* token 驗失敗（401）或 server 錯：回落現有 me flow */
+            return fallbackToMeFlow()
+          }
+
+          const data = await res.json() as { ok?: boolean; needs_setup?: boolean }
+          if (!data.ok) {
+            return fallbackToMeFlow()
+          }
+
+          if (data.needs_setup) {
+            /* 未 setup：進 Login handoff setup 模式（唔需電話）*/
+            setHandoffSetup('needs_setup')
+            setAuthState('guest')
+            window.location.hash = '#/login'
+          } else {
+            /* 已 setup：直接入樹 */
+            setAuthState('authed')
+            if (!window.location.hash || window.location.hash === '#/enter') {
+              window.location.hash = '#/'
+            }
+          }
+        })
+        .catch(() => {
+          /* 網絡錯：清 URL + 回落 me flow */
+          window.history.replaceState(
+            {},
+            document.title,
+            window.location.pathname + (window.location.hash || ''),
+          )
+          fallbackToMeFlow()
+        })
+      return
+    }
+
+    /* 無 token：走現有 me flow */
+    fallbackToMeFlow()
+
+    function fallbackToMeFlow() {
+      fetch('/api/family/me', { credentials: 'include' })
+        .then(async (res) => {
+          if (!res.ok) { setAuthState('guest'); return }
+          const body = await res.json() as Record<string, unknown>
+          /* 須 ok:true 且 member_id 非 null → authed；其餘（未 setup）→ guest */
+          if (body.ok === true && body.member_id != null) {
+            setAuthState('authed')
+          } else {
+            setAuthState('guest')
+          }
+        })
+        .catch(() => setAuthState('guest'))
+    }
   }, [])
 
   /* ── guest 時用 useEffect 導向 #/login（唔喺 render 同步改 hash）── */
@@ -108,7 +186,8 @@ function App() {
         backgroundColor: 'var(--color-bg)',
         boxShadow: 'var(--shadow-soft)',
       }}>
-        <Login />
+        {/* handoffSetup='needs_setup' → Login 進入 setup 模式（唔需電話）*/}
+        <Login handoffSetup={handoffSetup === 'needs_setup'} />
       </div>
     )
   }

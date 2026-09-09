@@ -1,15 +1,20 @@
 /**
  * Login — 家族樹登入 / 首次設定頁  (#/login)
  *
- * 流程：
+ * 流程 A（普通登入）：
  *   登入版 → POST /api/family/login
  *     needs_setup:false → #/（熟客，已種 cookie）
  *     needs_setup:true  → 切換首次設定版（帶 phone，清 password）
  *     401              → 電話或密碼錯誤
- *   首次設定版 → POST /api/family/setup → #/（setup 自行種 cookie）
- *     403 → 非會員；409 → 電話已設定；400 → 欄位錯
+ *   首次設定版（普通）→ POST /api/family/setup（需電話 + 密碼 + 暱稱 + 生日）
+ *     → #/；403 非會員；409 電話已設定；400 欄位錯
  *
- * 風格：inline style + CSS variable，同 B1HomePage.tsx 慣例。頁 ≤ 200 行。
+ * 流程 B（handoff 入嚟，handoffSetup=true）：
+ *   直接顯示 setup 版，唔需電話（member_no 已由 handoff token 帶入並種喺 session）
+ *   首次設定版（handoff）→ POST /api/family/setup-with-session（只需密碼 + 暱稱 + 生日）
+ *     → #/；401 session 失效；403 未加入任何樹；409 已設定；400 欄位錯
+ *
+ * 風格：inline style + CSS variable，同 B1HomePage.tsx 慣例。頁 ≤ 220 行。
  */
 
 import { useState } from 'react'
@@ -37,9 +42,15 @@ function Field({ id, label, type='text', placeholder='', value, onChange, autoCo
   )
 }
 
-export default function Login() {
+interface LoginProps {
+  /** true = 從 handoff token 入嚟，session 已種，直接顯示 setup 版（唔需電話）*/
+  handoffSetup?: boolean
+}
+
+export default function Login({ handoffSetup = false }: LoginProps) {
   const { t } = useTranslation()
-  const [mode, setMode]                   = useState<'login'|'setup'>('login')
+  /* handoffSetup=true → 直接進 setup 模式 */
+  const [mode, setMode]                   = useState<'login'|'setup'>(handoffSetup ? 'setup' : 'login')
   const [phone, setPhone]                 = useState('')
   const [password, setPassword]           = useState('')
   const [passwordConfirm, setPwConfirm]   = useState('')
@@ -83,16 +94,32 @@ export default function Login() {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) { setError(t('login.error_birth_date')); return }
     setLoading(true)
     try {
-      const res  = await fetch('/api/family/setup', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        credentials:'include',
-        body:JSON.stringify({ phone:phone.trim(), password, nickname:nickname.trim(), birth_date:birthDate }),
-      })
-      const data = await res.json() as Record<string,unknown>
-      if (res.ok && data.ok)    { window.location.hash='#/'; return }
-      if (res.status===403)     { setError(t('login.setup_not_member'));  return }
-      if (res.status===409)     { setError(t('login.setup_node_exists')); return }
-      setError(String(data.error ?? t('login.error_generic')))
+      if (handoffSetup) {
+        /* ── Handoff 路徑：靠 session cookie 認人，唔傳電話 ── */
+        const res  = await fetch('/api/family/setup-with-session', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          credentials:'include',
+          body:JSON.stringify({ password, nickname:nickname.trim(), birth_date:birthDate }),
+        })
+        const data = await res.json() as Record<string,unknown>
+        if (res.ok && data.ok)    { window.location.hash='#/'; return }
+        if (res.status===401)     { setError(t('login.error_generic')); return }  // session 失效
+        if (res.status===403)     { setError(t('login.setup_not_member'));  return }
+        if (res.status===409)     { setError(t('login.setup_node_exists')); return }
+        setError(String(data.error ?? t('login.error_generic')))
+      } else {
+        /* ── 普通路徑：電話 + 85AI lookup ── */
+        const res  = await fetch('/api/family/setup', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          credentials:'include',
+          body:JSON.stringify({ phone:phone.trim(), password, nickname:nickname.trim(), birth_date:birthDate }),
+        })
+        const data = await res.json() as Record<string,unknown>
+        if (res.ok && data.ok)    { window.location.hash='#/'; return }
+        if (res.status===403)     { setError(t('login.setup_not_member'));  return }
+        if (res.status===409)     { setError(t('login.setup_node_exists')); return }
+        setError(String(data.error ?? t('login.error_generic')))
+      }
     } catch { setError(t('login.error_generic')) }
     finally  { setLoading(false) }
   }
@@ -116,6 +143,10 @@ export default function Login() {
       <form style={card} onSubmit={handleSetup} noValidate>
         <h1 style={title}>{t('login.setup_title')}</h1>
         <p  style={hint}>{t('login.setup_hint')}</p>
+        {/* handoffSetup=true：唔顯示電話欄（member_no 已由 token 帶入，種咗 session）*/}
+        {!handoffSetup && (
+          <Field id="su-phone" label={t('login.phone_label')} type="tel" placeholder={t('login.phone_placeholder')} value={phone} onChange={setPhone} autoComplete="tel" />
+        )}
         <Field id="su-pw"   label={t('login.setup_pwd_label')}         type="password" placeholder={t('login.password_placeholder')} value={password}        onChange={setPassword}  autoComplete="new-password" />
         <Field id="su-pw2"  label={t('login.setup_pwd_confirm_label')} type="password" placeholder={t('login.password_placeholder')} value={passwordConfirm} onChange={setPwConfirm} autoComplete="new-password" />
         <Field id="su-nick" label={t('login.nickname_label')}          type="text"     placeholder={t('login.nickname_placeholder')} value={nickname}        onChange={setNickname}  autoComplete="nickname" />
