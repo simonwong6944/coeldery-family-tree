@@ -1,8 +1,8 @@
 /**
  * GET /api/me — 回當前用戶的 memberId 及 familyId
  *
- * 以 _currentMember helper（is_self = 1 成員）作為臨時 session 代理。
- * ok: false 時直接回傳 helper 的 Response（沿用其 409 錯誤）。
+ * 以 _currentMember helper 取得已登入用戶的主樹節點。
+ * ok: false 時直接回傳 helper 的 Response（401）。
  * ok: true  時回 { ok: true, member_id, family_id }。
  *
  * 前端用途：家庭圈計算 canDelete（author_member_id === currentMemberId）
@@ -18,13 +18,12 @@ export const onRequestGet: PagesFunction<Env> = async (ctx) => {
   const cur = await getCurrentMember(ctx.env.DB, ctx.request)
 
   if (!cur.ok) {
-    // 沿用 _currentMember 已建構好的 409 Response（含 JSON body）
     return cur.response
   }
 
   return Response.json({
     ok:        true,
-    member_id: cur.memberId,
-    family_id: cur.familyId,
+    member_id: cur.primaryMemberId,
+    family_id: cur.primaryFamilyId,
   })
 }

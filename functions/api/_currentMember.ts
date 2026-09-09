@@ -1,47 +1,62 @@
 /**
  * _currentMember — 共用 helper
  *
- * 漸進式乙方案：session-first，fallback 返 is_self
+ * 讀 family_session cookie → 查 family_sessions → 取 member_no →
+ * 計算「主樹」(primaryFamilyId / primaryMemberId) → 回傳。
  *
- * ── 優先路徑（有 family_session cookie）──
+ * ── 認證路徑 ──
  *   1. 從 request Cookie header 讀 family_session token
  *   2. SELECT member_no FROM family_sessions WHERE token=? AND expires_at > datetime('now')
- *   3. 搵到 member_no → SELECT id, family_id FROM members WHERE coeldery85_member_id=? LIMIT 1
- *   4. 搵到 → 回 { ok:true, familyId, memberId }
- *   5. 搵唔到（對應未建 / 被清）→ fallback 返 is_self 路徑（向後兼容）
+ *   3. 搵到 member_no → 查該 member_no 在各樹的所有 person 節點
+ *   4. 無任何節點 → 401（session 存在但未完成 setup）
+ *   5. 有節點 → 按主樹優先次序計算 primaryMemberId / primaryFamilyId
  *
- * ── Fallback 路徑（冇 cookie 或 session 無效）——現有行為完全不變 ──
- *   1. SELECT 最早建立的 family（created_at ASC LIMIT 1）
- *   2. 喺該 family 找 is_self = 1 成員
- *   3. 搵唔到 family → 409
- *   4. 搵唔到 is_self member → 409
+ * ── 主樹優先次序 ──
+ *   (1) 優先：節點 X 存在 parent_child edge 且 to_member = X.id（X 係子女）→ 最早者
+ *   (2) 其次：節點 Y 存在 parent_child edge 且 from_member = Y.id（Y 做父母）→ 最早者
+ *   (3) 再其次：所有節點中最早建立者
  *
- * ── 向後兼容設計 ──
- *   - request 係 OPTIONAL 參數（request?: Request）
- *   - 所有現有 call site 只傳 db，一個都唔需要改
- *   - 冇傳 request = 唔可能有 cookie = 直接走 fallback
- *   - Task I-2 才逐個 call site 傳 ctx.request 通電
+ * ── 失敗情況（一律 401）──
+ *   - 冇 family_session cookie
+ *   - cookie 存在但 session 已過期 / token 無效
+ *   - session 有效但 member_no 無對應 person 節點（未完成 setup）
+ *   - request 未傳入（optional）→ 無 cookie = 未登入
+ *
+ * ── 移除嘅舊行為（is_self fallback）──
+ *   舊版在 cookie 無效 / session 過期 / 找不到 member 時，
+ *   會 fallback 攞「最早建立的 family + is_self=1 成員」。
+ *   此安全漏洞已完全移除。
  *
  * 回傳格式：
- *   { ok: true,  familyId: string, memberId: string }   — 成功
- *   { ok: false, response: Response }                    — 失敗（已含 status / JSON）
+ *   { ok: true,  memberNo, primaryFamilyId, primaryMemberId, familyIds }  — 成功
+ *   { ok: false, response: Response }                                       — 失敗（401）
  *
  * Cloudflare Pages Function — edge runtime
  * binding: DB (D1)
  */
 
 export type CurrentMemberOk = {
-  ok: true
-  familyId: string
-  memberId: string
+  ok:              true
+  memberNo:        string
+  primaryFamilyId: string
+  primaryMemberId: string
+  familyIds:       string[]
 }
 
 export type CurrentMemberErr = {
-  ok: false
+  ok:       false
   response: Response
 }
 
 export type CurrentMemberResult = CurrentMemberOk | CurrentMemberErr
+
+/* ── 401 回傳工廠 ── */
+function unauthorized(): CurrentMemberErr {
+  return {
+    ok:       false,
+    response: Response.json({ ok: false, error: '請先登入' }, { status: 401 }),
+  }
+}
 
 /* ── 從 Cookie header string parse 出指定 cookie 值（純 JS，無第三方 dep）── */
 function parseCookieValue(cookieHeader: string | null, name: string): string | undefined {
@@ -60,101 +75,122 @@ function parseCookieValue(cookieHeader: string | null, name: string): string | u
  * getCurrentMember
  *
  * @param db      - D1Database binding（必填）
- * @param request - 原生 Request（可選）；傳入才能讀 cookie，冇傳直接走 is_self fallback
- *
- * ⚠️  request 係 optional：所有現有 call site（14 個）只傳 db 即可，行為完全不變。
- *     Task I-2 才逐個傳 request 啟用 session 路徑。
+ * @param request - 原生 Request（可選）；冇傳一律視為未登入，回 401
  */
 export async function getCurrentMember(
-  db: D1Database,
+  db:      D1Database,
   request?: Request,
 ): Promise<CurrentMemberResult> {
 
   /* ════════════════════════════════════════════════════════════
-   * 優先路徑：有 request → 嘗試讀 family_session cookie
+   * 步 1：讀 cookie → 查 session → 取 member_no
    * ════════════════════════════════════════════════════════════ */
-  if (request) {
-    const cookieHeader = request.headers.get('cookie')
-    const token        = parseCookieValue(cookieHeader, 'family_session')
+  if (!request) return unauthorized()
 
-    if (token) {
-      /* 步 1：查 family_sessions 取 member_no */
-      const sess = await db
-        .prepare(
-          `SELECT member_no
-           FROM family_sessions
-           WHERE token = ? AND expires_at > datetime('now')`
-        )
-        .bind(token)
-        .first<{ member_no: string }>()
+  const cookieHeader = request.headers.get('cookie')
+  const token        = parseCookieValue(cookieHeader, 'family_session')
+  if (!token) return unauthorized()
 
-      if (sess) {
-        /* 步 2：由 member_no 反查本地 member（經 coeldery85_member_id 對應）*/
-        const member = await db
-          .prepare(
-            `SELECT id, family_id
-             FROM members
-             WHERE coeldery85_member_id = ? LIMIT 1`
-          )
-          .bind(sess.member_no)
-          .first<{ id: string; family_id: string }>()
+  const sess = await db
+    .prepare(
+      `SELECT member_no
+       FROM family_sessions
+       WHERE token = ? AND expires_at > datetime('now')`
+    )
+    .bind(token)
+    .first<{ member_no: string }>()
 
-        if (member) {
-          /* ✅ 有效 session + 對應存在 → 回真身份，唔走 is_self fallback */
-          return {
-            ok:       true,
-            familyId: member.family_id,
-            memberId: member.id,
-          }
-        }
-        /* 對應未建（coeldery85_member_id 仍 null）或被清 → fall through 到 is_self fallback */
-      }
-      /* session 過期 / token 無效 → fall through 到 is_self fallback */
-    }
+  if (!sess) return unauthorized()
+
+  const memberNo = sess.member_no
+
+  /* ════════════════════════════════════════════════════════════
+   * 步 2：查該 member_no 的所有 person 節點（主樹計算 SQL 段落）
+   *
+   * 查出 member_no 對應的全部本地 person 節點，
+   * 按 created_at ASC 排序，供後續主樹優先次序判斷。
+   * ════════════════════════════════════════════════════════════ */
+  const nodeRows = await db
+    .prepare(
+      `SELECT id, family_id, created_at
+       FROM members
+       WHERE coeldery85_member_id = ? AND member_kind = 'person'
+       ORDER BY created_at ASC`
+    )
+    .bind(memberNo)
+    .all<{ id: string; family_id: string; created_at: string }>()
+
+  if (!nodeRows.results || nodeRows.results.length === 0) {
+    /* session 有效但無對應 node（未完成 setup）→ 視為未登入 */
+    return unauthorized()
+  }
+
+  const nodes = nodeRows.results
+
+  /* familyIds：去重，按節點 created_at ASC 順序排列 */
+  const familyIds: string[] = []
+  for (const n of nodes) {
+    if (!familyIds.includes(n.family_id)) familyIds.push(n.family_id)
   }
 
   /* ════════════════════════════════════════════════════════════
-   * Fallback 路徑：is_self = 1（現有行為，完全不變）
-   * 覆蓋場景：
-   *   - request 未傳（現有 14 個 call site 全部如此）
-   *   - 冇 family_session cookie
-   *   - cookie 存在但 session 已過期 / token 無效
+   * 步 3：主樹優先次序計算
+   *
+   * (1) 優先：節點 X，存在 parent_child edge 且 to_member = X.id
+   *           （X 係子女，該樹有佢父母）
+   * (2) 其次：節點 Y，存在 parent_child edge 且 from_member = Y.id
+   *           （Y 做父母，係頂代）
+   * (3) 再其次：nodes[0]（created_at 最早，ORDER BY 已保證）
    * ════════════════════════════════════════════════════════════ */
 
-  /* 1. 攞第一棵 family */
-  const family = await db
-    .prepare('SELECT id FROM families ORDER BY created_at ASC LIMIT 1')
-    .first<{ id: string }>()
+  /* (1) 揾作為子女的節點（from_member = 父，to_member = 自己） */
+  let primaryNode: { id: string; family_id: string } | null = null
 
-  if (!family) {
-    return {
-      ok: false,
-      response: Response.json(
-        { ok: false, error: '找不到家族，請先建立成員' },
-        { status: 409 }
-      ),
+  for (const node of nodes) {
+    const edge = await db
+      .prepare(
+        `SELECT id FROM relationships
+         WHERE family_id = ? AND edge_type = 'parent_child' AND to_member = ?
+         LIMIT 1`
+      )
+      .bind(node.family_id, node.id)
+      .first<{ id: string }>()
+
+    if (edge) {
+      primaryNode = { id: node.id, family_id: node.family_id }
+      break   /* nodes 已按 created_at ASC，第一個符合即為最早 */
     }
   }
 
-  /* 2. 攞 is_self 成員 */
-  const selfMember = await db
-    .prepare('SELECT id FROM members WHERE family_id = ? AND is_self = 1 LIMIT 1')
-    .bind(family.id)
-    .first<{ id: string }>()
+  /* (2) 若無子女節點，揾作為父母的節點（from_member = 自己） */
+  if (!primaryNode) {
+    for (const node of nodes) {
+      const edge = await db
+        .prepare(
+          `SELECT id FROM relationships
+           WHERE family_id = ? AND edge_type = 'parent_child' AND from_member = ?
+           LIMIT 1`
+        )
+        .bind(node.family_id, node.id)
+        .first<{ id: string }>()
 
-  if (!selfMember) {
-    return {
-      ok: false,
-      response: Response.json(
-        { ok: false, error: '未設定本人，請先於成員資料設定本人' },
-        { status: 409 }
-      ),
+      if (edge) {
+        primaryNode = { id: node.id, family_id: node.family_id }
+        break   /* 同上，取最早 */
+      }
     }
+  }
+
+  /* (3) 兩者都無，取 created_at 最早節點 */
+  if (!primaryNode) {
+    primaryNode = { id: nodes[0].id, family_id: nodes[0].family_id }
   }
 
   return {
-    ok:       true,
-    familyId: family.id,
-    memberId: selfMember.id,
+    ok:              true,
+    memberNo,
+    primaryFamilyId: primaryNode.family_id,
+    primaryMemberId: primaryNode.id,
+    familyIds,
   }
 }
