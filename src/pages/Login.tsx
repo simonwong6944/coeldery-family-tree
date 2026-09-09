@@ -20,7 +20,7 @@ const hint:  React.CSSProperties = { fontSize:'15px', color:col('--color-text-se
 const lbl:   React.CSSProperties = { fontSize:'15px', fontWeight:600, color:col('--color-text'), display:'block', marginBottom:'6px' }
 const inp:   React.CSSProperties = { width:'100%', fontSize:'18px', padding:'14px 16px', borderRadius:'10px', border:`1.5px solid ${col('--color-text-secondary')}`, backgroundColor:col('--color-bg'), color:col('--color-text'), boxSizing:'border-box', fontFamily:'inherit', outline:'none' }
 const btn:   React.CSSProperties = { width:'100%', minHeight:'56px', fontSize:'18px', fontWeight:700, color:'#fff', backgroundColor:col('--color-primary'), border:'none', borderRadius:'12px', cursor:'pointer', fontFamily:'inherit' }
-const err:   React.CSSProperties = { fontSize:'15px', color:'#d32f2f', textAlign:'center', margin:0 }
+const err:   React.CSSProperties = { fontSize:'15px', color:'var(--color-accent)', textAlign:'center', margin:0 }
 
 function Field({ id, label, type='text', placeholder='', value, onChange, autoComplete='' }:
   { id:string; label:string; type?:string; placeholder?:string; value:string; onChange:(v:string)=>void; autoComplete?:string }) {
