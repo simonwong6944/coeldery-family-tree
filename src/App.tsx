@@ -10,6 +10,7 @@ import FamilyFeed from './pages/FamilyFeed'
 import FamilyGather from './pages/FamilyGather'
 import MyRecommend from './pages/MyRecommend'
 import EventDetail from '../packages/event-detail'
+import Login from './pages/Login'
 
 /**
  * App root — 全域桌面置中限寬容器 + 輕量 Hash Router
@@ -64,6 +65,8 @@ function App() {
     page = <EventDetail variant="celebration" />
   } else if (hash === '#/event-memorial') {
     page = <EventDetail variant="memorial" />
+  } else if (hash === '#/login') {
+    page = <Login />
   } else {
     page = <B1HomePage />
   }

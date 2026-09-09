@@ -440,5 +440,26 @@
     "pet_paw_alt": "寵物標記",
     "connection_line_alt": "家庭連接線",
     "notification_dot_alt": "有新動態通知"
+  },
+  "login": {
+    "title": "家族樹登入",
+    "phone_label": "電話號碼",
+    "phone_placeholder": "例：91234567",
+    "password_label": "密碼",
+    "password_placeholder": "請輸入密碼",
+    "submit": "登入",
+    "loading": "處理中⋯",
+    "error_phone_format": "電話格式錯誤",
+    "error_password_empty": "請輸入密碼",
+    "error_credentials": "電話或密碼錯誤",
+    "error_generic": "發生錯誤，請稍後再試",
+    "setup_hint": "您係新用戶，請先完成基本設定",
+    "setup_title": "首次設定",
+    "nickname_label": "暱稱",
+    "nickname_placeholder": "請輸入您的暱稱",
+    "birth_date_label": "生日",
+    "setup_submit": "完成設定",
+    "error_nickname_empty": "請輸入暱稱",
+    "error_birth_date": "請輸入有效生日（YYYY-MM-DD）"
   }
 }
