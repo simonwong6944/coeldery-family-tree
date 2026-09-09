@@ -12,6 +12,7 @@
  *   gender?:           'male' | 'female'  // 可選；不傳或 undefined → NULL
  *
  *   // person only
+ *   phone?:            string     // 電話，person 必填（server-side normalize）
  *   relation_key?:     string     // b3 locale key，如 'relation_spouse' / 'relation_child' 等
  *   target_member_id?: string     // 與哪位現有成員建立關係（選了 relation_key 才有效）
  *
@@ -21,18 +22,53 @@
  *
  * Response: { ok: true, member_id: string, relationship_ids: string[] }
  *
+ * person 加人流程（額外步驟）：
+ *   1. 讀 family_session cookie → SELECT family_sessions → 攞 actorMemberNo（加人者）
+ *      攞唔到 → 401（確保操作者已登入）
+ *   2. 85AI lookup → lk.isMember=true → linkedMemberNo = lk.memberNo；否則 null
+ *   3. INSERT members 帶 coeldery85_member_id（會員 member_no 或 NULL）
+ *
+ * pet 加人：唔強制 cookie 認證，coeldery85_member_id 維持 NULL，其餘邏輯不變。
+ *
+ * ⚠️  安全鐵律：
+ *     FAMILY_TREE_API_KEY 只作 Bearer header，絕不出現喺 body / log / 前端
+ *
  * Cloudflare Pages Function — edge runtime
- * binding: DB (D1)
+ * bindings: DB (D1)
+ * secret:   FAMILY_TREE_API_KEY
  */
 
 import type { Env } from './_types'
+import { lookup85AiByPhone } from './family/_lookup85ai'
+
+/* ════════════════════════════════════════════════════════════
+ * 工具函式
+ * ════════════════════════════════════════════════════════════ */
 
 function genId(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(16))
   return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')
 }
 
-// relation_key → edge_type + 方向（以「新成員」為視角）
+/**
+ * 從 Cookie header string parse 出指定 cookie 值
+ * （複製 me.ts / invite.ts 同款 helper，避免 cross-import）
+ */
+function parseCookieValue(cookieHeader: string | null, name: string): string | undefined {
+  if (!cookieHeader) return undefined
+  const prefix = `${name}=`
+  for (const part of cookieHeader.split(';')) {
+    const trimmed = part.trim()
+    if (trimmed.startsWith(prefix)) {
+      return trimmed.slice(prefix.length)
+    }
+  }
+  return undefined
+}
+
+/* ════════════════════════════════════════════════════════════
+ * relation_key → edge_type + 方向（以「新成員」為視角）
+ * ════════════════════════════════════════════════════════════ */
 const RELATION_TO_EDGE: Record<string, { edge: string; direction: 'from_target' | 'to_target' | 'marriage' }> = {
   relation_spouse:     { edge: 'marriage',     direction: 'marriage'     },
   relation_child:      { edge: 'parent_child', direction: 'to_target'   }, // target → 新成員（target 是父，新成員是子）
@@ -42,6 +78,9 @@ const RELATION_TO_EDGE: Record<string, { edge: string; direction: 'from_target' 
   relation_other:      { edge: 'parent_child', direction: 'to_target'   },
 }
 
+/* ════════════════════════════════════════════════════════════
+ * Main handler
+ * ════════════════════════════════════════════════════════════ */
 export const onRequestPost: PagesFunction<Env> = async (ctx) => {
   let body: Record<string, unknown>
   try { body = await ctx.request.json() as Record<string, unknown> }
@@ -74,24 +113,76 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
     }
   }
 
-  // ── phone normalize（person only）──
+  // ════════════════════════════════════════════════════════
+  // person 專屬流程（pet 跳過此整個區塊）
+  // ════════════════════════════════════════════════════════
   let phoneNorm: string | null = null
+  let linkedMemberNo: string | null = null   // 85AI lookup 得到的 member_no（或 null）
+
   if (member_kind === 'person') {
-    const raw = typeof phone === 'string' ? phone : ''
-    let n = raw.replace(/\D/g, '')
+
+    // ── ① cookie 認證：確保加人者已登入 ──
+    const cookieHeader  = ctx.request.headers.get('cookie')
+    const sessionToken  = parseCookieValue(cookieHeader, 'family_session')
+    if (!sessionToken) {
+      return Response.json({ ok: false, error: '請先登入' }, { status: 401 })
+    }
+    const sessionRow = await ctx.env.DB.prepare(
+      "SELECT member_no FROM family_sessions WHERE token = ? AND expires_at > datetime('now')"
+    ).bind(sessionToken).first<{ member_no: string }>()
+    if (!sessionRow) {
+      return Response.json({ ok: false, error: '請先登入' }, { status: 401 })
+    }
+    // actorMemberNo 記入（可供日後 audit log 使用）
+    const _actorMemberNo = sessionRow.member_no   // eslint-disable-line @typescript-eslint/no-unused-vars
+
+    // ── ② phone normalize ──
+    const rawPhone = typeof phone === 'string' ? phone : ''
+    let n = rawPhone.replace(/\D/g, '')
     if (n.startsWith('852')) n = n.slice(3)
     if (n.length > 8) n = n.slice(-8)
     if (!/^\d{8}$/.test(n))
       return Response.json({ ok: false, error: '電話格式錯誤' }, { status: 400 })
     phoneNorm = n
+
+    // ── ③ 85AI lookup（查被加者電話）──
+    const apiKey = ctx.env.FAMILY_TREE_API_KEY
+    if (!apiKey) {
+      return Response.json(
+        { ok: false, error: '家族樹服務未設定，請聯絡管理員' },
+        { status: 503 }
+      )
+    }
+    const lk = await lookup85AiByPhone(apiKey, phoneNorm)
+    if (!lk.ok) {
+      // upstream 錯：原樣透傳 httpStatus + body，唔加料
+      return new Response(JSON.stringify(lk.body), {
+        status:  lk.httpStatus,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+    if (lk.isMember === true) {
+      // 被加者係 85AI 會員 → 記住其 member_no 以便寫入 coeldery85_member_id
+      linkedMemberNo = lk.memberNo
+    }
+    // lk.isMember === false → linkedMemberNo 維持 null（非會員照建 node，唔綁 member_no）
   }
 
   // ── 建立成員節點 ──
   const memberId = genId()
   try {
     await ctx.env.DB.prepare(
-      'INSERT INTO members (id, family_id, member_kind, display_name, birth_date, gender, phone) VALUES (?, ?, ?, ?, ?, ?, ?)'
-    ).bind(memberId, familyId, member_kind, display_name.trim(), birth_date ?? null, gender ?? null, phoneNorm).run()
+      'INSERT INTO members (id, family_id, member_kind, display_name, birth_date, gender, phone, coeldery85_member_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    ).bind(
+      memberId,
+      familyId,
+      member_kind,
+      display_name.trim(),
+      birth_date ?? null,
+      gender ?? null,
+      phoneNorm,          // person → normalize 後電話；pet → null
+      linkedMemberNo,     // person 85AI 會員 → member_no；person 非會員 / pet → null
+    ).run()
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e)
     if (msg.toLowerCase().includes('unique'))
