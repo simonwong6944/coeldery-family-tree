@@ -98,9 +98,14 @@ export default function B1HomePage() {
   const [selectedIdx, setSelectedIdx] = useState(0)
 
   useEffect(() => {
-    fetch('/api/tree')
-      .then(r => r.ok ? r.json() : { members: [], relationships: [] })
-      .then((d: TreeData) => {
+    fetch('/api/tree', { credentials: 'include' })
+      .then(res => {
+        if (res.status === 401) { window.location.hash = '#/login'; return null }
+        if (res.ok) return res.json()
+        return { members: [], relationships: [] }
+      })
+      .then((d: TreeData | null) => {
+        if (d === null) return   /* 已導向登入，唔 setTree，避免空樹一閃 */
         setTree(d)
         setLoading(false)
         const selfMember = d.members.find((m: ApiMember) => m.is_self === 1 && m.member_kind === 'person')
