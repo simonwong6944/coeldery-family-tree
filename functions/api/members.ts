@@ -47,9 +47,10 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
   try { body = await ctx.request.json() as Record<string, unknown> }
   catch { return Response.json({ ok: false, error: '無效的 JSON 格式' }, { status: 400 }) }
 
-  const { member_kind, display_name, birth_date, gender, relation_key, target_member_id, owner_member_ids } = body as {
+  const { member_kind, display_name, birth_date, gender, relation_key, target_member_id, owner_member_ids, phone } = body as {
     family_id?: string; member_kind?: string; display_name?: string; birth_date?: string
     gender?: string; relation_key?: string; target_member_id?: string; owner_member_ids?: string[]
+    phone?: string
   }
 
   // ── 驗證 gender（只接受 'male'、'female' 或 undefined）──
@@ -73,11 +74,30 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
     }
   }
 
+  // ── phone normalize（person only）──
+  let phoneNorm: string | null = null
+  if (member_kind === 'person') {
+    const raw = typeof phone === 'string' ? phone : ''
+    let n = raw.replace(/\D/g, '')
+    if (n.startsWith('852')) n = n.slice(3)
+    if (n.length > 8) n = n.slice(-8)
+    if (!/^\d{8}$/.test(n))
+      return Response.json({ ok: false, error: '電話格式錯誤' }, { status: 400 })
+    phoneNorm = n
+  }
+
   // ── 建立成員節點 ──
   const memberId = genId()
-  await ctx.env.DB.prepare(
-    'INSERT INTO members (id, family_id, member_kind, display_name, birth_date, gender) VALUES (?, ?, ?, ?, ?, ?)'
-  ).bind(memberId, familyId, member_kind, display_name.trim(), birth_date ?? null, gender ?? null).run()
+  try {
+    await ctx.env.DB.prepare(
+      'INSERT INTO members (id, family_id, member_kind, display_name, birth_date, gender, phone) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).bind(memberId, familyId, member_kind, display_name.trim(), birth_date ?? null, gender ?? null, phoneNorm).run()
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e)
+    if (msg.toLowerCase().includes('unique'))
+      return Response.json({ ok: false, error: '此電話已登記，請改用登入' }, { status: 409 })
+    throw e
+  }
 
   // ── 建立關係邊 ──
   const relationshipIds: string[] = []
