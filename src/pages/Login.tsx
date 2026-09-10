@@ -1,18 +1,22 @@
 /**
  * Login — 家族樹登入 / 首次設定頁  (#/login)
  *
- * 流程 A（普通登入）：
- *   登入版 → POST /api/family/login
- *     needs_setup:false → #/（熟客，已種 cookie）
- *     needs_setup:true  → 切換首次設定版（帶 phone，清 password）
- *     401              → 電話或密碼錯誤
- *   首次設定版（普通）→ POST /api/family/setup（需電話 + 密碼 + 暱稱 + 生日）
- *     → #/；403 非會員；409 電話已設定；400 欄位錯
+ * ── 兩步流程（先認電話，再決定要唔要密碼）──
+ *   第一步 phone   ：只輸入電話 → POST /api/family/check-phone
+ *                      ├─ 非會員          → 提示「請先登記會員」
+ *                      ├─ 會員・未有密碼  → 切去 setup
+ *                      └─ 會員・已有密碼  → 切去 password
+ *   第二步 setup   ：POST /api/family/setup（電話 + 密碼 + 暱稱 + 生日）
+ *   第二步 password：POST /api/family/login（電話 + 密碼）
+ *        → 成功一律 window.location.assign('/')（整頁重載，確保 cookie 生效）
  *
- * 流程 B（handoff 入嚟，handoffSetup=true）：
- *   直接顯示 setup 版，唔需電話（member_no 已由 handoff token 帶入並種喺 session）
- *   首次設定版（handoff）→ POST /api/family/setup-with-session（只需密碼 + 暱稱 + 生日）
- *     → #/；401 session 失效；403 未加入任何樹；409 已設定；400 欄位錯
+ * ── 成功後免密碼 ──
+ *   server 種 family_session cookie（HttpOnly / Secure / SameSite=Lax，30 日）。
+ *   下次入 app，App.tsx 用 cookie 問 /api/family/me → 直接入樹，唔再問密碼。
+ *
+ * ── 流程 B（handoff 入嚟，handoffSetup=true）──
+ *   直接顯示 setup 版，唔需電話（member_no 已由 handoff token 帶入並種 session）
+ *   → POST /api/family/setup-with-session（只需密碼 + 暱稱 + 生日）
  *
  * 風格：inline style + CSS variable，同 B1HomePage.tsx 慣例。頁 ≤ 220 行。
  */
@@ -29,6 +33,8 @@ const lbl:   React.CSSProperties = { fontSize:'15px', fontWeight:600, color:col(
 const inp:   React.CSSProperties = { width:'100%', fontSize:'18px', padding:'14px 16px', borderRadius:'10px', border:`1.5px solid ${col('--color-text-secondary')}`, backgroundColor:col('--color-bg'), color:col('--color-text'), boxSizing:'border-box', fontFamily:'inherit', outline:'none' }
 const btn:   React.CSSProperties = { width:'100%', minHeight:'56px', fontSize:'18px', fontWeight:700, color:'#fff', backgroundColor:col('--color-primary'), border:'none', borderRadius:'12px', cursor:'pointer', fontFamily:'inherit' }
 const err:   React.CSSProperties = { fontSize:'15px', color:col('--color-accent'), textAlign:'center', margin:0 }
+const btnGhost: React.CSSProperties = { width:'100%', minHeight:'56px', fontSize:'18px', fontWeight:700, color:col('--color-primary'), backgroundColor:'transparent', border:`2px solid ${col('--color-primary')}`, borderRadius:'12px', cursor:'pointer', fontFamily:'inherit' }
+const phoneBox: React.CSSProperties = { fontSize:'18px', fontWeight:700, color:col('--color-text'), backgroundColor:col('--color-bg'), borderRadius:'10px', padding:'14px 16px', textAlign:'center' }
 
 function Field({ id, label, type='text', placeholder='', value, onChange, autoComplete='' }:
   { id:string; label:string; type?:string; placeholder?:string; value:string; onChange:(v:string)=>void; autoComplete?:string }) {
@@ -50,7 +56,7 @@ interface LoginProps {
 export default function Login({ handoffSetup = false }: LoginProps) {
   const { t } = useTranslation()
   /* handoffSetup=true → 直接進 setup 模式 */
-  const [mode, setMode]                   = useState<'login'|'setup'>(handoffSetup ? 'setup' : 'login')
+  const [mode, setMode]                   = useState<'phone'|'password'|'setup'>(handoffSetup ? 'setup' : 'phone')
   const [phone, setPhone]                 = useState('')
   const [password, setPassword]           = useState('')
   const [passwordConfirm, setPwConfirm]   = useState('')
@@ -60,6 +66,33 @@ export default function Login({ handoffSetup = false }: LoginProps) {
   const [loading, setLoading]             = useState(false)
 
   const btnStyle: React.CSSProperties = { ...btn, ...(loading ? { opacity:0.55, cursor:'not-allowed' } : {}) }
+
+  /* 返回第一步（改電話），清空密碼與錯誤 */
+  function backToPhone() {
+    setError(''); setPassword(''); setPwConfirm('')
+    setMode('phone')
+  }
+
+  /* ── 第一步：查電話登入狀態 → 分流 setup / password ── */
+  async function handleCheckPhone(e: React.FormEvent) {
+    e.preventDefault(); setError('')
+    if (!phone.trim()) { setError(t('login.error_phone_format')); return }
+    setLoading(true)
+    try {
+      const res  = await fetch('/api/family/check-phone', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        credentials:'include', body:JSON.stringify({ phone:phone.trim() }),
+      })
+      const data = await res.json() as Record<string,unknown>
+      if (res.ok && data.ok === true) {
+        if (data.is_member === false)  { setError(t('login.phone_not_member')); return }
+        if (data.needs_setup === true) { setMode('setup');    return }
+        setMode('password'); return
+      }
+      setError(String(data.error ?? t('login.error_generic')))
+    } catch { setError(t('login.error_generic')) }
+    finally  { setLoading(false) }
+  }
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault(); setError('')
@@ -127,20 +160,41 @@ export default function Login({ handoffSetup = false }: LoginProps) {
     finally  { setLoading(false) }
   }
 
-  if (mode === 'login') return (
+  /* ── 第一步：輸入電話 ── */
+  if (mode === 'phone') return (
     <div style={page}>
-      <form style={card} onSubmit={handleLogin} noValidate>
+      <form style={card} onSubmit={handleCheckPhone} noValidate>
         <h1 style={title}>{t('login.title')}</h1>
-        <Field id="lg-phone" label={t('login.phone_label')}    type="tel"      placeholder={t('login.phone_placeholder')}    value={phone}    onChange={setPhone}    autoComplete="tel" />
-        <Field id="lg-pw"    label={t('login.password_label')} type="password" placeholder={t('login.password_placeholder')} value={password} onChange={setPassword} autoComplete="current-password" />
+        <p  style={hint}>{t('login.phone_first_hint')}</p>
+        <Field id="lg-phone" label={t('login.phone_label')} type="tel" placeholder={t('login.phone_placeholder')} value={phone} onChange={setPhone} autoComplete="tel" />
         {error && <p style={err} role="alert">{error}</p>}
         <button type="submit" style={btnStyle} disabled={loading}>
-          {loading ? t('login.loading') : t('login.submit')}
+          {loading ? t('login.checking') : t('login.continue')}
         </button>
       </form>
     </div>
   )
 
+  /* ── 第二步 A：已有密碼 → 輸入密碼 ── */
+  if (mode === 'password') return (
+    <div style={page}>
+      <form style={card} onSubmit={handleLogin} noValidate>
+        <h1 style={title}>{t('login.title')}</h1>
+        <div>
+          <span style={lbl}>{t('login.phone_section_label')}</span>
+          <div style={phoneBox}>{phone}</div>
+        </div>
+        <Field id="lg-pw" label={t('login.password_label')} type="password" placeholder={t('login.password_placeholder')} value={password} onChange={setPassword} autoComplete="current-password" />
+        {error && <p style={err} role="alert">{error}</p>}
+        <button type="submit" style={btnStyle} disabled={loading}>
+          {loading ? t('login.loading') : t('login.submit')}
+        </button>
+        <button type="button" style={btnGhost} onClick={backToPhone}>{t('login.change_phone')}</button>
+      </form>
+    </div>
+  )
+
+  /* ── 第二步 B：未有密碼 / handoff → 首次設定 ── */
   return (
     <div style={page}>
       <form style={card} onSubmit={handleSetup} noValidate>
@@ -158,6 +212,7 @@ export default function Login({ handoffSetup = false }: LoginProps) {
         <button type="submit" style={btnStyle} disabled={loading}>
           {loading ? t('login.loading') : t('login.setup_submit')}
         </button>
+        {!handoffSetup && <button type="button" style={btnGhost} onClick={backToPhone}>{t('login.change_phone')}</button>}
       </form>
     </div>
   )
