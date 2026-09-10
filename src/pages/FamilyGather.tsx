@@ -19,6 +19,7 @@ import GatherPlanForm from './GatherPlanForm'
 import GatherQuickStart from './GatherQuickStart'
 import UpcomingList, { type ArrangeArgs } from './UpcomingList'
 import UpcomingGatherings from './UpcomingGatherings'
+import ReferralPanel from './ReferralPanel'
 import type { OptionKind } from '../utils/gatherPlan'
 import { gsPage, gsMain, gsSectionTitle } from './gatherStyles'
 
@@ -102,6 +103,9 @@ export default function FamilyGather() {
         {/* ③ 即將舉行的聚會（App 內通知）＋ 我的聚會 */}
         <UpcomingGatherings />
         <GatherList />
+
+        {/* ④ 推薦獎勵（Type B：推薦家人 → 解鎖商戶優惠）*/}
+        <ReferralPanel />
       </main>
 
       <BottomTabBar current="family_gathering" onTabChange={(tab: TabId) => { window.location.hash = TAB_ROUTES[tab] }} />

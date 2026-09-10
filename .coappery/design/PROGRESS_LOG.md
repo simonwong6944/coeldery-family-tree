@@ -1,6 +1,6 @@
 # CoEldery 家族樹 — 進度 LOG（source of truth）
 
-最後更新：2026-09-10（節日推廣券 ＋ 商戶資料錄入 ＋ 聚會通知）
+最後更新：2026-09-10（推薦獎勵券 Type B ＋ 推薦飛輪）
 
 ---
 
@@ -111,7 +111,7 @@
 ### E. 現行 backlog（更新）
 1. 短片支援已完成；剩：無效電話測 `check-phone` 回 502 → 應回「非會員」（小 UX）。
 2. Handoff 最終驗收（方法 B + 真人入口）。
-3. **家庭聚會**：v1 核心（場合商戶瀏覽）＋ **協作流程（發起／候選／逐人投票／確認／自動家庭圈邀請卡）已完成**（見第七、八節）；**重新定位（首頁＝行動中心、商戶只在需要時出現）已完成**（見第九節）；**節日推廣券 ＋ 商戶資料錄入 ＋ 聚會通知已落地**（見第十節）；未做 = 真 server push（待家人電話反查＋Meta template 審批）、推薦獎勵券（Type B）、coupon code／QR 核銷、商戶自助後台、聚會提醒推送時序、支出分攤、名額上限、投票截止自動鎖定。
+3. **家庭聚會**：v1 核心（場合商戶瀏覽）＋ **協作流程（發起／候選／逐人投票／確認／自動家庭圈邀請卡）已完成**（見第七、八節）；**重新定位（首頁＝行動中心、商戶只在需要時出現）已完成**（見第九節）；**節日推廣券（Type A）＋ 商戶資料錄入 ＋ 聚會通知已落地**（見第十節）；**推薦獎勵券（Type B）＋ 推薦飛輪已落地**（見第十一節）；未做 = 真 server push（待家人電話反查＋Meta template 審批）、coupon code／QR 核銷、商戶自助後台、推薦排行榜／積分獎賞、聚會提醒時序、支出分攤、名額上限、投票截止自動鎖定。
 4. 技術債：`ImportantDatesSection.tsx` 326 行（超 SOP 200），建議拆 component；`FocusTree.tsx` 亦接近上限。
 
 ---
@@ -241,4 +241,39 @@
 - 商戶落地驗證（臨時腳本，用完即刪）：**12/12** —— 商戶 10 間、中秋推廣 5 張、訂餐廳／訂蛋糕／買禮物／送花各有 ≥2 間可揀、地區／標籤篩選生效、贊助標示存在。
 - 測試資料檔：`scripts/seed-local-test.sql`（開頭會**重設推廣領取狀態**，令推廣 E2E 可重複執行）。
 - 死 key 清理：`gather.*` 115 個、`promo.*` 8 個全部有用（以腳本核對）。
+
+---
+
+## 十一、推薦獎勵券（Type B）＋ 推薦飛輪（2026-09-10 追加）
+
+> ⚠️ **`migrations/0017_referrals_rewards.sql` remote 待產品負責人執行**；
+> 另 `scripts/generated/merchants.sql` 已加入 `rewards[]`（Type B 示範券），remote 亦待重跑。
+
+### A. 資料（migration 0017）
+- `referral`：推薦紀錄（`inviter_member_no` / `invitee_phone` / `status` invited|joined / `invitee_member_no`）；`UNIQUE(inviter_member_no, invitee_phone)`。
+- `reward`：Type B 獎勵券（`required_referrals`（例 5）、`quota_total`、`claimed_count`、`is_active`）——**唔綁節日**（同 Type A 分別）。
+- `reward_claim`：領取紀錄（`UNIQUE(reward_id, member_no)`）。
+
+### B. 「成功推薦」判定（唔會俾人刷數）
+兩條路徑都會標記 joined（以電話配對）：
+1. 被邀請人**自己完成首次設定** → `family/setup.ts` 建 `member_auth` 後呼叫 `markReferralJoined()`。
+2. 邀請人**加成員**（B3）→ `members.ts` 加入成功後呼叫 `markReferralJoined(db, phone, inviteeMemberNo, actorMemberNo)`。
+（純「派邀請」只係 `invited`，唔計入進度。）
+
+### C. API（新）
+`GET/POST /api/referrals`（清單＋計數／記錄邀請；**電話遮罩** `9333****`）｜`GET /api/rewards`（券清單＋`joined` 進度＋`unlocked`／`quota_left`／`my_claimed`）｜`POST/GET /api/reward-claims`（**未解鎖 → 403**、一人一次 409、名額滿 409；回傳 WhatsApp 預填訊息）。
+
+### D. 前端
+- `ReferralPanel`（家庭聚會首頁「推薦獎勵」）：進度條（已成功推薦 N／5）＋ 記錄邀請 ＋ WhatsApp 邀請 ＋ 已邀請／已加入清單 ＋ 解鎖後自選優惠券。
+- **`CouponSticker`（新，統一元件）**：Type A 節日推廣券（MerchantPicker 內）同 Type B 獎勵券共用同一張卡（含 locked／claimable／claimed／full／expired 五態）；已刪 `PromotionSticker`。
+- `utils/referrals.ts`（純邏輯）、`utils/referralApi.ts`（client）。
+
+### E. 商戶工具
+- `data/merchants.json` 加 `rewards[]`（3 張示範 Type B 券，`required_referrals: 5`）；`generate-merchant-sql.mjs` 加驗證（`required_referrals` 必須 >= 1 整數）＋ UPSERT（唔重設 `claimed_count`）。
+
+### F. 測試（全部實跑）
+- `scripts/test-referrals.mjs` **25/25**（電話 normalize、進度、五態狀態機、門檻、邀請文字／鏈結）。
+- `scripts/test-referrals-e2e.mjs` **35/35**（未登入 401、記錄邀請 201、重複 409、遮罩、**未解鎖 403**、達標 201、一人一次 409、名額滿 409、清單獨立、404／400）。
+- 重跑：`test-promotions-e2e.mjs` 31/31、`test-gathering-e2e.mjs` 30/30、`test-promotions.mjs` 21/21、`test-merchant-query.mjs` 23/23、`test-gather-notify.mjs` 18/18、`test-gather-plan.mjs` 26/26。
+- 測試資料：`scripts/seed-local-test.sql` 加 3 個 session（900000001 未解鎖／900000002 已解鎖／900000003 已解鎖測名額）＋ 11 筆 referral ＋ 2 張測試券；開頭會重設 `promotion_claim`／`reward_claim`／`referral`。
 

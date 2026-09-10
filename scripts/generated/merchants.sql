@@ -1,6 +1,6 @@
 -- 由 scripts/generate-merchant-sql.mjs 產生 — 請勿手改（改 data/merchants.json 再產生）
--- 產生時間：2026-09-10T17:35:42.988Z
--- 商戶 7 間／標籤 6 個／地區 3 個／地標 3 個／節日推廣 3 張
+-- 產生時間：2026-09-10T17:53:13.222Z
+-- 商戶 7 間／標籤 6 個／地區 3 個／地標 3 個／節日推廣 3 張／推薦獎勵 3 張
 
 INSERT INTO district (id, group_id, name) VALUES ('dt-mongkok', 'dg-kowloon', '旺角')
   ON CONFLICT(id) DO UPDATE SET group_id = excluded.group_id, name = excluded.name;
@@ -60,3 +60,9 @@ INSERT INTO promotion (id, merchant_id, festival_id, title, description, terms, 
   ON CONFLICT(id) DO UPDATE SET merchant_id = excluded.merchant_id, festival_id = excluded.festival_id, title = excluded.title, description = excluded.description, terms = excluded.terms, quota_total = excluded.quota_total, valid_from = excluded.valid_from, valid_to = excluded.valid_to, is_active = excluded.is_active;
 INSERT INTO promotion (id, merchant_id, festival_id, title, description, terms, quota_total, valid_from, valid_to, is_active) VALUES ('promo-demo-mid-autumn-flower', 'mc-demo-flower-mk', 'mid-autumn-2026', '中秋花束免運費', '節日期間訂花束免運費。', '限香港島、九龍區。', NULL, NULL, NULL, 1)
   ON CONFLICT(id) DO UPDATE SET merchant_id = excluded.merchant_id, festival_id = excluded.festival_id, title = excluded.title, description = excluded.description, terms = excluded.terms, quota_total = excluded.quota_total, valid_from = excluded.valid_from, valid_to = excluded.valid_to, is_active = excluded.is_active;
+INSERT INTO reward (id, merchant_id, title, description, terms, required_referrals, quota_total, valid_to, is_active) VALUES ('reward-demo-banquet-100', 'mc-demo-banquet-cwb', '酒樓 $100 現金券', '訂枱滿 $800 減 $100。', '須提前預約；不與其他優惠同時使用。', 5, 100, NULL, 1)
+  ON CONFLICT(id) DO UPDATE SET merchant_id = excluded.merchant_id, title = excluded.title, description = excluded.description, terms = excluded.terms, required_referrals = excluded.required_referrals, quota_total = excluded.quota_total, valid_to = excluded.valid_to, is_active = excluded.is_active;
+INSERT INTO reward (id, merchant_id, title, description, terms, required_referrals, quota_total, valid_to, is_active) VALUES ('reward-demo-cake-50', 'mc-demo-cake-mk', '生日蛋糕 $50 折扣', '訂購生日蛋糕減 $50。', '每個家庭每月限用一次。', 5, 200, NULL, 1)
+  ON CONFLICT(id) DO UPDATE SET merchant_id = excluded.merchant_id, title = excluded.title, description = excluded.description, terms = excluded.terms, required_referrals = excluded.required_referrals, quota_total = excluded.quota_total, valid_to = excluded.valid_to, is_active = excluded.is_active;
+INSERT INTO reward (id, merchant_id, title, description, terms, required_referrals, quota_total, valid_to, is_active) VALUES ('reward-demo-flower-free', 'mc-demo-flower-mk', '花束免運費', '訂花束免運費一次。', '限香港島、九龍區。', 5, NULL, NULL, 1)
+  ON CONFLICT(id) DO UPDATE SET merchant_id = excluded.merchant_id, title = excluded.title, description = excluded.description, terms = excluded.terms, required_referrals = excluded.required_referrals, quota_total = excluded.quota_total, valid_to = excluded.valid_to, is_active = excluded.is_active;

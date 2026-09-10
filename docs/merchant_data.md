@@ -19,6 +19,7 @@
 | `merchants[].ad_tier` | 0 = 自然排序；1 = 廣告基礎；2 = 廣告置頂（**UI 會標示「贊助」**） |
 | `merchants[].tags[]` | **決定流程曝光**：`訂餐廳`＝餐廳／茶餐廳／酒樓／到會／宴會；`訂蛋糕`＝蛋糕／糕點／西餅／甜品；`買禮物`／`送花`＝禮品／禮盒／鮮花／花店／花籃 |
 | `promotions[]` | **`festival_id` 必填**（節日曆 id，例 `mid-autumn-2026`）；`quota_total` null = 名額不限；**推廣唔可以綁個人** |
+| `rewards[]` | **Type B 推薦獎勵券**：`required_referrals` 必填（成功推薦幾多位家人解鎖，例 `5`）；**唔綁節日**；`quota_total` null = 名額不限 |
 
 > 標籤（tags）係關鍵：商戶**有標籤**時只用標籤判斷屬唔屬於該「需要」（例：茶餐廳唔會出現喺「訂蛋糕」）；**完全冇標籤**嘅舊商戶才用主分類後備。
 
@@ -47,6 +48,17 @@ npx wrangler d1 execute coeldery-family-tree-db --remote --file scripts/generate
 ## 節日（festival）
 節日曆由 `migrations/0016_festival_promotions.sql` 種子定義（一年更新一次）。要加減節日 → 改該 migration 或直接 `d1 execute`；
 `is_lunar = 1` 者每年日期浮動，須每年核實更新。**推廣只可以綁呢啲節日 id。**
+
+## 兩類優惠券（統一 coupon engine，雙動作零金流）
+| | Type A 節日推廣券 | Type B 推薦獎勵券 |
+|---|---|---|
+| 表 | `promotion` | `reward` |
+| 綁定 | **節日**（`festival_id` 必填） | **成功推薦人數**（`required_referrals`） |
+| 出現位置 | 節日聚會 → 揀商戶清單內 | 家庭聚會首頁「推薦獎勵」→ 解鎖後自選 |
+| 由 `data/merchants.json` 邊個欄位定義 | `promotions[]` | `rewards[]` |
+| 共同機制 | 一人一次（`UNIQUE(…, member_no)`）、名額原子控管、領取後一鍵 WhatsApp 向商戶確認、商戶線下核銷、平台記錄 | 同左 |
+
+> 忌辰等莊重場合**一律唔會**顯示任何券（rules §23）。
 
 ## 驗證清單
 - [ ] `node scripts/generate-merchant-sql.mjs` 冇 error

@@ -52,6 +52,7 @@
 import type { Env } from './_types'
 import { getCurrentMember } from './_currentMember'
 import { lookup85AiByPhone } from './family/_lookup85ai'
+import { markReferralJoined } from './_referrals'
 import { createNode85ai } from './family/_createNode85ai'
 
 /* ════════════════════════════════════════════════════════════
@@ -336,6 +337,15 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
         ).bind(relId, familyId, ownerId, memberId).run()
         relationshipIds.push(relId)
       }
+    }
+  }
+
+  /* ── 推薦獎勵：邀請人加咗被邀請家人 → 標記「成功加入」（Type B 解鎖條件）── */
+  if (phoneNorm) {
+    try {
+      await markReferralJoined(ctx.env.DB, phoneNorm, linkedMemberNo ?? null, actorMemberNo)
+    } catch (e) {
+      console.error('[members] markReferralJoined failed:', e)
     }
   }
 

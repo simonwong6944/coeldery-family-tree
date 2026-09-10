@@ -7,7 +7,9 @@
     "  3. promotion **必須綁 festival_id**（節日推廣）——唔可以綁個人生日。",
     "  4. 標籤（tags）決定「訂餐廳／訂蛋糕／買禮物／送花」清單出唔出該商戶 → 標籤係關鍵。",
     "  5. 以下標示「（示範）」嘅商戶／推廣為**示範資料**，電話用 2000-xxxx 假號碼；",
-    "     正式上線前必須由產品負責人換成真實已收費商戶（或改 is_listed = 0 隱藏）。"
+    "     正式上線前必須由產品負責人換成真實已收費商戶（或改 is_listed = 0 隱藏）。",
+    "  6. rewards[] = Type B「推薦獎勵券」：綁 `required_referrals`（成功推薦幾多位家人解鎖，例 5），",
+    "     **唔綁節日**（節日推廣請用 promotions[]）；同樣係商戶提供、雙動作領取、零金流。"
   ],
   "districts": [
     { "id": "dt-mongkok", "group_id": "dg-kowloon", "name": "旺角" },
@@ -148,6 +150,38 @@
       "title": "中秋花束免運費",
       "description": "節日期間訂花束免運費。",
       "terms": "限香港島、九龍區。",
+      "quota_total": null,
+      "is_active": 1
+    }
+  ],
+  "rewards": [
+    {
+      "id": "reward-demo-banquet-100",
+      "merchant_id": "mc-demo-banquet-cwb",
+      "title": "酒樓 $100 現金券",
+      "description": "訂枱滿 $800 減 $100。",
+      "terms": "須提前預約；不與其他優惠同時使用。",
+      "required_referrals": 5,
+      "quota_total": 100,
+      "is_active": 1
+    },
+    {
+      "id": "reward-demo-cake-50",
+      "merchant_id": "mc-demo-cake-mk",
+      "title": "生日蛋糕 $50 折扣",
+      "description": "訂購生日蛋糕減 $50。",
+      "terms": "每個家庭每月限用一次。",
+      "required_referrals": 5,
+      "quota_total": 200,
+      "is_active": 1
+    },
+    {
+      "id": "reward-demo-flower-free",
+      "merchant_id": "mc-demo-flower-mk",
+      "title": "花束免運費",
+      "description": "訂花束免運費一次。",
+      "terms": "限香港島、九龍區。",
+      "required_referrals": 5,
       "quota_total": null,
       "is_active": 1
     }

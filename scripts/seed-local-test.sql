@@ -4,9 +4,12 @@
 -- 供 scripts/test-gathering-e2e.mjs 同 scripts/test-promotions-e2e.mjs 用。
 -- ⚠️ 開頭會**重設**推廣領取狀態，令推廣 E2E 可以重複執行。
 
--- ── 重設推廣領取狀態（只影響本機測試資料）──
+-- ── 重設推廣／獎勵領取狀態（只影響本機測試資料）──
 DELETE FROM promotion_claim;
 UPDATE promotion SET claimed_count = 0;
+DELETE FROM reward_claim;
+UPDATE reward SET claimed_count = 0;
+DELETE FROM referral;
 
 -- ── 家庭 + 成員 + session（聚會 E2E）──
 INSERT OR IGNORE INTO families (id, name) VALUES ('fam-test', '測試家庭');
@@ -49,3 +52,35 @@ INSERT OR IGNORE INTO merchant (id, name, category_id, is_listed, ad_tier, phone
 INSERT OR IGNORE INTO promotion
   (id, merchant_id, festival_id, title, quota_total, is_active)
   VALUES ('promo-unlisted', 'mc-hidden-test', 'mid-autumn-2026', '未上架商戶優惠', NULL, 1);
+
+-- ── 第三位登入會員（測「名額」用）──
+INSERT OR IGNORE INTO members (id, family_id, member_kind, display_name, coeldery85_member_id, gender)
+  VALUES ('m-sis', 'fam-test', 'person', '測試姐姐', '900000003', 'female');
+INSERT OR IGNORE INTO family_sessions (token, member_no, expires_at)
+  VALUES ('testsession9999', '900000003', datetime('now', '+7 days'));
+
+-- ── 推薦獎勵（Type B）測試資料 ──
+-- 家人 B（900000002）：5 位成功加入 + 1 位待加入 → 已解鎖（required_referrals = 5）
+INSERT OR IGNORE INTO referral (id, inviter_member_no, inviter_family_id, invitee_phone, invitee_name, invitee_member_no, status, joined_at)
+  VALUES
+    ('ref-b1', '900000002', 'fam-test', '91110001', '家人一', '900001001', 'joined', datetime('now')),
+    ('ref-b2', '900000002', 'fam-test', '91110002', '家人二', '900001002', 'joined', datetime('now')),
+    ('ref-b3', '900000002', 'fam-test', '91110003', '家人三', '900001003', 'joined', datetime('now')),
+    ('ref-b4', '900000002', 'fam-test', '91110004', '家人四', '900001004', 'joined', datetime('now')),
+    ('ref-b5', '900000002', 'fam-test', '91110005', '家人五', '900001005', 'joined', datetime('now')),
+    ('ref-b6', '900000002', 'fam-test', '91110006', '家人六', NULL,       'invited', NULL);
+-- 家人 C（900000003）：同樣已解鎖（測名額）
+INSERT OR IGNORE INTO referral (id, inviter_member_no, inviter_family_id, invitee_phone, invitee_name, invitee_member_no, status, joined_at)
+  VALUES
+    ('ref-c1', '900000003', 'fam-test', '92220001', '親友一', '900002001', 'joined', datetime('now')),
+    ('ref-c2', '900000003', 'fam-test', '92220002', '親友二', '900002002', 'joined', datetime('now')),
+    ('ref-c3', '900000003', 'fam-test', '92220003', '親友三', '900002003', 'joined', datetime('now')),
+    ('ref-c4', '900000003', 'fam-test', '92220004', '親友四', '900002004', 'joined', datetime('now')),
+    ('ref-c5', '900000003', 'fam-test', '92220005', '親友五', '900002005', 'joined', datetime('now'));
+
+-- 推薦獎勵券：① 名額不限 ② 名額 1（測名額控管）
+INSERT OR IGNORE INTO reward
+  (id, merchant_id, title, description, required_referrals, quota_total, is_active)
+  VALUES
+    ('reward-test-unlimited', 'mc-cha-kwuntong', '茶餐廳 $50 現金券', '滿 $200 減 $50', 5, NULL, 1),
+    ('reward-test-quota1',    'mc-clinic-wanchai', '診所$30 折扣', '限量 1 名', 5, 1, 1);

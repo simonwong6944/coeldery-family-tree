@@ -359,7 +359,28 @@
     "expired": "已過期",
     "quota": "剩 {{left}} 個名額",
     "quota_unlimited": "名額不限",
+    "locked": "未解鎖",
     "err_generic": "領取失敗，請再試一次"
+  },
+  "referral": {
+    "section_title": "推薦獎勵",
+    "progress": "已成功推薦 {{joined}}／{{required}} 位家人",
+    "progress_hint": "再推薦 {{remaining}} 位家人，即可解鎖優惠。",
+    "unlocked": "已解鎖，可揀以下優惠。",
+    "invite_btn": "推薦家人",
+    "invite_hint": "家人完成首次登入（或你喺「加成員」加入佢）之後，就會計入成功推薦。",
+    "invite_phone": "家人電話",
+    "invite_name": "稱呼（可選）",
+    "invite_submit": "記錄邀請",
+    "invite_created": "已記錄邀請。",
+    "invite_send": "WhatsApp 邀請",
+    "list_title": "我嘅推薦",
+    "status_invited": "待加入",
+    "status_joined": "已加入",
+    "no_referrals": "尚未推薦任何家人。",
+    "rewards_title": "可選優惠",
+    "no_rewards": "暫無推薦獎勵優惠。",
+    "locked_hint": "需成功推薦 {{required}} 位家人（現時 {{joined}} 位）"
   },
   "entry_card": {
     "activity_title": "查閱動態",

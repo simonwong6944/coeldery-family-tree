@@ -47,6 +47,7 @@
 import type { Env } from '../_types'
 import { lookup85AiByPhone } from './_lookup85ai'
 import { hashPassword } from './_password'
+import { markReferralJoined } from '../_referrals'
 
 /* ════════════════════════════════════════════════════════════
  * session helpers（照抄 session.ts，唔 import 以免 cross-import）
@@ -285,6 +286,13 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
         )
         .bind(memberNo, passwordHash, nickname)
         .run()
+    }
+
+    /* ── 6d. 推薦獎勵：若呢個電話曾被家人邀請 → 標記「成功加入」（Type B 解鎖條件）── */
+    try {
+      await markReferralJoined(db, phoneNorm, memberNo)
+    } catch (e) {
+      console.error('[family/setup] markReferralJoined failed:', e)
     }
 
     /* ── 7. 種 family_session cookie（A / B 均執行）── */

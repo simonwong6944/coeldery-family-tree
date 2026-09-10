@@ -7,10 +7,10 @@
  */
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import PromotionSticker from './PromotionSticker'
+import CouponSticker from './CouponSticker'
 import { listMerchantMeta, listMerchants, type MerchantMeta } from '../utils/gatherApi'
-import { listPromotions } from '../utils/promotionApi'
-import { promoForMerchant, sortPromotions, type Promotion } from '../utils/promotions'
+import { claimPromotion, listPromotions } from '../utils/promotionApi'
+import { claimState, defaultClaimText, promoForMerchant, sortPromotions, type Promotion } from '../utils/promotions'
 import {
   applyMerchantQuery, defaultCategoryFor,
   type MerchantKind, type MerchantSort, type QueryMerchant,
@@ -147,7 +147,19 @@ export default function MerchantPicker({ kind, festivalId, solemn = false, onPic
                   {m.address && <div style={{ ...gsMuted, marginTop: '2px' }}>{m.address}</div>}
                 </button>
                 {/* 節日推廣（忌辰唔會有）*/}
-                {promo && <PromotionSticker promo={promo} />}
+                {promo && (
+                  <CouponSticker
+                    coupon={{
+                      id: promo.id, title: promo.title, description: promo.description,
+                      quota_left: promo.quota_left, my_claimed: promo.my_claimed,
+                      festival_name: promo.festival_name, festival_date: promo.festival_date,
+                      merchant: promo.merchant,
+                    }}
+                    state={claimState(promo)}
+                    defaultText={defaultClaimText(promo)}
+                    claim={() => claimPromotion(promo.id)}
+                  />
+                )}
               </div>
             )
           })}

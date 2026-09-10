@@ -256,3 +256,23 @@
 - 驗證：`scripts/test-promotions.mjs` 21/21、`scripts/test-promotions-e2e.mjs` **31/31**、`scripts/test-gather-notify.mjs` 18/18、`scripts/test-merchant-query.mjs` 23/23、`scripts/test-gathering-e2e.mjs` 30/30；本機 `generate-merchant-sql.mjs` → 套用 → 各「需要」流程均有商戶（12/12）。
 
 | v1.11 | 2026-09-10 | 新增：[決策] 節日推廣券（必須綁節日；雙動作零金流）＋ 商戶資料錄入工具（data/merchants.json → SQL）＋ 聚會通知 v1（App 內＋分享；真 push 前置已列）；落實 family_gather.md §6 | 產品負責人 |
+
+## [決策] 推薦獎勵券（Type B）＋ 推薦飛輪落地（2026-09-10）
+
+- 背景：spec §6 已定「統一 coupon engine」兩個 type。v1.11 已落地 Type A（節日推廣券，綁節日）。Type B 係**推薦飛輪**嘅燃料（§8）：長者為攞券而推薦家人 → 家庭樹增長 → 用券去家庭聚會幫襯商戶 → 商戶見真實引流更肯出券／廣告 → 平台有更多更好券 → 更有動力推薦。
+- 決策：
+  1. **Type B 不綁節日，綁「成功推薦人數」**（`reward.required_referrals`，例：5）。與 Type A 分表（`reward` vs `promotion`）：Type A 因「推廣必須綁節日」而 `festival_id NOT NULL`；Type B 則以推薦解鎖為條件。**兩者共用同一套「雙動作」領取 UX**（平台記錄領取 ＋ 一鍵 WhatsApp 向商戶確認，零金流、不抽佣），前端由同一元件 `CouponSticker` 呈現，避免兩套玩法。
+  2. **「成功推薦」＝家人真正加入**（唔係單撳邀請就計）。兩條路徑都會標記 `referral.status = 'joined'`：
+     - ① 被邀請人自己完成首次設定（`family/setup.ts` 以電話配對）
+     - ② 邀請人喺「加成員」加入該家人（`members.ts` 以電話配對，且屬同一家族）
+     即係「派出去嘅邀請」同「真正落地嘅推薦」分開，唔會俾人刷數。
+  3. **一人一次、名額有限**：`UNIQUE(reward_id, member_no)`；`quota_total` 用條件式 UPDATE 原子控管（與 Type A 同一手法）。
+  4. **私隱**：`GET /api/referrals` 只回傳**遮罩電話**（例 `9333****`）；唔會回傳完整號碼。
+  5. **入場方式**：家庭聚會首頁「推薦獎勵」區 —— 顯示進度（已成功推薦 N／5）、一撳記錄邀請並用 WhatsApp 邀請、已邀請／已加入清單、解鎖後可自選商戶優惠券並領取。
+  6. **忌辰零廣告**（rules §23）：莊重場合唔會出現任何券（推廣或獎勵）。
+  7. **商戶資料工具同步支援**：`data/merchants.json` 加 `rewards[]`（Type B），由 `scripts/generate-merchant-sql.mjs` 一併產生 UPSERT SQL（唔會重設 claimed_count）。
+- Out of Scope（維持）：推薦獎賞嘅**現金／積分**（只做商戶券，零金流）、排行榜／裂變獎勵、商戶自助後台、coupon code／QR 核銷自動化。
+- 與其他文件之關係：落實 `family_gather.md` §6 Type B、§8 飛輪；與 v1.11（Type A）並列為「統一 coupon engine 嘅兩個 type」。
+- 驗證：`scripts/test-referrals.mjs` **25/25**（純邏輯）、`scripts/test-referrals-e2e.mjs` **35/35**（未登入 401、記錄邀請、重複 409、**未解鎖領取 403**、達標領取 201、一人一次 409、名額滿 409、我嘅清單獨立）；重跑 `test-promotions-e2e.mjs` 31/31、`test-gathering-e2e.mjs` 30/30。
+
+| v1.12 | 2026-09-10 | 新增：[決策] 推薦獎勵券 Type B（綁成功推薦人數、唔綁節日；與 Type A 共用雙動作 UX）＋ 推薦飛輪落地（setup／加成員兩路徑判定成功推薦；電話遮罩；忌辰零廣告）；落實 family_gather.md §6 Type B、§8 | 產品負責人 |

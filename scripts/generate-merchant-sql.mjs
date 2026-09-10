@@ -69,6 +69,7 @@ function main() {
   const tags      = data.tags ?? []
   const merchants = data.merchants ?? []
   const promos    = data.promotions ?? []
+  const rewards   = data.rewards ?? []
 
   const groupIds = new Set([...KNOWN.districtGroups])
   const districtIds = new Set([...KNOWN.districts, ...districts.map(d => d.id)])
@@ -113,6 +114,15 @@ function main() {
     if (p.quota_total !== null && p.quota_total !== undefined && (!Number.isInteger(p.quota_total) || p.quota_total < 0))
       errs.push(`promotion ${p.id} 嘅 quota_total 必須為 null 或 >= 0 嘅整數`)
   }
+  for (const w of rewards) {
+    dup('reward:', w.id)
+    if (!w.merchant_id || !merchantIds.has(w.merchant_id)) errs.push(`reward ${w.id} 嘅 merchant_id 唔存在：${w.merchant_id}`)
+    if (!w.title) errs.push(`reward ${w.id} 缺 title`)
+    if (!Number.isInteger(w.required_referrals) || w.required_referrals < 1)
+      errs.push(`reward ${w.id} 嘅 required_referrals 必須為 >= 1 嘅整數（例：5）`)
+    if (w.quota_total !== null && w.quota_total !== undefined && (!Number.isInteger(w.quota_total) || w.quota_total < 0))
+      errs.push(`reward ${w.id} 嘅 quota_total 必須為 null 或 >= 0 嘅整數`)
+  }
 
   if (errs.length) {
     console.error('❌ 資料驗證失敗：')
@@ -124,7 +134,7 @@ function main() {
   const out = []
   out.push('-- 由 scripts/generate-merchant-sql.mjs 產生 — 請勿手改（改 data/merchants.json 再產生）')
   out.push(`-- 產生時間：${new Date().toISOString()}`)
-  out.push(`-- 商戶 ${merchants.length} 間／標籤 ${tags.length} 個／地區 ${districts.length} 個／地標 ${landmarks.length} 個／節日推廣 ${promos.length} 張`)
+  out.push(`-- 商戶 ${merchants.length} 間／標籤 ${tags.length} 個／地區 ${districts.length} 個／地標 ${landmarks.length} 個／節日推廣 ${promos.length} 張／推薦獎勵 ${rewards.length} 張`)
   out.push('')
   for (const d of districts) {
     out.push(upsert('district', ['id', 'group_id', 'name'], [q(d.id), q(d.group_id), q(d.name)], ['group_id', 'name']))
@@ -154,6 +164,14 @@ function main() {
       /* ⚠️ 故意唔更新 claimed_count（保留已領取紀錄）*/
       ['merchant_id', 'festival_id', 'title', 'description', 'terms', 'quota_total', 'valid_from', 'valid_to', 'is_active']))
   }
+  for (const w of rewards) {
+    out.push(upsert('reward',
+      ['id', 'merchant_id', 'title', 'description', 'terms', 'required_referrals', 'quota_total', 'valid_to', 'is_active'],
+      [q(w.id), q(w.merchant_id), q(w.title), q(w.description), q(w.terms),
+        n(w.required_referrals), n(w.quota_total ?? null), q(w.valid_to ?? null), n(w.is_active ?? 1)],
+      /* ⚠️ 故意唔更新 claimed_count（保留已領取紀錄）*/
+      ['merchant_id', 'title', 'description', 'terms', 'required_referrals', 'quota_total', 'valid_to', 'is_active']))
+  }
   const sql = out.join('\n') + '\n'
 
   const outIdx = process.argv.indexOf('--out')
@@ -163,7 +181,7 @@ function main() {
     mkdirSync(dirname(path), { recursive: true })
     writeFileSync(path, sql, 'utf8')
     console.log(`✅ 已產生 ${rel}`)
-    console.log(`   商戶 ${merchants.length}／標籤 ${tags.length}／地區 ${districts.length}／地標 ${landmarks.length}／節日推廣 ${promos.length}`)
+    console.log(`   商戶 ${merchants.length}／標籤 ${tags.length}／地區 ${districts.length}／地標 ${landmarks.length}／節日推廣 ${promos.length}／推薦獎勵 ${rewards.length}`)
     console.log(`   本機：npx wrangler d1 execute coeldery-family-tree-db --local  --file ${rel}`)
     console.log(`   線上：npx wrangler d1 execute coeldery-family-tree-db --remote --file ${rel}`)
   } else {
