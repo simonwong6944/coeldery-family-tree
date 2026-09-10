@@ -162,6 +162,22 @@
     "spouse_younger_sister": "小姑",
     "relative": "親屬"
   },
+  "account": {
+    "title": "我的帳號",
+    "member_no_label": "會員編號",
+    "nickname_label": "暱稱",
+    "nickname_placeholder": "請輸入暱稱",
+    "save": "儲存",
+    "saved": "已儲存",
+    "change_pw_title": "更改密碼",
+    "old_pw_label": "舊密碼",
+    "new_pw_label": "新密碼（至少 8 個字元）",
+    "confirm_pw_label": "確認新密碼",
+    "pw_mismatch": "兩次新密碼不一致",
+    "pw_too_short": "新密碼至少 8 個字元",
+    "pw_changed": "密碼已更改",
+    "err_generic": "發生錯誤，請稍後再試"
+  },
   "common": {
     "indicator_position": "第 {{active}} 個，共 {{total}} 個",
     "loading": "載入中⋯"

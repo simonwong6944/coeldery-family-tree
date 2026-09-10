@@ -163,6 +163,9 @@ export default function MemberDetail({ memberId }: { memberId: string }) {
           {isSelf && (
             <button style={{ ...smallBtn, marginTop:'6px' }} onClick={handleRenameSelf}>{t('member_detail.rename_btn')}</button>
           )}
+          {isSelf && (
+            <button style={{ ...smallBtn, marginTop:'6px', marginLeft:'6px' }} onClick={() => { window.location.hash = '#/account' }}>{t('account.title')} ›</button>
+          )}
         </div>
         {isSelf && <span style={{ fontSize:'12px', fontWeight:'bold', color:'var(--color-primary)', border:'1.5px solid var(--color-primary)', borderRadius:'12px', padding:'2px 10px', whiteSpace:'nowrap', alignSelf:'flex-start' }}>{t('member_detail.is_self_label')}</span>}
       </div>

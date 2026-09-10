@@ -46,6 +46,7 @@
 
 import type { Env } from '../_types'
 import { lookup85AiByPhone } from './_lookup85ai'
+import { hashPassword } from './_password'
 
 /* ════════════════════════════════════════════════════════════
  * session helpers（照抄 session.ts，唔 import 以免 cross-import）
@@ -81,41 +82,8 @@ function buildSetCookieHeader(token: string): string {
 }
 
 /* ════════════════════════════════════════════════════════════
- * hashPassword — PBKDF2-SHA256，Web Crypto，edge runtime 可用
- *
- * 存格式：pbkdf2$100000$<saltHex>$<hashHex>
- *   - salt：16-byte random（crypto.getRandomValues）
- *   - iterations：100 000
- *   - derived key：32 bytes
+ * hashPassword 已抽出至 _password.ts（共用）
  * ════════════════════════════════════════════════════════════ */
-async function hashPassword(password: string): Promise<string> {
-  const ITERATIONS = 100_000
-  const HASH_BYTES = 32
-
-  const saltArr = new Uint8Array(16)
-  crypto.getRandomValues(saltArr)
-  const saltHex = Array.from(saltArr).map(b => b.toString(16).padStart(2, '0')).join('')
-
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(password),
-    { name: 'PBKDF2' },
-    false,
-    ['deriveBits'],
-  )
-
-  const derived = await crypto.subtle.deriveBits(
-    { name: 'PBKDF2', salt: saltArr, iterations: ITERATIONS, hash: 'SHA-256' },
-    keyMaterial,
-    HASH_BYTES * 8,
-  )
-
-  const hashHex = Array.from(new Uint8Array(derived))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('')
-
-  return `pbkdf2$${ITERATIONS}$${saltHex}$${hashHex}`
-}
 
 /* ════════════════════════════════════════════════════════════
  * 生成短 hex id（128-bit random，32-char hex）

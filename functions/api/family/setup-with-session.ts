@@ -42,6 +42,7 @@
  */
 
 import type { Env } from '../_types'
+import { hashPassword } from './_password'
 
 /* ════════════════════════════════════════════════════════════
  * session helpers（與 session.ts / setup.ts 同款，唔 cross-import）
@@ -86,37 +87,8 @@ function parseCookieValue(cookieHeader: string | null, name: string): string | u
 }
 
 /* ════════════════════════════════════════════════════════════
- * hashPassword — PBKDF2-SHA256（與 setup.ts 完全一致）
- * 格式：pbkdf2$100000$<saltHex>$<hashHex>
+ * hashPassword 已抽出至 _password.ts（共用）
  * ════════════════════════════════════════════════════════════ */
-async function hashPassword(password: string): Promise<string> {
-  const ITERATIONS = 100_000
-  const HASH_BYTES = 32
-
-  const saltArr = new Uint8Array(16)
-  crypto.getRandomValues(saltArr)
-  const saltHex = Array.from(saltArr).map(b => b.toString(16).padStart(2, '0')).join('')
-
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(password),
-    { name: 'PBKDF2' },
-    false,
-    ['deriveBits'],
-  )
-
-  const derived = await crypto.subtle.deriveBits(
-    { name: 'PBKDF2', salt: saltArr, iterations: ITERATIONS, hash: 'SHA-256' },
-    keyMaterial,
-    HASH_BYTES * 8,
-  )
-
-  const hashHex = Array.from(new Uint8Array(derived))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('')
-
-  return `pbkdf2$${ITERATIONS}$${saltHex}$${hashHex}`
-}
 
 /* ════════════════════════════════════════════════════════════
  * Main handler

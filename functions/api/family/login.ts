@@ -19,6 +19,7 @@
 
 import type { Env } from '../_types'
 import { lookup85AiByPhone } from './_lookup85ai'
+import { verifyPassword } from './_password'
 
 /* session 有效期：30 日（同 enter.ts / setup-with-session.ts） */
 const SESSION_DAYS = 30
@@ -60,51 +61,7 @@ function normalizePhone(raw: string): string | null {
   return norm
 }
 
-/* ── verifyPassword：PBKDF2-SHA256 constant-time ── */
-async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
-  const parts = storedHash.split('$')
-  if (parts.length !== 4 || parts[0] !== 'pbkdf2') return false
-
-  const iterations = parseInt(parts[1], 10)
-  const saltHex    = parts[2]
-  const hashHex    = parts[3]
-
-  if (!Number.isInteger(iterations) || iterations <= 0) return false
-  if (saltHex.length === 0 || hashHex.length === 0)     return false
-
-  const saltArr = new Uint8Array(saltHex.length / 2)
-  for (let i = 0; i < saltArr.length; i++) {
-    saltArr[i] = parseInt(saltHex.slice(i * 2, i * 2 + 2), 16)
-  }
-
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(password),
-    { name: 'PBKDF2' },
-    false,
-    ['deriveBits'],
-  )
-
-  const derived = await crypto.subtle.deriveBits(
-    { name: 'PBKDF2', salt: saltArr, iterations, hash: 'SHA-256' },
-    keyMaterial,
-    32 * 8,
-  )
-
-  const derivedHex = Array.from(new Uint8Array(derived))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('')
-
-  // constant-time 比對
-  const len = Math.max(derivedHex.length, hashHex.length)
-  let diff = 0
-  for (let i = 0; i < len; i++) {
-    const a = i < derivedHex.length ? derivedHex.charCodeAt(i) : 0
-    const b = i < hashHex.length    ? hashHex.charCodeAt(i)    : 0
-    diff |= (a ^ b)
-  }
-  return diff === 0
-}
+/* verifyPassword 已抽出至 _password.ts（共用）*/
 
 /* ══ Main handler ══ */
 export const onRequestPost: PagesFunction<Env> = async (ctx) => {
