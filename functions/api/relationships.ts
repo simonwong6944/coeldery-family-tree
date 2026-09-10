@@ -23,6 +23,7 @@
  */
 
 import type { Env } from './_types'
+import { getCurrentMember } from './_currentMember'
 
 function genId(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(16))
@@ -36,6 +37,10 @@ const RELATION_TO_EDGE: Record<string, { edge: string; direction: 'from_target' 
 }
 
 export const onRequestPost: PagesFunction<Env> = async (ctx) => {
+  /* ── 認證：必須登入 ── */
+  const cur = await getCurrentMember(ctx.env.DB, ctx.request)
+  if (!cur.ok) return cur.response   // 401
+
   let body: Record<string, unknown>
   try { body = await ctx.request.json() as Record<string, unknown> }
   catch { return Response.json({ ok: false, error: '無效的 JSON 格式' }, { status: 400 }) }
@@ -67,6 +72,10 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
 
   if (fromMember.family_id !== toMember.family_id)
     return Response.json({ ok: false, error: '兩位成員不屬於同一家族' }, { status: 400 })
+
+  /* 該家族必須屬登入者，否則 403 */
+  if (!cur.familyIds.includes(fromMember.family_id))
+    return Response.json({ ok: false, error: '無權在此家族樹建立關係' }, { status: 403 })
 
   // 計算實際 from/to
   let actualFrom: string, actualTo: string
