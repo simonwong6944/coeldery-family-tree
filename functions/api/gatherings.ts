@@ -27,7 +27,10 @@ export const onRequestGet: PagesFunction<Env> = async (ctx) => {
               (SELECT COUNT(*) FROM gathering_option o
                  WHERE o.gathering_id = g.id AND o.status = 'confirmed') AS confirmed_count,
               (SELECT COUNT(DISTINCT v.voter_member_id) FROM gathering_vote v
-                 WHERE v.gathering_id = g.id) AS voter_count
+                 WHERE v.gathering_id = g.id) AS voter_count,
+              (SELECT o.option_date FROM gathering_option o
+                 WHERE o.gathering_id = g.id AND o.kind = 'date' AND o.status = 'confirmed'
+                 LIMIT 1) AS plan_date
        FROM gathering g
        LEFT JOIN members m ON m.id = g.subject_member_id
        WHERE g.family_id = ?
@@ -48,9 +51,9 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
   try { body = await ctx.request.json() as Record<string, unknown> }
   catch { return Response.json({ ok: false, error: '無效的 JSON 格式' }, { status: 400 }) }
 
-  const { title, occasion_type, subject_member_id, target_date, note } = body as {
+  const { title, occasion_type, subject_member_id, target_date, festival_id, note } = body as {
     title?: string; occasion_type?: string; subject_member_id?: string
-    target_date?: string; note?: string
+    target_date?: string; festival_id?: string; note?: string
   }
 
   /* §7 硬攔截：忌辰唔可以發起聚會（唔靠前端隱藏按鈕） */
@@ -85,6 +88,17 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
     targetDate = target_date
   }
 
+  /* 節日（可選）：必須存在於節日曆；節日聚會用佢帶出該節日嘅商戶推廣 */
+  let festivalId: string | null = null
+  if (festival_id) {
+    const f = await ctx.env.DB
+      .prepare('SELECT id FROM festival WHERE id = ? AND is_active = 1')
+      .bind(festival_id)
+      .first<{ id: string }>()
+    if (!f) return Response.json({ ok: false, error: '找不到此節日' }, { status: 404 })
+    festivalId = f.id
+  }
+
   const id  = genId()
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ')
 
@@ -92,12 +106,13 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
     .prepare(
       `INSERT INTO gathering
          (id, family_id, initiator_member_id, title, occasion_type, subject_member_id,
-          target_date, status, note, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?)`
+          target_date, festival_id, status, note, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?)`
     )
     .bind(
       id, cur.primaryFamilyId, cur.primaryMemberId, cleanTitle, occasion_type,
-      subjectId, targetDate, typeof note === 'string' && note.trim() ? note.trim() : null, now, now,
+      subjectId, targetDate, festivalId,
+      typeof note === 'string' && note.trim() ? note.trim() : null, now, now,
     )
     .run()
 

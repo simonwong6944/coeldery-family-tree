@@ -236,3 +236,23 @@
 - 驗證：`scripts/test-merchant-query.mjs` 23/23（類型匹配／搜尋／地區／分類／標籤／排序／忌辰零廣告）；`scripts/test-gathering-e2e.mjs` 30/30；本機 `GET /api/merchants-meta` 6/6。
 
 | v1.10 | 2026-09-10 | 新增：[決策] 家庭聚會定位修訂（首頁＝行動中心、商戶只在需要時出現且可篩選、標籤優先匹配、新增 `/api/merchants-meta`）；修訂 family_gather.md §2／§3.2／§4 | 產品負責人 |
+
+## [決策] 節日推廣券（雙動作）＋ 商戶資料工具＋聚會通知（2026-09-10）
+
+- 背景：商戶付費推廣要有實際落地位；同時要定義「推廣可以綁咩」。經確認：**推廣係綁「節日」**（例：中秋節訂枱），**唔可以綁個人**（例如某位家人生日）——因為個人生日唔應該商業化，而節日係全家庭共同需求、商戶亦真正有推廣價值。
+- 決策：
+  1. **推廣必須綁節日（schema 層 NOT NULL）**：新表 `promotion(festival_id NOT NULL)`；`festival` 為節日曆（每年更新一次，日期由產品負責人核實）。 API 亦只接受有節日嘅推廣。
+  2. **雙動作，零金流**（承 §6 及 Core Document 第四／八節）：
+     ① **領取（Claim）**：平台記錄會員（`promotion_claim`，`UNIQUE(promotion_id, member_no)` 一人一次；`quota_total` 名額原子遞增控管）、
+     ② **一鍵 WhatsApp 預約**：帶預填訊息去商戶（商戶自行記錄、線下核銷）。平台不落單、不收款、不抽佣。
+  3. **入場方式**：家庭聚會「即將到來」顯示節日 → 一撳「去安排」建立**節日聚會**（`gathering.festival_id`）→ 之後「加入候選（訂餐廳／蛋糕／禮物）」時，商戶清單會顯示**該節日**嘅推廣（可領取）。商戶曝光只喺呢個有目的嘅一刻出現。
+  4. **准入與誠信不變**：推廣只限 `is_listed = 1` 商戶；付費排序繼續標示「贊助」；**忌辰零廣告**（rules §23）——忌辰分支永遠唔會載入／顯示推廣。
+  5. **商戶資料錄入工具**：新增 `data/merchants.json`（人手編輯）＋ `scripts/generate-merchant-sql.mjs`（驗證 + 產生 UPSERT SQL；**唔會**重設已領取名額）＋ `scripts/generated/merchants.sql`（產物）。檔案內附**示範商戶（名稱標示「示範」、電話用假號碼）**覆蓋蛋糕／鮮花／禮品／酒樓，令各流程即時可用；正式上線前必須換成真實已收費商戶。
+  6. **聚會通知（v1）**：App 內「即將舉行的聚會」（已定日期、未過、按日排序＋倒數）＋ 一鍵「通知家人」（Web Share／WhatsApp 分享，預填日期／地點／蛋糕取貨）。**唔會**聲稱已自動通知。
+- Out of Scope／待決（已記錄前置）：
+  - **真正 server-side push（自動 WhatsApp 逐位家人發送）**需要：①家人電話（現時電話只存於 CoEldery85，未提供 `member_no → 電話` 反查）②Meta 已審批嘅 WhatsApp template（`WHATSAPP_*` secret 已接好但 template 未批）。兩者備妥前一律用分享。
+  - 商戶自助後台、coupon 代碼／QR 核銷、推薦獎勵券（Type B）。
+- 與其他文件之關係：落實 `family_gather.md` §6；補充 §3.2（節日 → 推廣）、§5（聚會帶 festival_id）。新增節日曆屬 Core Document 3.4 情感推送引擎之基礎。
+- 驗證：`scripts/test-promotions.mjs` 21/21、`scripts/test-promotions-e2e.mjs` **31/31**、`scripts/test-gather-notify.mjs` 18/18、`scripts/test-merchant-query.mjs` 23/23、`scripts/test-gathering-e2e.mjs` 30/30；本機 `generate-merchant-sql.mjs` → 套用 → 各「需要」流程均有商戶（12/12）。
+
+| v1.11 | 2026-09-10 | 新增：[決策] 節日推廣券（必須綁節日；雙動作零金流）＋ 商戶資料錄入工具（data/merchants.json → SQL）＋ 聚會通知 v1（App 內＋分享；真 push 前置已列）；落實 family_gather.md §6 | 產品負責人 |

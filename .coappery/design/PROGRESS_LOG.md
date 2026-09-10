@@ -1,6 +1,6 @@
 # CoEldery 家族樹 — 進度 LOG（source of truth）
 
-最後更新：2026-09-10（家庭聚會重新定位：首頁＝行動中心，商戶只在需要時出現）
+最後更新：2026-09-10（節日推廣券 ＋ 商戶資料錄入 ＋ 聚會通知）
 
 ---
 
@@ -111,7 +111,7 @@
 ### E. 現行 backlog（更新）
 1. 短片支援已完成；剩：無效電話測 `check-phone` 回 502 → 應回「非會員」（小 UX）。
 2. Handoff 最終驗收（方法 B + 真人入口）。
-3. **家庭聚會**：v1 核心（場合商戶瀏覽）＋ **協作流程（發起／候選／逐人投票／確認／自動家庭圈邀請卡）已完成**（見第七、八節）；**重新定位（首頁＝行動中心、商戶只在需要時出現）已完成**（見第九節）；未做 = coupon（雙動作）、推薦獎勵券、聚會提醒推送、支出分攤、名額上限、投票截止自動鎖定。
+3. **家庭聚會**：v1 核心（場合商戶瀏覽）＋ **協作流程（發起／候選／逐人投票／確認／自動家庭圈邀請卡）已完成**（見第七、八節）；**重新定位（首頁＝行動中心、商戶只在需要時出現）已完成**（見第九節）；**節日推廣券 ＋ 商戶資料錄入 ＋ 聚會通知已落地**（見第十節）；未做 = 真 server push（待家人電話反查＋Meta template 審批）、推薦獎勵券（Type B）、coupon code／QR 核銷、商戶自助後台、聚會提醒推送時序、支出分攤、名額上限、投票截止自動鎖定。
 4. 技術債：`ImportantDatesSection.tsx` 326 行（超 SOP 200），建議拆 component；`FocusTree.tsx` 亦接近上限。
 
 ---
@@ -209,4 +209,36 @@
 - `scripts/test-merchant-query.mjs` **23/23**（新）：類型匹配、冇標籤後備、搜尋、區域／地區／分類／標籤篩選、排序（名稱／地區／推薦）、**忌辰零廣告**。
 - `scripts/test-gather-plan.mjs` 26/26；`scripts/test-gathering-e2e.mjs` **30/30**（重跑仍全過）；本機 `GET /api/merchants-meta` 6/6。
 - 本機 DB 種資料（沿用）：`fam-test` / `m-self`(900000001) / `m-dad` / session `testsession1234`。
+
+---
+
+## 十、節日推廣券 ＋ 商戶資料 ＋ 聚會通知（2026-09-10 追加）
+
+> ⚠️ **`migrations/0016_festival_promotions.sql` remote 待產品負責人執行**（rules §19）；
+> 另 `scripts/generated/merchants.sql`（商戶資料）亦待 remote 套用後才於線上出現。
+
+### A. 節日推廣券（#1，product_decisions v1.11）
+- 定位：**推廣必須綁節日**（例：中秋訂枱）——唔可以綁個人生日（用戶明確要求）。
+- 新表：`festival`（節日曆，10 個 2026 香港節日種子；**日期為建議值須核實**）／`promotion`（`festival_id` **NOT NULL**）／`promotion_claim`（`UNIQUE(promotion_id, member_no)` 一人一次）；`gathering` 加 `festival_id`。
+- API：`GET /api/festivals`、`GET /api/promotions?festival_id=`、`POST /api/promotion-claims`（名額用**條件式 UPDATE 原子控管**，回傳 WhatsApp 預填訊息）、`GET /api/promotion-claims`（我領取嘅）。
+- 流程：首頁節日卡 → 去安排（節日聚會）→ 加入候選（訂餐廳／蛋糕／禮物）→ 商戶清單顯示**該節日推廣** → 「領取優惠」→「WhatsApp 預約」（**雙動作、零金流**：平台記錄領取、商戶記錄預約）。
+- 忌辰：**唔會**載入／顯示任何推廣（rules §23）。
+- 前端：`PromotionSticker`（領取／已領取／名額已滿／已過期）、`MerchantPicker` 加 `festivalId`、`GatherPlanForm` 節日選擇、`UpcomingList` 合併「節日 ＋ 家人提醒」。
+
+### B. 商戶資料錄入（#2）
+- `data/merchants.json`（人手編輯）→ `scripts/generate-merchant-sql.mjs`（驗證 + UPSERT SQL；**唔會**重設 `claimed_count`）→ `scripts/generated/merchants.sql`（產物）→ `docs/merchant_data.md`（runbook）。
+- 附 **7 間示範商戶**（名稱標「（示範）」、電話 `2000-xxxx` 假號碼）＋ 3 張節日推廣，覆蓋 蛋糕／鮮花／禮品／酒樓 → 各流程即時有商戶可揀。
+- **⚠️ 上線前必須換成真實已收費商戶**（或 `is_listed` 改 0 隱藏）。
+
+### C. 聚會通知（#3）
+- App 內：**「即將舉行的聚會」**（已定日期、未過、按日排序 ＋ 倒數）；`GatheringListItem` 加 `plan_date`。
+- 一鍵**「通知家人」**：Web Share／WhatsApp 分享，預填日期／地點／蛋糕取貨（純前端，唔會聲稱已自動通知）。
+- **真 server-side push 前置（未做）**：①家人電話反查（85AI 現時冇 `member_no → 電話`）②Meta 已審批 WhatsApp template。已列入 product_decisions v1.11 Out of Scope。
+
+### D. 測試（全部實跑）
+- 新增：`test-promotions.mjs` **21/21**、`test-promotions-e2e.mjs` **31/31**、`test-gather-notify.mjs` **18/18**。
+- 重跑：`test-gathering-e2e.mjs` 30/30、`test-merchant-query.mjs` 23/23、`test-gather-plan.mjs` 26/26。
+- 商戶落地驗證（臨時腳本，用完即刪）：**12/12** —— 商戶 10 間、中秋推廣 5 張、訂餐廳／訂蛋糕／買禮物／送花各有 ≥2 間可揀、地區／標籤篩選生效、贊助標示存在。
+- 測試資料檔：`scripts/seed-local-test.sql`（開頭會**重設推廣領取狀態**，令推廣 E2E 可重複執行）。
+- 死 key 清理：`gather.*` 115 個、`promo.*` 8 個全部有用（以腳本核對）。
 

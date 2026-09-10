@@ -13,6 +13,7 @@ import {
   type GatheringDetail as Detail,
 } from '../utils/gatherApi'
 import { groupByKind, hasConfirmed, optionDetail, OPTION_KINDS, type OptionKind, type VoteChoice } from '../utils/gatherPlan'
+import { buildShareText, shareText } from '../utils/gatherNotify'
 import {
   gsPage, gsMain, gsCard, gsH1, gsMuted, gsSectionTitle, gsRow, gsBtnPrimary, gsBtnGhost,
   gsBtnDanger, gsBadge, gsCentered,
@@ -72,13 +73,18 @@ export default function GatherDetail({ gatheringId }: Props) {
     if (r.ok) window.location.hash = '#/family-gather'
   }
   async function share() {
+    if (!d) return
     const url = `${window.location.origin}/#/gather/${gatheringId}`
-    const g = d?.gathering
-    const text = g ? `${g.title}\n${t('gather.share_hint')}` : ''
-    try {
-      if (navigator.share) await navigator.share({ title: g?.title, text, url })
-      else { await navigator.clipboard.writeText(`${text}\n${url}`); window.alert(t('gather.share_copied')) }
-    } catch { /* 用戶取消，靜默 */ }
+    const text = buildShareText({
+      title: d.gathering.title,
+      date: d.gathering.target_date,
+      note: d.gathering.note,
+      options: d.options,
+      url,
+    })
+    const how = await shareText(text, url)
+    if (how === 'copied') window.alert(t('gather.notify_copied'))
+    else if (how === 'failed') window.alert(t('gather.notify_failed'))
   }
 
   if (state === 'loading') return <div style={gsPage}><TopBar titleKey="gather.page_title" onBack={() => { window.location.hash = '#/family-gather' }} /><p style={gsCentered}>{t('common.loading')}</p></div>
@@ -111,7 +117,7 @@ export default function GatherDetail({ gatheringId }: Props) {
               </p>
             ))}
             <div style={gsRow}>
-              <button style={gsBtnGhost} onClick={share}>📤 {t('gather.share_invite')}</button>
+              <button style={gsBtnGhost} onClick={share}>📣 {t('gather.notify_family')}</button>
               {g.invite_post_id && <span style={gsBadge('ok')}>{t('gather.invited_to_feed')}</span>}
             </div>
           </section>
@@ -159,6 +165,7 @@ export default function GatherDetail({ gatheringId }: Props) {
       {addKind && (
         <GatherAddOption
           gatheringId={gatheringId} kind={addKind} members={d.members} solemn={solemn}
+          festivalId={g.festival_id ?? undefined}
           onClose={() => setAddKind(null)}
           onDone={() => { setAddKind(null); reload() }}
         />

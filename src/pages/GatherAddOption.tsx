@@ -21,11 +21,13 @@ interface Props {
   kind: OptionKind
   members: { id: string; display_name: string }[]
   solemn?: boolean
+  /** 節日聚會 → 揀商戶時顯示該節日推廣 */
+  festivalId?: string
   onClose: () => void
   onDone: () => void
 }
 
-export default function GatherAddOption({ gatheringId, kind, members, solemn = false, onClose, onDone }: Props) {
+export default function GatherAddOption({ gatheringId, kind, members, solemn = false, festivalId, onClose, onDone }: Props) {
   const { t } = useTranslation()
   const needPick = kind !== 'date'
 
@@ -67,6 +69,7 @@ export default function GatherAddOption({ gatheringId, kind, members, solemn = f
       <MerchantPicker
         kind={kind === 'date' ? 'place' : kind}
         solemn={solemn}
+        festivalId={festivalId}
         onClose={onClose}
         onPick={m => { setMerchant(m); setPicking(false) }}
       />

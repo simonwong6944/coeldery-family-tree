@@ -10,6 +10,8 @@ export interface GatheringListItem extends Gathering {
   option_count: number
   confirmed_count: number
   voter_count: number
+  /** 已確認嘅聚會日期（否則用 target_date） */
+  plan_date: string | null
 }
 
 export interface GatheringDetail {
@@ -45,7 +47,8 @@ export async function listGatherings(): Promise<GatheringListItem[]> {
 
 export function createGathering(input: {
   title: string; occasion_type: string
-  subject_member_id?: string | null; target_date?: string | null; note?: string | null
+  subject_member_id?: string | null; target_date?: string | null
+  festival_id?: string | null; note?: string | null
 }) {
   return call<{ gathering: Gathering }>('/api/gatherings', { method: 'POST', body: JSON.stringify(input) })
 }
@@ -55,7 +58,7 @@ export function getGathering(id: string) {
 }
 
 export function patchGathering(id: string, patch: Partial<Pick<Gathering,
-  'title' | 'occasion_type' | 'subject_member_id' | 'target_date' | 'status' | 'note'>>) {
+  'title' | 'occasion_type' | 'subject_member_id' | 'target_date' | 'status' | 'note' | 'festival_id'>>) {
   return call<{ gathering: Gathering }>(`/api/gatherings/${id}`, { method: 'PATCH', body: JSON.stringify(patch) })
 }
 

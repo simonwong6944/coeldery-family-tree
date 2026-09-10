@@ -2,7 +2,7 @@
  *
  * 前置（本機）：
  *   1) npx wrangler d1 migrations apply coeldery-family-tree-db --local
- *   2) 種測試資料（見 .coappery/PROGRESS_LOG.md §八）
+ *   2) npx wrangler d1 execute coeldery-family-tree-db --local --file scripts/seed-local-test.sql
  *   3) npx wrangler pages dev dist --d1=coeldery-family-tree-db --local --port 8787
  *   4) node scripts/test-gathering-e2e.mjs
  *

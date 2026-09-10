@@ -1,0 +1,155 @@
+{
+  "_comment": [
+    "商戶資料來源（人手編輯）→ 用 node scripts/generate-merchant-sql.mjs 產生 SQL → 產品負責人 --remote 套用。",
+    "規則：",
+    "  1. is_listed = 0 嘅商戶**完全唔會出現**喺 App（承 merchant_platform 准入）。",
+    "  2. ad_tier > 0 = 付費排序，UI 必須顯示「贊助」；請如實填寫（收費狀態）。",
+    "  3. promotion **必須綁 festival_id**（節日推廣）——唔可以綁個人生日。",
+    "  4. 標籤（tags）決定「訂餐廳／訂蛋糕／買禮物／送花」清單出唔出該商戶 → 標籤係關鍵。",
+    "  5. 以下標示「（示範）」嘅商戶／推廣為**示範資料**，電話用 2000-xxxx 假號碼；",
+    "     正式上線前必須由產品負責人換成真實已收費商戶（或改 is_listed = 0 隱藏）。"
+  ],
+  "districts": [
+    { "id": "dt-mongkok", "group_id": "dg-kowloon", "name": "旺角" },
+    { "id": "dt-cwb",     "group_id": "dg-hk-island", "name": "銅鑼灣" },
+    { "id": "dt-tseung-kwan-o", "group_id": "dg-kowloon", "name": "將軍澳" }
+  ],
+  "landmarks": [
+    { "id": "lm-langham", "district_id": "dt-mongkok", "name": "朗豪坊", "landmark_type": "mall" },
+    { "id": "lm-cwb-times", "district_id": "dt-cwb", "name": "銅鑼灣站", "landmark_type": "mtr" },
+    { "id": "lm-tko-popcorn", "district_id": "dt-tseung-kwan-o", "name": "將軍澳中心", "landmark_type": "mall" }
+  ],
+  "tags": [
+    { "id": "tag-cake",        "category_id": "cat-gift", "name": "蛋糕" },
+    { "id": "tag-bakery",      "category_id": "cat-gift", "name": "西餅" },
+    { "id": "tag-gift-shop",   "category_id": "cat-gift", "name": "禮品" },
+    { "id": "tag-flower-shop", "category_id": "cat-gift", "name": "花店" },
+    { "id": "tag-banquet",     "category_id": "cat-food", "name": "宴會" },
+    { "id": "tag-delivery-food", "category_id": "cat-food", "name": "到會" }
+  ],
+  "merchants": [
+    {
+      "id": "mc-demo-banquet-cwb",
+      "name": "（示範）銅鑼灣金鳳酒樓",
+      "category_id": "cat-food",
+      "landmark_id": "lm-cwb-times",
+      "is_listed": 1, "ad_tier": 2,
+      "phone": "2000-1001", "whatsapp": "85220001001",
+      "map_url": "https://maps.google.com/?q=銅鑼灣",
+      "address": "銅鑼灣軒尼詩道 100 號 2 樓",
+      "description": "粵菜酒樓，可擺 10–20 席，設長者優惠。",
+      "paid_note": "示範資料",
+      "tags": ["tag-yumcha", "tag-banquet"]
+    },
+    {
+      "id": "mc-demo-cha-tko",
+      "name": "（示範）將軍澳好味茶餐廳",
+      "category_id": "cat-food",
+      "landmark_id": "lm-tko-popcorn",
+      "is_listed": 1, "ad_tier": 0,
+      "phone": "2000-1002", "whatsapp": "85220001002",
+      "map_url": "https://maps.google.com/?q=將軍澳中心",
+      "address": "將軍澳唐德街 1 號",
+      "description": "家庭式茶餐廳，可電話留位。",
+      "paid_note": "示範資料",
+      "tags": ["tag-cha-chaan", "tag-delivery-food"]
+    },
+    {
+      "id": "mc-demo-cake-mk",
+      "name": "（示範）甜美餅店",
+      "category_id": "cat-gift",
+      "landmark_id": "lm-langham",
+      "is_listed": 1, "ad_tier": 0,
+      "phone": "2000-2001", "whatsapp": "85220002001",
+      "map_url": "https://maps.google.com/?q=旺角朗豪坊",
+      "address": "旺角亞皆老街 8 號地下",
+      "description": "生日蛋糕、節日禮盒；可指定取貨時間。",
+      "paid_note": "示範資料",
+      "tags": ["tag-cake", "tag-bakery"]
+    },
+    {
+      "id": "mc-demo-cake-cwb",
+      "name": "（示範）華麗西餅",
+      "category_id": "cat-gift",
+      "landmark_id": "lm-cwb-times",
+      "is_listed": 1, "ad_tier": 1,
+      "phone": "2000-2002", "whatsapp": "85220002002",
+      "map_url": "https://maps.google.com/?q=銅鑼灣站",
+      "address": "銅鑼灣波斯富街 20 號",
+      "description": "西餅、鮮果蛋糕、壽桃。",
+      "paid_note": "示範資料",
+      "tags": ["tag-cake", "tag-bakery"]
+    },
+    {
+      "id": "mc-demo-flower-mk",
+      "name": "（示範）心意花店",
+      "category_id": "cat-gift",
+      "landmark_id": "lm-langham",
+      "is_listed": 1, "ad_tier": 0,
+      "phone": "2000-3001", "whatsapp": "85220003001",
+      "map_url": "https://maps.google.com/?q=旺角花墟",
+      "address": "旺角花墟道 30 號",
+      "description": "鮮花束、花籃、拜祭花；可即日送貨。",
+      "paid_note": "示範資料",
+      "tags": ["tag-flower", "tag-flower-shop"]
+    },
+    {
+      "id": "mc-demo-flower-tko",
+      "name": "（示範）康樂花藝",
+      "category_id": "cat-gift",
+      "landmark_id": "lm-tko-popcorn",
+      "is_listed": 1, "ad_tier": 0,
+      "phone": "2000-3002", "whatsapp": "85220003002",
+      "map_url": "https://maps.google.com/?q=將軍澳中心",
+      "address": "將軍澳唐俊街 12 號",
+      "description": "花束、禮品花籃、開張花牌。",
+      "paid_note": "示範資料",
+      "tags": ["tag-flower", "tag-flower-shop"]
+    },
+    {
+      "id": "mc-demo-gift-mk",
+      "name": "（示範）滿堂禮品",
+      "category_id": "cat-gift",
+      "landmark_id": "lm-langham",
+      "is_listed": 1, "ad_tier": 0,
+      "phone": "2000-4001", "whatsapp": "85220004001",
+      "map_url": "https://maps.google.com/?q=旺角",
+      "address": "旺角彌敦道 700 號",
+      "description": "節日禮盒、餅食禮券、補品禮盒（可代客送貨）。",
+      "paid_note": "示範資料",
+      "tags": ["tag-gift-shop", "tag-gift-box"]
+    }
+  ],
+  "promotions": [
+    {
+      "id": "promo-demo-mid-autumn-banquet",
+      "merchant_id": "mc-demo-banquet-cwb",
+      "festival_id": "mid-autumn-2026",
+      "title": "中秋家庭聚餐 9 折",
+      "description": "10 位或以上訂枱可享 9 折，送月餅乙盒。",
+      "terms": "須提前 7 日預約；不與其他優惠同時使用。",
+      "quota_total": 50,
+      "is_active": 1
+    },
+    {
+      "id": "promo-demo-mid-autumn-cake",
+      "merchant_id": "mc-demo-cake-mk",
+      "festival_id": "mid-autumn-2026",
+      "title": "中秋禮盒 $50 優惠",
+      "description": "訂購中秋禮盒滿 $300 減 $50。",
+      "terms": "每張訂單限用一次。",
+      "quota_total": 100,
+      "is_active": 1
+    },
+    {
+      "id": "promo-demo-mid-autumn-flower",
+      "merchant_id": "mc-demo-flower-mk",
+      "festival_id": "mid-autumn-2026",
+      "title": "中秋花束免運費",
+      "description": "節日期間訂花束免運費。",
+      "terms": "限香港島、九龍區。",
+      "quota_total": null,
+      "is_active": 1
+    }
+  ]
+}

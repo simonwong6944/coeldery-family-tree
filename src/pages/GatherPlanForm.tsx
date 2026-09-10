@@ -5,6 +5,8 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { createGathering } from '../utils/gatherApi'
+import { listFestivals } from '../utils/promotionApi'
+import type { Festival } from '../utils/promotions'
 import { PLAN_OCCASIONS, defaultTitle, type PlanOccasion } from '../utils/gatherPlan'
 import {
   gsOverlay, gsSheet, gsInput, gsLabel, gsRow, gsBtnPrimary, gsBtnGhost, gsChip, gsMuted,
@@ -14,18 +16,24 @@ interface Props {
   initial?: { occasion?: string; subject?: string; date?: string }
   /** 由「快速安排」tiles 帶入嘅預設名稱（例：訂蛋糕） */
   initialTitle?: string
+  /** 由首頁節日提醒帶入嘅節日（occasion 會自動設為 festival） */
+  initialFestivalId?: string
   onClose: () => void
   onCreated: (id: string) => void
 }
 
 interface MemberOpt { id: string; display_name: string; member_kind: string }
 
-export default function GatherPlanForm({ initial, initialTitle, onClose, onCreated }: Props) {
+export default function GatherPlanForm({ initial, initialTitle, initialFestivalId, onClose, onCreated }: Props) {
   const { t } = useTranslation()
   const [members, setMembers] = useState<MemberOpt[]>([])
+  const [festivals, setFestivals] = useState<Festival[]>([])
   const [occasion, setOccasion] = useState<PlanOccasion>(
-    (PLAN_OCCASIONS as readonly string[]).includes(initial?.occasion ?? '') ? (initial?.occasion as PlanOccasion) : 'birthday',
+    (PLAN_OCCASIONS as readonly string[]).includes(initial?.occasion ?? '')
+      ? (initial?.occasion as PlanOccasion)
+      : initialFestivalId ? 'festival' : 'birthday',
   )
+  const [festivalId, setFestivalId] = useState(initialFestivalId ?? '')
   const [subject, setSubject] = useState(initial?.subject ?? '')
   const [title, setTitle] = useState(initialTitle ?? '')
   const [date, setDate] = useState(initial?.date ?? '')
@@ -38,19 +46,33 @@ export default function GatherPlanForm({ initial, initialTitle, onClose, onCreat
       .then(r => r.json())
       .then((d: { members?: MemberOpt[] }) => setMembers(d.members ?? []))
       .catch(() => undefined)
+    listFestivals()
+      .then(list => {
+        setFestivals(list)
+        /* 由節日帶入 → 自動填當日日期 */
+        const f = list.find(x => x.id === (initialFestivalId ?? ''))
+        if (f && !initial?.date) setDate(f.date)
+      })
+      .catch(() => undefined)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  /* 標題未填時自動生成（場合／對象一改就跟）*/
-  const autoTitle = defaultTitle(occasion, members.find(m => m.id === subject)?.display_name ?? null, t)
+  const festival = festivals.find(f => f.id === festivalId) ?? null
+  /* 標題未填時自動生成（場合／對象／節日一改就跟）*/
+  const autoTitle = occasion === 'festival' && festival
+    ? t('gather.default_title_festival', { name: festival.name })
+    : defaultTitle(occasion, members.find(m => m.id === subject)?.display_name ?? null, t)
   const finalTitle = title.trim() || autoTitle
 
   async function submit() {
     setErr('')
+    if (occasion === 'festival' && !festivalId) { setErr(t('gather.err_need_festival')); return }
     if (!finalTitle) { setErr(t('gather.err_need_name')); return }
     setBusy(true)
     const r = await createGathering({
       title: finalTitle, occasion_type: occasion,
       subject_member_id: subject || null, target_date: date || null,
+      festival_id: occasion === 'festival' ? festivalId : null,
       note: note.trim() || null,
     })
     setBusy(false)
@@ -73,6 +95,28 @@ export default function GatherPlanForm({ initial, initialTitle, onClose, onCreat
             ))}
           </div>
         </div>
+
+        {/* 節日聚會：揀邊個節日（之後揀商戶會顯示該節日推廣）*/}
+        {occasion === 'festival' && (
+          <div>
+            <label style={gsLabel} htmlFor="gp-festival">{t('gather.plan_festival')}</label>
+            <select
+              id="gp-festival"
+              style={gsInput}
+              value={festivalId}
+              onChange={e => {
+                setFestivalId(e.target.value)
+                const f = festivals.find(x => x.id === e.target.value)
+                if (f) setDate(f.date)
+              }}
+            >
+              <option value="">{t('gather.plan_festival_none')}</option>
+              {festivals.map(f => (
+                <option key={f.id} value={f.id}>{t('gather.festival_label', { name: f.name, date: f.date })}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div>
           <label style={gsLabel} htmlFor="gp-subject">{t('gather.plan_subject')}</label>

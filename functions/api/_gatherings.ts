@@ -48,6 +48,7 @@ export interface GatheringRow {
   occasion_type: string
   subject_member_id: string | null
   target_date: string | null
+  festival_id: string | null
   status: string
   note: string | null
   invite_post_id: string | null
@@ -77,7 +78,7 @@ export async function loadGathering(db: D1Database, id: string): Promise<Gatheri
   return await db
     .prepare(
       `SELECT id, family_id, initiator_member_id, title, occasion_type, subject_member_id,
-              target_date, status, note, invite_post_id, created_at, updated_at
+              target_date, festival_id, status, note, invite_post_id, created_at, updated_at
        FROM gathering WHERE id = ?`
     )
     .bind(id)

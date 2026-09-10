@@ -7,7 +7,10 @@
  */
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import PromotionSticker from './PromotionSticker'
 import { listMerchantMeta, listMerchants, type MerchantMeta } from '../utils/gatherApi'
+import { listPromotions } from '../utils/promotionApi'
+import { promoForMerchant, sortPromotions, type Promotion } from '../utils/promotions'
 import {
   applyMerchantQuery, defaultCategoryFor,
   type MerchantKind, type MerchantSort, type QueryMerchant,
@@ -16,6 +19,8 @@ import { gsOverlay, gsSheet, gsInput, gsLabel, gsMuted, gsRow, gsBtnGhost, gsChi
 
 interface Props {
   kind: MerchantKind
+  /** 節日聚會 → 顯示該節日嘅商戶推廣（忌辰永遠唔會傳此值）*/
+  festivalId?: string
   solemn?: boolean
   onPick: (m: QueryMerchant) => void
   onClose: () => void
@@ -23,10 +28,11 @@ interface Props {
 
 const SORTS: MerchantSort[] = ['recommended', 'district', 'name']
 
-export default function MerchantPicker({ kind, solemn = false, onPick, onClose }: Props) {
+export default function MerchantPicker({ kind, festivalId, solemn = false, onPick, onClose }: Props) {
   const { t } = useTranslation()
   const [all, setAll] = useState<QueryMerchant[]>([])
   const [meta, setMeta] = useState<MerchantMeta>({ categories: [], regions: [], tags: [] })
+  const [promos, setPromos] = useState<Promotion[]>([])
   const [q, setQ] = useState('')
   const [region, setRegion] = useState<string | null>(null)
   const [district, setDistrict] = useState<string | null>(null)
@@ -38,6 +44,14 @@ export default function MerchantPicker({ kind, solemn = false, onPick, onClose }
     listMerchants().then(setAll).catch(() => undefined)
     listMerchantMeta().then(setMeta).catch(() => undefined)
   }, [])
+
+  /* 節日推廣：只在節日聚會、且非莊重場合載入 */
+  useEffect(() => {
+    if (!festivalId || solemn) return
+    listPromotions({ festivalId })
+      .then(list => setPromos(sortPromotions(list)))
+      .catch(() => undefined)
+  }, [festivalId, solemn])
 
   const districts = useMemo(() => {
     if (!region) return meta.regions.flatMap(r => r.districts)
@@ -108,27 +122,35 @@ export default function MerchantPicker({ kind, solemn = false, onPick, onClose }
         {/* 結果 */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '34vh', overflowY: 'auto' }}>
           {results.length === 0 && <p style={{ ...gsMuted, margin: 0 }}>{t('gather.no_merchant')}</p>}
-          {results.map(m => (
-            <button
-              key={m.id}
-              onClick={() => onPick(m)}
-              style={{
-                textAlign: 'left', fontFamily: 'inherit', cursor: 'pointer',
-                border: '2px solid var(--color-divider)', borderRadius: '12px', padding: '10px 12px',
-                backgroundColor: 'var(--color-card)', minHeight: '56px',
-              }}
-            >
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: '17px', fontWeight: 'bold', color: 'var(--color-text)' }}>{m.name}</span>
-                {/* 贊助標示：忌辰模式不會出現（已過濾 ad_tier > 0）*/}
-                {!solemn && m.ad_tier > 0 && <span style={gsBadge('off')}>{t('gather.sponsored')}</span>}
+          {results.map(m => {
+            const promo = promoForMerchant(promos, m.id)
+            return (
+              <div
+                key={m.id}
+                style={{
+                  border: '2px solid var(--color-divider)', borderRadius: '12px', padding: '10px 12px',
+                  backgroundColor: 'var(--color-card)',
+                }}
+              >
+                <button
+                  onClick={() => onPick(m)}
+                  style={{ all: 'unset', display: 'block', width: '100%', cursor: 'pointer', fontFamily: 'inherit' }}
+                >
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '17px', fontWeight: 'bold', color: 'var(--color-text)' }}>{m.name}</span>
+                    {/* 贊助標示：忌辰模式不會出現（已過濾 ad_tier > 0）*/}
+                    {!solemn && m.ad_tier > 0 && <span style={gsBadge('off')}>{t('gather.sponsored')}</span>}
+                  </div>
+                  <div style={{ ...gsMuted, marginTop: '2px' }}>
+                    {[m.category_name, m.district_name, m.landmark_name].filter(Boolean).join(' ・')}
+                  </div>
+                  {m.address && <div style={{ ...gsMuted, marginTop: '2px' }}>{m.address}</div>}
+                </button>
+                {/* 節日推廣（忌辰唔會有）*/}
+                {promo && <PromotionSticker promo={promo} />}
               </div>
-              <div style={{ ...gsMuted, marginTop: '2px' }}>
-                {[m.category_name, m.district_name, m.landmark_name].filter(Boolean).join(' ・')}
-              </div>
-              {m.address && <div style={{ ...gsMuted, marginTop: '2px' }}>{m.address}</div>}
-            </button>
-          ))}
+            )
+          })}
         </div>
 
         <div style={gsRow}>

@@ -207,6 +207,17 @@ export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
       sets.push('target_date = ?'); binds.push(body.target_date)
     }
   }
+  if (has('festival_id')) {
+    if (body.festival_id === null) { sets.push('festival_id = ?'); binds.push(null) }
+    else {
+      const f = await ctx.env.DB
+        .prepare('SELECT id FROM festival WHERE id = ? AND is_active = 1')
+        .bind(body.festival_id as string)
+        .first<{ id: string }>()
+      if (!f) return Response.json({ ok: false, error: '找不到此節日' }, { status: 404 })
+      sets.push('festival_id = ?'); binds.push(f.id)
+    }
+  }
   if (has('note')) {
     const v = typeof body.note === 'string' ? body.note.trim() : ''
     sets.push('note = ?'); binds.push(v === '' ? null : v)

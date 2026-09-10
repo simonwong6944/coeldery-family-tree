@@ -78,6 +78,7 @@ export interface Gathering {
   occasion_type: string
   subject_member_id: string | null
   target_date: string | null
+  festival_id: string | null
   status: GatheringStatus
   note: string | null
   invite_post_id: string | null

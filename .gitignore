@@ -26,6 +26,7 @@ backup-*.sql
 # 臨時編譯輸出（測試用）
 .tmp-kin/
 .tmp-gather/
+.tmp-promo/
 
 # Editor directories and files
 .vscode/*
