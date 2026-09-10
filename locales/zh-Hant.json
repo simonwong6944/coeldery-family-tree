@@ -118,7 +118,7 @@
   "growth_album": {
     "title": "成長相簿",
     "quota": "本月 相 {{photo}}/{{photoLimit}} · 片 {{video}}/{{videoLimit}}",
-    "upload_btn": "＋ 上傳相片",
+    "upload_btn": "＋ 上傳相片／短片",
     "uploading": "上傳中…",
     "upload_failed": "上傳失敗，請稍後再試",
     "quota_full": "本月相片已達配額上限",
@@ -136,7 +136,9 @@
     "empty_month": "此月未有相片",
     "close": "關閉",
     "prev": "上一張",
-    "next": "下一張"
+    "next": "下一張",
+    "err_not_media": "請選擇相片或短片",
+    "video_too_long": "短片長度上限 90 秒"
   },
   "entry_card": {
     "activity_title": "查閱動態",

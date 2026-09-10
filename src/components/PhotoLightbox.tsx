@@ -45,7 +45,7 @@ export default function PhotoLightbox({ items, index, onClose, onIndex }: Props)
   }, [])
 
   if (!cur) return null
-  const src = cur.media_kind === 'photo' ? cur.url : (cur.poster_url ?? cur.url)
+  const isVideo = cur.media_kind === 'video'
   const hasPrev = index > 0
   const hasNext = index < items.length - 1
 
@@ -67,7 +67,7 @@ export default function PhotoLightbox({ items, index, onClose, onIndex }: Props)
       onTouchEnd={onTouchEnd}
       style={{
         position: 'fixed', inset: 0, zIndex: 1000,
-        backgroundColor: 'rgba(0,0,0,0.92)',
+        backgroundColor: 'var(--overlay-lightbox)',
         display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center',
         padding: '20px', boxSizing: 'border-box',
@@ -75,11 +75,21 @@ export default function PhotoLightbox({ items, index, onClose, onIndex }: Props)
     >
       <button onClick={onClose} aria-label={t('growth_album.close')} style={closeBtn}>✕</button>
 
-      <img src={src} alt="" style={{ maxWidth: '92vw', maxHeight: '74vh', objectFit: 'contain', borderRadius: '8px', display: 'block' }} />
+      {isVideo ? (
+        <video
+          src={cur.url}
+          poster={cur.poster_url ?? undefined}
+          controls
+          playsInline
+          style={{ maxWidth: '92vw', maxHeight: '74vh', borderRadius: '8px', display: 'block' }}
+        />
+      ) : (
+        <img src={cur.url} alt="" style={{ maxWidth: '92vw', maxHeight: '74vh', objectFit: 'contain', borderRadius: '8px', display: 'block' }} />
+      )}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginTop: '16px' }}>
         <button onClick={() => onIndex(index - 1)} disabled={!hasPrev} aria-label={t('growth_album.prev')} style={navBtn(!hasPrev)}>‹</button>
-        <span style={{ fontSize: '16px', color: '#fff', minWidth: '120px', textAlign: 'center' }}>
+        <span style={{ fontSize: '16px', color: 'var(--color-on-media)', minWidth: '120px', textAlign: 'center' }}>
           {t('growth_album.month_label', { year: cur.year, month: cur.month })} · {index + 1}/{items.length}
         </span>
         <button onClick={() => onIndex(index + 1)} disabled={!hasNext} aria-label={t('growth_album.next')} style={navBtn(!hasNext)}>›</button>
@@ -92,7 +102,7 @@ const closeBtn: React.CSSProperties = {
   position: 'absolute', top: '12px', right: '12px',
   width: '48px', height: '48px', borderRadius: '50%',
   border: 'none', cursor: 'pointer', fontSize: '22px', lineHeight: 1,
-  backgroundColor: 'rgba(255,255,255,0.9)', color: '#2b2b2b',
+  backgroundColor: 'var(--overlay-chip)', color: 'var(--color-text)',
   display: 'flex', alignItems: 'center', justifyContent: 'center',
 }
 function navBtn(dis: boolean): React.CSSProperties {
@@ -100,7 +110,7 @@ function navBtn(dis: boolean): React.CSSProperties {
     width: '52px', height: '52px', borderRadius: '50%',
     border: 'none', cursor: dis ? 'not-allowed' : 'pointer',
     fontSize: '28px', lineHeight: 1, opacity: dis ? 0.35 : 1,
-    backgroundColor: 'rgba(255,255,255,0.9)', color: '#2b2b2b',
+    backgroundColor: 'var(--overlay-chip)', color: 'var(--color-text)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
   }
 }

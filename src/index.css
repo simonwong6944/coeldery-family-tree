@@ -37,6 +37,12 @@
   --bg-solemn-row: #f0ece4;
   --color-solemn-stroke: #9a958a;
   --bg-recommendation: #f3efe2;
+
+  /* ── 全屏媒體檢視 / 標記 ── */
+  --overlay-lightbox: rgba(0,0,0,0.92);
+  --overlay-media-badge: rgba(0,0,0,0.55);
+  --overlay-chip: rgba(255,255,255,0.9);
+  --color-on-media: #ffffff;
 }
 
 body {

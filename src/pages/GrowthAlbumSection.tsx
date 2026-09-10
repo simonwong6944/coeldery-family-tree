@@ -11,7 +11,8 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { uploadPhotoToCloudinary, MAX_PHOTO_BYTES } from '../utils/cloudinaryUpload'
+import { uploadPhotoToCloudinary, uploadVideoToCloudinary, readVideoDuration, MAX_PHOTO_BYTES, MAX_VIDEO_BYTES, MAX_VIDEO_SECONDS } from '../utils/cloudinaryUpload'
+import { playBadge } from './growthAlbumStyles'
 
 interface AlbumItem {
   id: string; media_kind: string; url: string; poster_url: string | null
@@ -57,19 +58,37 @@ export default function GrowthAlbumSection({ memberId }: { memberId: string }) {
     const file = e.target.files?.[0] ?? null
     if (!file) return
     const clear = () => { if (fileRef.current) fileRef.current.value = '' }
-    if (!file.type.startsWith('image/')) { setError(t('b4.compose_err_not_image')); clear(); return }
-    if (file.size > MAX_PHOTO_BYTES)      { setError(t('b4.compose_err_too_large')); clear(); return }
 
     const [y, m] = target.split('-').map(Number)
     if (!y || !m) { setError(t('growth_album.upload_failed')); return }
 
+    const isVideo = file.type.startsWith('video/')
+    if (!isVideo && !file.type.startsWith('image/')) { setError(t('growth_album.err_not_media')); clear(); return }
+    if (isVideo  && file.size > MAX_VIDEO_BYTES)     { setError(t('b4.compose_err_too_large')); clear(); return }
+    if (!isVideo && file.size > MAX_PHOTO_BYTES)     { setError(t('b4.compose_err_too_large')); clear(); return }
+    if (isVideo) {
+      const dur = await readVideoDuration(file)
+      if (dur != null && dur > MAX_VIDEO_SECONDS) { setError(t('growth_album.video_too_long')); clear(); return }
+    }
+
     setUploading(true)
     try {
-      const url = await uploadPhotoToCloudinary(file)
+      const payload: Record<string, unknown> = { subject_member_id: memberId, year: y, month: m }
+      if (isVideo) {
+        const v = await uploadVideoToCloudinary(file)
+        if (v.durationSeconds > MAX_VIDEO_SECONDS) { setError(t('growth_album.video_too_long')); return }
+        payload.media_kind = 'video'
+        payload.url = v.url
+        payload.poster_url = v.posterUrl
+        payload.duration_seconds = v.durationSeconds
+      } else {
+        payload.media_kind = 'photo'
+        payload.url = await uploadPhotoToCloudinary(file)
+      }
       const res = await fetch('/api/growth-album', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subject_member_id: memberId, media_kind: 'photo', url, year: y, month: m }),
+        body: JSON.stringify(payload),
       })
       const d = await res.json() as { ok: boolean; error?: string }
       if (!d.ok) { setError(d.error ?? t('growth_album.upload_failed')); return }
@@ -108,7 +127,7 @@ export default function GrowthAlbumSection({ memberId }: { memberId: string }) {
         <button onClick={() => { setError(''); fileRef.current?.click() }} disabled={uploading} style={uploadBtn(uploading)}>
           {uploading ? t('growth_album.uploading') : t('growth_album.upload_btn')}
         </button>
-        <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} style={{ display:'none' }} />
+        <input ref={fileRef} type="file" accept="image/*,video/*" onChange={handleFile} style={{ display:'none' }} />
       </div>
 
       {error && <p role="alert" style={{ margin:'0 0 12px', fontSize:'15px', color:'var(--color-accent)' }}>{error}</p>}
@@ -131,6 +150,7 @@ export default function GrowthAlbumSection({ memberId }: { memberId: string }) {
                     alt=""
                     style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }}
                   />
+                  {it.media_kind === 'video' && <span style={playBadge}>▶</span>}
                   <button onClick={() => handleDelete(it.id)} aria-label={t('growth_album.delete_confirm')} style={delBtn}>✕</button>
                 </div>
               ))}

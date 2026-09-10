@@ -151,15 +151,17 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
     .run()
 
   /* ── 單向同步家庭圈（product_decisions §二）：加入相簿 → 自動出一篇動態 ──
-   *    只同步相片（短片待支援）；貼文作者 = 上傳者；刪除相簿項目會一併刪文 */
-  if (media_kind === 'photo') {
-    const postId = genId()
+   *    相片用原圖；短片用封面圖（poster；PostCard 只支援相片）
+   *    貼文作者 = 上傳者；刪除相簿項目會一併刪文 */
+  {
+    const postId    = genId()
+    const feedPhoto = media_kind === 'photo' ? mediaUrl : (poster_url ?? null)
     await ctx.env.DB
       .prepare(
         `INSERT INTO posts (id, family_id, author_member_id, body_text, photo_url)
          VALUES (?, ?, ?, ?, ?)`
       )
-      .bind(postId, subject.family_id, cur.primaryMemberId, caption ?? null, mediaUrl)
+      .bind(postId, subject.family_id, cur.primaryMemberId, caption ?? null, feedPhoto)
       .run()
     await ctx.env.DB
       .prepare('UPDATE growth_album_items SET synced_post_id = ? WHERE id = ?')
