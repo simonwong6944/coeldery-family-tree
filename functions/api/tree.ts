@@ -132,3 +132,26 @@ export const onRequestGet: PagesFunction<Env> = async (ctx) => {
     relationships: relationships.results,
   })
 }
+
+/* ════════════════════════════════════════════════════════════
+ * PATCH — 改家族樹名稱（限登入者主樹）
+ * ════════════════════════════════════════════════════════════ */
+export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
+  const cur = await getCurrentMember(ctx.env.DB, ctx.request)
+  if (!cur.ok) return cur.response   // 401
+
+  let body: Record<string, unknown>
+  try { body = await ctx.request.json() as Record<string, unknown> }
+  catch { return Response.json({ ok: false, error: '無效的 JSON 格式' }, { status: 400 }) }
+
+  const nameRaw = body.name
+  if (typeof nameRaw !== 'string' || !nameRaw.trim())
+    return Response.json({ ok: false, error: '名稱不可為空' }, { status: 400 })
+  const name = nameRaw.trim()
+
+  await ctx.env.DB
+    .prepare('UPDATE families SET name = ? WHERE id = ?')
+    .bind(name, cur.primaryFamilyId).run()
+
+  return Response.json({ ok: true, family_id: cur.primaryFamilyId, name })
+}

@@ -165,6 +165,8 @@
   "account": {
     "title": "我的帳號",
     "member_no_label": "會員編號",
+    "family_name_label": "家族樹名稱",
+    "family_name_placeholder": "請輸入家族樹名稱",
     "nickname_label": "暱稱",
     "nickname_placeholder": "請輸入暱稱",
     "save": "儲存",

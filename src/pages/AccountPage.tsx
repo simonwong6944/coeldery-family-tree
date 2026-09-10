@@ -23,6 +23,8 @@ const badMsg:React.CSSProperties = { margin:'8px 0 0', fontSize:'15px', color:co
 export default function AccountPage() {
   const { t } = useTranslation()
   const [me, setMe] = useState<Me | null>(null)
+  const [treeName, setTreeName] = useState('')
+  const [treeMsg, setTreeMsg] = useState(''); const [treeErr, setTreeErr] = useState(''); const [treeBusy, setTreeBusy] = useState(false)
 
   const [nickname, setNickname] = useState('')
   const [nickMsg, setNickMsg] = useState(''); const [nickErr, setNickErr] = useState(''); const [nickBusy, setNickBusy] = useState(false)
@@ -35,7 +37,25 @@ export default function AccountPage() {
       .then(r => r.ok ? r.json() : null)
       .then((d: Me | null) => { if (d) { setMe(d); setNickname(d.nickname ?? '') } })
       .catch(() => {})
+    fetch('/api/tree', { credentials:'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { family?: { name?: string } } | null) => { if (d?.family?.name) setTreeName(d.family.name) })
+      .catch(() => {})
   }, [])
+
+  async function saveTreeName() {
+    setTreeMsg(''); setTreeErr('')
+    if (!treeName.trim()) { setTreeErr(t('account.err_generic')); return }
+    setTreeBusy(true)
+    const res = await fetch('/api/tree', {
+      method:'PATCH', credentials:'include', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ name: treeName.trim() }),
+    })
+    const d = await res.json().catch(() => ({})) as { ok?: boolean; error?: string }
+    setTreeBusy(false)
+    if (res.ok && d.ok) setTreeMsg(t('account.saved'))
+    else setTreeErr(d.error ?? t('account.err_generic'))
+  }
 
   async function saveNickname() {
     setNickMsg(''); setNickErr('')
@@ -73,6 +93,16 @@ export default function AccountPage() {
         <section style={card}>
           <span style={label}>{t('account.member_no_label')}</span>
           <p style={{ margin:0, fontSize:'18px', color:col('--color-text') }}>{me?.member_no ?? '—'}</p>
+        </section>
+
+        <section style={card}>
+          <span style={label}>{t('account.family_name_label')}</span>
+          <input style={input} value={treeName} onChange={e => setTreeName(e.target.value)} placeholder={t('account.family_name_placeholder')} disabled={treeBusy} />
+          {treeMsg && <p style={okMsg}>{treeMsg}</p>}
+          {treeErr && <p style={badMsg} role="alert">{treeErr}</p>}
+          <div style={{ marginTop:'10px' }}>
+            <button style={{ ...btn, opacity: treeBusy ? 0.6 : 1 }} disabled={treeBusy} onClick={saveTreeName}>{t('account.save')}</button>
+          </div>
         </section>
 
         <section style={card}>
