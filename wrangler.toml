@@ -1,0 +1,8 @@
+﻿name = "coeldery-family-tree"
+pages_build_output_dir = "dist"
+compatibility_date = "2024-11-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "coeldery-family-tree"
+database_id = "d536f16b-22dd-4a4a-9e86-b728906f7c86"

@@ -166,6 +166,7 @@
   - logout route 清 session。
 - **⚠️ SSO 接駁關鍵（校準後）**：`members.coeldery85_member_id` 係 schema 預留嘅 SSO 接入欄。正確做法 = verify 成功 → 將 member_no 寫入對應 member 嘅 coeldery85_member_id；`_currentMember` 改成「有 session → 用 coeldery85_member_id 認人；冇 → fallback is_self」。唔另創 owner_member_no 等新欄。
 
+Task I-1 曾誤用 local_member_id（方案 B，繞過 schema 預留欄），已修正為 coeldery85_member_id 對應（migration 0011）。過渡期仍綁 is_self；真多租戶待「清資料 + 建樹/邀請」步驟。
 ---
 
 ## 關鍵決策

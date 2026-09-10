@@ -1,42 +1,40 @@
 /**
- * POST /api/family/setup-with-session — 靠 session cookie 首次設定（密碼 + 暱稱 + 生日）
+ * POST /api/family/setup-with-session — 靠 session cookie 首次設定密碼（PWA 自身登入憑證）
  *
  * ════════════════════════════════════════════════════════════
- * 此 endpoint 係給「經 handoff token 入嚟、已有 family_session cookie」嘅用戶用。
+ * 架構（乙-1，rules §18 / §20）：
+ *   密碼、暱稱屬「人身認證資料」，以 member_no 為 key，存 member_auth 表
+ *   （per-member_no，一人一條，不論屬多少棵樹）。
+ *   絕不寫入 members(node) 表 —— 一人多樹會 desync。
+ *
  * member_no 從 family_sessions 取得，完全唔需要電話驗證。
  *
- * 原有 POST /api/family/setup（靠電話 + 85AI lookup）繼續存在，兩者互不干擾。
- *
  * 安全鐵律：
- *   - 必須有有效嘅 family_session cookie（唔接受 unauthenticated 請求）
+ *   - 必須有有效 family_session cookie（唔接受 unauthenticated 請求）
  *   - member_no 100% 從 session 取，前端唔可覆蓋
  *   - 密碼用 PBKDF2-SHA256 hash 後才存，絕不存明文
  *   - 回應唔含 password_hash 或任何敏感欄位
  * ════════════════════════════════════════════════════════════
  *
- * 收 body：
- *   { password: string, nickname: string, birth_date: string (YYYY-MM-DD) }
+ * 收 body：{ password: string, nickname: string, birth_date: string (YYYY-MM-DD) }
  *   （唔需要 phone，member_no 由 session 取）
  *
  * 核心流程：
  *   1. 讀 family_session cookie → 查 family_sessions → 取 member_no（無效 → 401）
  *   2. 驗欄位（password / nickname / birth_date）
- *   3. 用 member_no 查 members（coeldery85_member_id = member_no, member_kind='person'）：
- *      A. 搵到 → 若已有 password_hash → 409（已設定，改用登入）
- *                 → UPDATE password_hash, nickname, birth_date
- *      B. 搵唔到 → 此 member 未被加入任何樹，唔允許自建（403）
- *         （setup-with-session 唔建新 family；建新 family 走原有 setup 電話路徑）
- *   4. 種新 family_session cookie（刷新有效期，SESSION_DAYS）
- *   5. 回 { ok: true, member_id, family_id }
+ *   3. 查 member_auth（member_no）：
+ *      - 已存在 → 409（已設定，改用登入）
+ *      - 不存在 → INSERT member_auth（password_hash + nickname）
+ *   4. birth_date：若該 member 有 node 且 node.birth_date 為空，順帶補上（顯示屬性，可有可無）
+ *   5. 種新 family_session cookie（刷新有效期，SESSION_DAYS）
+ *   6. 回 { ok: true }
  *
- * 回應（200）：
- *   { ok: true, member_id, family_id }  + Set-Cookie（刷新 session）
+ * 回應（200）：{ ok: true } + Set-Cookie（刷新 session）
  *
  * 錯誤：
- *   400  欄位不合格（password / nickname / birth_date）
+ *   400  欄位不合格
  *   401  冇有效 session cookie
- *   403  此會員未被加入任何家族樹（需要管理員先加）
- *   409  已有 password_hash（已完成 setup，改用 /api/family/login）
+ *   409  member_auth 已存在（已完成 setup，改用 /api/family/login）
  *   500  DB 錯
  *
  * Cloudflare Pages Function — edge runtime（Web Crypto 可用）
@@ -193,50 +191,44 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
     return Response.json({ ok: false, error: '伺服器錯誤，請稍後再試' }, { status: 500 })
   }
 
-  /* ── 5. 查 node（靠 coeldery85_member_id）── */
+  /* ── 5. 查 member_auth（member_no 為 key）── */
   try {
-    const node = await db
-      .prepare(
-        `SELECT id, family_id, password_hash
-         FROM members
-         WHERE coeldery85_member_id = ? AND member_kind = 'person'
-         LIMIT 1`
-      )
+    const existing = await db
+      .prepare(`SELECT member_no FROM member_auth WHERE member_no = ?`)
       .bind(memberNo)
-      .first<{ id: string; family_id: string; password_hash: string | null }>()
+      .first<{ member_no: string }>()
 
-    /* 搵唔到 node → 此會員未被加入任何家族樹 */
-    if (!node) {
-      console.warn(`[family/setup-with-session] memberNo=${memberNo} 未有對應 node，拒絕 setup`)
-      return Response.json(
-        { ok: false, error: '此會員尚未被加入任何家族樹，請聯絡家族管理員' },
-        { status: 403 },
-      )
-    }
-
-    /* 已有 password_hash → 已完成 setup，唔准重覆（改用 login）*/
-    if (node.password_hash) {
+    /* 已有 auth → 已完成 setup，唔准重覆（改用 login）*/
+    if (existing) {
       return Response.json(
         { ok: false, error: '此帳號已完成設定，請使用密碼登入' },
         { status: 409 },
       )
     }
 
-    /* ── 6. UPDATE password_hash, nickname, birth_date ── */
+    /* ── 6. INSERT member_auth ── */
+    await db
+      .prepare(
+        `INSERT INTO member_auth (member_no, password_hash, nickname, updated_at)
+         VALUES (?, ?, ?, datetime('now'))`
+      )
+      .bind(memberNo, passwordHash, nickname)
+      .run()
+
+    /* ── 7. birth_date：若該 member 有 node 且 birth_date 為空，順帶補（顯示屬性，可選）── */
     await db
       .prepare(
         `UPDATE members
-         SET password_hash = ?, nickname = ?, birth_date = ?
-         WHERE id = ?`
+         SET birth_date = ?
+         WHERE coeldery85_member_id = ? AND member_kind = 'person'
+           AND (birth_date IS NULL OR birth_date = '')`
       )
-      .bind(passwordHash, nickname, birthDate, node.id)
+      .bind(birthDate, memberNo)
       .run()
 
-    console.log(
-      `[family/setup-with-session] 已設定 member ${node.id}（memberNo=${memberNo}）`
-    )
+    console.log(`[family/setup-with-session] member_auth 已建立（memberNo=${memberNo}）`)
 
-    /* ── 7. 刷新 family_session（種新 token，舊 token 可繼續用直到過期）── */
+    /* ── 8. 刷新 family_session（種新 token）── */
     const newSessionToken = makeToken()
     const expiresAt       = sessionExpiry(SESSION_DAYS)
 
@@ -248,9 +240,9 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
       .bind(newSessionToken, memberNo, expiresAt)
       .run()
 
-    /* ── 8. 回應（帶 Set-Cookie）── */
+    /* ── 9. 回應（帶 Set-Cookie）── */
     return new Response(
-      JSON.stringify({ ok: true, member_id: node.id, family_id: node.family_id }),
+      JSON.stringify({ ok: true }),
       {
         status:  200,
         headers: {

@@ -13,6 +13,7 @@
  *
  *   // person only
  *   phone?:            string     // 電話，person 必填（server-side normalize）
+ *                                 //   ⚠️ 只用作 85AI lookup 攞 member_no，唔再寫入 node
  *   relation_key?:     string     // b3 locale key，如 'relation_spouse' / 'relation_child' 等
  *   target_member_id?: string     // 與哪位現有成員建立關係（選了 relation_key 才有效）
  *
@@ -30,6 +31,7 @@
  *                     成功 → linkedMemberNo = cn.memberNo
  *                     失敗 → 硬淨 return 502（唔 INSERT 家庭樹 node）
  *   3. INSERT members 帶 coeldery85_member_id（必有值，除非提早 return）
+ *      ⚠️ node 表冇 phone 欄；電話身分靠 coeldery85_member_id 追溯
  *
  * pet 加人：唔強制 cookie 認證，coeldery85_member_id 維持 NULL，其餘邏輯不變。
  *
@@ -202,10 +204,11 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
   }
 
   // ── 建立成員節點 ──
+  // ⚠️ node 表冇 phone 欄；phoneNorm 只用作上面 85AI lookup，唔寫入 DB
   const memberId = genId()
   try {
     await ctx.env.DB.prepare(
-      'INSERT INTO members (id, family_id, member_kind, display_name, birth_date, gender, phone, coeldery85_member_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO members (id, family_id, member_kind, display_name, birth_date, gender, coeldery85_member_id) VALUES (?, ?, ?, ?, ?, ?, ?)'
     ).bind(
       memberId,
       familyId,
@@ -213,13 +216,14 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
       display_name.trim(),
       birth_date ?? null,
       gender ?? null,
-      phoneNorm,          // person → normalize 後電話；pet → null
       linkedMemberNo,     // person 會員 → lookup member_no；非會員 → NODE_ONLY member_no；pet → null
     ).run()
   } catch (e: unknown) {
+    // 保留 try/catch 骨架：id 撞 / 將來加約束都用得着
+    // 新 schema 已無 phone UNIQUE index，中性訊息避免誤導
     const msg = e instanceof Error ? e.message : String(e)
     if (msg.toLowerCase().includes('unique'))
-      return Response.json({ ok: false, error: '此電話已登記，請改用登入' }, { status: 409 })
+      return Response.json({ ok: false, error: '建立成員失敗，請稍後再試' }, { status: 409 })
     throw e
   }
 

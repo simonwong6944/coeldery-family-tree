@@ -2,6 +2,11 @@
  * POST /api/family/enter — 接收 85AI handoff token，驗後種 family_session cookie
  *
  * ════════════════════════════════════════════════════════════
+ * 架構（乙-1，rules §18 / §20）：
+ *   needs_setup 由 member_auth（member_no 為 key）決定，唔查 node 密碼。
+ *   member_auth 有此 member_no → 已設定（needs_setup:false）
+ *   冇 → 首次（needs_setup:true）
+ *
  * 安全鐵律：
  *   1. 只信 HMAC-SHA256 簽名 token，完全唔讀 ?member= 或其他明文身份參數
  *   2. token 驗失敗（簽名錯 / 過期 / 格式錯）→ 401，唔 fallback，唔種 cookie
@@ -12,20 +17,14 @@
  *   1. 讀 request body { token: string }
  *   2. 讀 FAMILY_TREE_API_KEY（未設定 → 503）
  *   3. 呼叫 verifyHandoffToken → 失敗 → 401
- *   4. 用 memberNo 查 members（coeldery85_member_id = memberNo, member_kind='person'）
- *      - 搵到 → 檢查 password_hash（有 → needs_setup:false；無 → needs_setup:true）
- *      - 搵唔到 → needs_setup:true（此會員未被加入任何家族樹，需要 setup）
- *   5. 生成 family_sessions token（SESSION_DAYS，沿用 session.ts 機制）
+ *   4. 查 member_auth（member_no）→ 有 → needs_setup:false；冇 → needs_setup:true
+ *   5. 生成 family_sessions token（SESSION_DAYS）
  *   6. 種 family_session cookie，回 { ok:true, needs_setup:boolean }
- *
- * 注意：needs_setup:true 時，用戶係以 member_no 記咗喺 session。
- *   後續 setup 流程（POST /api/family/setup-with-session）靠 session cookie 認人，
- *   唔需要再提供電話。
  *
  * 回應：
  *   200  { ok: true, needs_setup: boolean }  + Set-Cookie
  *   400  body 格式錯 / token 欄位缺失
- *   401  token 驗失敗（簽名錯 / 已過期 / 格式錯）
+ *   401  token 驗失敗
  *   503  FAMILY_TREE_API_KEY 未設定
  *   500  DB 錯
  *
@@ -47,7 +46,7 @@ function makeToken(): string {
   return Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('')
 }
 
-/* ── 計算 expires_at（SQLite datetime 格式：YYYY-MM-DD HH:MM:SS）── */
+/* ── 計算 expires_at（SQLite datetime 格式）── */
 function sessionExpiry(days: number): string {
   const d = new Date()
   d.setDate(d.getDate() + days)
@@ -56,7 +55,7 @@ function sessionExpiry(days: number): string {
 
 /* ── 組裝 Set-Cookie header value（host-only，唔設 Domain）── */
 function buildSetCookieHeader(token: string): string {
-  const maxAge = SESSION_DAYS * 24 * 3600  // 2592000 秒
+  const maxAge = SESSION_DAYS * 24 * 3600
   return [
     `family_session=${token}`,
     'HttpOnly',
@@ -64,7 +63,6 @@ function buildSetCookieHeader(token: string): string {
     'SameSite=Lax',
     'Path=/',
     `Max-Age=${maxAge}`,
-    // ⚠️ 刻意唔設 Domain → host-only，只對 family.coeldery85.com 有效
   ].join('; ')
 }
 
@@ -96,34 +94,23 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
   const verifyResult = await verifyHandoffToken(tokenRaw.trim(), apiKey)
 
   if (!verifyResult.ok) {
-    /* 驗失敗：唔洩露具體原因，一律 401 */
     return Response.json({ ok: false, error: '無效或已過期的存取憑證' }, { status: 401 })
   }
 
   const { memberNo } = verifyResult
   const db = ctx.env.DB
 
-  /* ── 4. 查 members（靠 coeldery85_member_id）── */
-  let needsSetup = true  // 保守預設
+  /* ── 4. 查 member_auth（member_no 為 key）決定 needs_setup ── */
+  let needsSetup = true  // 保守預設：未設定
 
   try {
-    const node = await db
-      .prepare(
-        `SELECT id, password_hash
-         FROM members
-         WHERE coeldery85_member_id = ? AND member_kind = 'person'
-         LIMIT 1`
-      )
+    const auth = await db
+      .prepare(`SELECT member_no FROM member_auth WHERE member_no = ?`)
       .bind(memberNo)
-      .first<{ id: string; password_hash: string | null }>()
+      .first<{ member_no: string }>()
 
-    if (node) {
-      /* 有 password_hash → 已完成 setup；null/空 → 首次登入 */
-      needsSetup = !node.password_hash
-    } else {
-      /* 搵唔到 node：此會員未被加入任何家族樹 → 一定係首次（needs_setup:true）*/
-      console.log(`[family/enter] memberNo=${memberNo} 未有對應 node，needs_setup=true`)
-    }
+    /* member_auth 有此 member_no → 已完成 setup；冇 → 首次 */
+    needsSetup = !auth
   } catch (e) {
     console.error('[family/enter] DB 查詢失敗:', e)
     return Response.json({ ok: false, error: '伺服器錯誤，請稍後再試' }, { status: 500 })
