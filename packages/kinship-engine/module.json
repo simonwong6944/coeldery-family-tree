@@ -1,0 +1,9 @@
+{
+  "name": "@coeldery/kinship-engine",
+  "label": "親屬稱謂推算引擎",
+  "category": "engine",
+  "version": "1.0.0",
+  "dependencies": [],
+  "derivedFrom": [],
+  "docs": ".coappery/product_decisions.md [決策] 自動稱謂推算"
+}

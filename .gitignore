@@ -23,6 +23,9 @@ dist-ssr
 # D1 資料備份 dump（含真實資料，不入 git）
 backup-*.sql
 
+# 臨時編譯輸出（測試用）
+.tmp-kin/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

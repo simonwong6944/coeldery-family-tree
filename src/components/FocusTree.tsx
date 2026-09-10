@@ -22,9 +22,10 @@ import { HouseholdChip, VerticalConnector } from './FocusTreeParts'
 const SWIPE_THRESHOLD = 40
 
 /* ── LayerCarousel：所有代共用 ── */
-function LayerCarousel({ households, selectedIdx, onSelect, focusedMemberId, setFocusId, chipSize = 80, selfId = null }: {
+function LayerCarousel({ households, selectedIdx, onSelect, focusedMemberId, setFocusId, chipSize = 80, selfId = null, kinKeys }: {
   households: Household[]; selectedIdx: number; onSelect?: (idx: number) => void
   focusedMemberId?: string; setFocusId: (id: string) => void; chipSize?: number; selfId?: string | null
+  kinKeys?: Map<string, string>
 }) {
   const scrollRef      = useRef<HTMLDivElement | null>(null)
   const selectedIdxRef = useRef(selectedIdx)
@@ -136,6 +137,7 @@ function LayerCarousel({ households, selectedIdx, onSelect, focusedMemberId, set
               leftCount={i}
               rightCount={households.length - 1 - i}
               selfId={selfId}
+              kinKeys={kinKeys}
             />
           </div>
         ))}
@@ -241,10 +243,11 @@ function seedChain(
 
 export interface FocusTreeProps {
   focusView: FocusView; selectedIdx: number; selfId: string | null
+  kinKeys?: Map<string, string>
   setFocusId: (id: string) => void; setSelectedIdx: (idx: number) => void
 }
 
-export default function FocusTree({ focusView, selectedIdx: _selectedIdx, selfId, setFocusId, setSelectedIdx }: FocusTreeProps) {
+export default function FocusTree({ focusView, selectedIdx: _selectedIdx, selfId, kinKeys, setFocusId, setSelectedIdx }: FocusTreeProps) {
   const { t } = useTranslation()
   const { levels, focusId, selectedIdxHint } = focusView
   const focusHHs = levels.find(l => l.generation === 0)?.groups.flatMap(g => g.households) ?? []
@@ -357,6 +360,7 @@ export default function FocusTree({ focusView, selectedIdx: _selectedIdx, selfId
               setFocusId={setFocusId}
               chipSize={gen === 0 ? 80 : 64}
               selfId={selfId}
+              kinKeys={kinKeys}
             />
           </div>
         )

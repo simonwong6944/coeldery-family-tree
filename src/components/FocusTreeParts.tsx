@@ -98,7 +98,7 @@ function SelfBadge({ t, left = '50%' }: { t: (key: string) => string; left?: str
  */
 export function HouseholdChip({
   hh, size, isFocus, focusedMemberId: _fid, onClickPrimary, onClickSpouse,
-  leftCount = 0, rightCount = 0, selfId = null,
+  leftCount = 0, rightCount = 0, selfId = null, kinKeys,
 }: {
   hh: Household
   size: number
@@ -109,11 +109,13 @@ export function HouseholdChip({
   leftCount?: number
   rightCount?: number
   selfId?: string | null
+  /** 以本人為中心嘅親屬稱謂（Map<memberId, i18nKey>）*/
+  kinKeys?: Map<string, string>
 }) {
   const { t } = useTranslation()
-  const rel = t('gen.member_relation_person')
-  const primary = toInfo(hh.primary, rel)
-  const secondary = hh.spouse ? toInfo(hh.spouse, rel) : undefined
+  const relOf = (id: string) => t(kinKeys?.get(id) ?? 'gen.member_relation_person')
+  const primary = toInfo(hh.primary, relOf(hh.primary.id))
+  const secondary = hh.spouse ? toInfo(hh.spouse, relOf(hh.spouse.id)) : undefined
   const pet = hh.pets[0] ? toPet(hh.pets[0], primary.name) : undefined
   const variant = secondary ? (pet ? 'couple_with_pet' : 'couple') : 'single'
   /* 「本人」= 登入者節點（selfId）；selfId 未定時 fallback 舊 is_self */

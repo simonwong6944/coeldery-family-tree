@@ -16,6 +16,7 @@ import BottomTabBar from '../../packages/bottom-tab-bar'
 import type { TabId } from '../../packages/bottom-tab-bar'
 import { buildFocusView } from '../../packages/family-tree-engine'
 import type { ApiMember, ApiRel } from '../../packages/family-tree-engine'
+import { buildKinshipMap } from '../../packages/kinship-engine'
 import FocusTree from '../components/FocusTree'
 
 interface TreeData { members: ApiMember[]; relationships: ApiRel[] }
@@ -202,12 +203,19 @@ function FocusContent({
     [members, relationships, currentFocusId],
   )
 
+  /* 以「本人」為中心嘅親屬稱謂（Map<memberId, i18nKey>）*/
+  const kinKeys = useMemo(
+    () => buildKinshipMap(resolvedSelfId ?? '', members, relationships),
+    [resolvedSelfId, members, relationships],
+  )
+
   return (
     <Shell>
       <FocusTree
         focusView={focusView}
         selectedIdx={selectedIdx}
         selfId={resolvedSelfId}
+        kinKeys={kinKeys}
         setFocusId={setFocusId}
         setSelectedIdx={setSelectedIdx}
       />
