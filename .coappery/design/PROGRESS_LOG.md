@@ -135,7 +135,8 @@
 
 ## 八、家庭聚會協作落地（2026-09-10 追加）：發起 → 候選 → 逐人投票 → 確認 → 邀請卡
 
-> ⚠️ **`migrations/0015_gatherings.sql` 之 remote migration 待產品負責人執行**（rules §19：AI 只可跑 `--local`）。
+> ✅ **2026-09-10 已由產品負責人套用 remote**：`npx wrangler d1 migrations apply coeldery-family-tree-db --remote` → `0015_gatherings.sql ✅`（Executed 8 commands）。首次嘗試曾報 Cloudflare `7403`（帳號未獲授權存取該資源），**刪走遺留 `wrangler.toml`（指向舊 DB `d536f16b…`，與 `wrangler.jsonc` 之 `81e87f9c…` 衝突）後重試即成功**（commit `bcd82df`）。已另用 `d1 execute --file` 重跑一次作保險（migration 全 `IF NOT EXISTS`，重複執行安全）。
+>
 > 未執行前，線上聚會 API 會因表不存在而失敗。
 
 **為何可以即做（原為階段二）**：spec §5.1 將「逐人投票／RSVP」列階段二，前置為 SSO。但 **per-member 登入**（`member_auth` + `family_session` + `getCurrentMember` 回 `primaryMemberId`）已於較早 session 交付 —— 每位家人各自裝置有自己身份，前置條件消失，故階段一＋二一併落地。
@@ -168,6 +169,15 @@
 
 ### F. 本地 D1 小插曲（教訓）
 - 本機 `d1 migrations apply --local` 於 0014 報 `duplicate column name: synced_post_id`（本機早前已手動加過該欄）→ 手動補一筆 `d1_migrations` 記錄後，0015 正常套用。**改 schema 後記得同步本機 migration 記錄，否則 apply 會中途停低。**
+
+### G. Remote 授權踩坑（2026-09-10，重要）
+- 症狀：`wrangler d1 migrations apply … --remote` 報 Cloudflare `[code: 7403] The given account is not valid or is not authorized to access this service`。
+- 排查：
+  1. `npx wrangler whoami` → 確認登入身份／帳號／token scopes（有 `d1 (write)`）。
+  2. `npx wrangler d1 list` → 確認目標 DB 確實喺同一帳號（成功 → 帳號層冇問題）。
+  3. 睇 repo 根目錄：**同時存在 `wrangler.toml`（舊 DB `d536f16b…`）同 `wrangler.jsonc`（正式 DB `81e87f9c…`）** → 兩個設定衝突。
+- 修正：**刪走 `wrangler.toml`**（commit `bcd82df`），只保留 `wrangler.jsonc`；重試 `migrations apply --remote` → 成功。
+- **教訓**：①一個 repo 只可以有**一個** wrangler 設定檔，否則 D1／部署會用錯 config；②見到 `7403` 先分開「帳號／授權」同「DB 對唔上」兩件事，用 `whoami` + `d1 list` 兩分鐘定位；③remote 一律由產品負責人執行（rules §19），AI 只跑 `--local`。
 
 ---
 
