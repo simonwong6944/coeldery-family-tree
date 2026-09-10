@@ -16,6 +16,8 @@ import {
   GATHER_SCENES, filterMerchants, gatherSceneFromHash,
   type GatherScene, type GatherMerchant,
 } from '../utils/gatherScenes'
+import { planEntryFromHash } from '../utils/gatherPlan'
+import GatherList from './GatherList'
 
 const TAB_ROUTES: Record<TabId, string> = {
   family_tree: '#/', family_circle: '#/family-feed',
@@ -48,6 +50,8 @@ export default function FamilyGather() {
   }, [])
 
   const isMemorial = scene === 'memorial'
+  /* 「去安排」入口：#/family-gather?plan=1&occasion=birthday&subject=<id>&date=YYYY-MM-DD */
+  const entry = planEntryFromHash(window.location.hash)
   /* 場合過濾 + 忌辰零廣告硬攔截（rules 第 23 條）一律喺純函式內（src/utils/gatherScenes.ts）*/
   const list = filterMerchants(all, scene)
 
@@ -56,6 +60,14 @@ export default function FamilyGather() {
       <TopBar titleKey="gather.page_title" onBack={() => { window.location.hash = '#/' }} />
       <main style={main}>
         <p style={{ margin:'16px 16px 12px', fontSize:'16px', color:col('--color-text-secondary') }}>{t('gather.intro')}</p>
+
+        {/* 我的聚會 + 發起聚會（忌辰唔顯示：rules §23 / spec §7）*/}
+        {!isMemorial && (
+          <GatherList
+            initial={{ occasion: entry.occasion, subject: entry.subject, date: entry.date }}
+            autoOpenPlan={entry.plan}
+          />
+        )}
 
         {/* 場合 chips */}
         <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', padding:'0 16px 12px' }}>

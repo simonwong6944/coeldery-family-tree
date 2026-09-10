@@ -1,6 +1,6 @@
 # CoEldery 家族樹 — 進度 LOG（source of truth）
 
-最後更新：2026-09-10（家庭聚會 tab v1 核心）
+最後更新：2026-09-10（家庭聚會協作：發起 → 候選 → 逐人投票 → 確認 → 邀請卡）
 
 ---
 
@@ -110,7 +110,7 @@
 ### E. 現行 backlog（更新）
 1. 短片支援已完成；剩：無效電話測 `check-phone` 回 502 → 應回「非會員」（小 UX）。
 2. Handoff 最終驗收（方法 B + 真人入口）。
-3. **家庭聚會**：v1 核心已完成（見第七節）；未做 = 聚會發起／候選日期／邀請卡（階段一）、投票／RSVP（階段二，待 SSO）、coupon；推薦獎勵 / v2+ 願景（傳家訊息等）。
+3. **家庭聚會**：v1 核心（場合商戶瀏覽）＋ **協作流程（發起／候選／逐人投票／確認／自動家庭圈邀請卡）已完成**（見第七、八節）；未做 = coupon（雙動作）、推薦獎勵券、聚會提醒推送、支出分攤、名額上限、投票截止自動鎖定。
 4. 技術債：`ImportantDatesSection.tsx` 326 行（超 SOP 200），建議拆 component；`FocusTree.tsx` 亦接近上限。
 
 ---
@@ -129,4 +129,42 @@
 - **測試**：`scripts/test-gather-scenes.mjs`（10/10 通過，含「忌辰零廣告」硬攔截斷言 + hash 場合解析）；順帶喺 `test-kinship.mjs` 註解補 `--ignoreConfig`（TS6 起必需）。
 
 **已知限制（下一步）**：生產商戶種子資料暫時只有 3 個（`cat-food`／`cat-health`／`cat-funeral`），**冇 `cat-gift`（禮品與花藝）商戶**，故生日／週年／節日場景只出 1 個、忌辰場景可能空（此為資料問題，非程式問題 —— 有自然排序鮮花商戶即會顯示）。聚會發起／候選日期／邀請卡與投票（待 SSO）未做；coupon 未做。
+
+---
+
+## 八、家庭聚會協作落地（2026-09-10 追加）：發起 → 候選 → 逐人投票 → 確認 → 邀請卡
+
+> ⚠️ **`migrations/0015_gatherings.sql` 之 remote migration 待產品負責人執行**（rules §19：AI 只可跑 `--local`）。
+> 未執行前，線上聚會 API 會因表不存在而失敗。
+
+**為何可以即做（原為階段二）**：spec §5.1 將「逐人投票／RSVP」列階段二，前置為 SSO。但 **per-member 登入**（`member_auth` + `family_session` + `getCurrentMember` 回 `primaryMemberId`）已於較早 session 交付 —— 每位家人各自裝置有自己身份，前置條件消失，故階段一＋二一併落地。
+
+### A. 資料（migration 0015）
+- `gathering`：聚會主體（場合／對象／標題／目標日期／status：draft→voting→confirmed／cancelled／`invite_post_id`）。
+- `gathering_option`：候選項 —— `kind` = `date`／`place`／`cake`／`gift`、商戶（可空）、日期／時間、**取貨地點**、**負責人**、status（candidate／confirmed／dropped）。
+- `gathering_vote`：逐人投票（`UNIQUE(option_id, voter_member_id)`，可改／可收回）。
+
+### B. API（新）
+`/api/gatherings`（GET 清單／POST 發起）｜`/api/gatherings/[id]`（GET 詳情＋票數＋我嘅一票、PATCH 改／確認／取消、DELETE）｜`/api/gathering-options`（POST）｜`/api/gathering-options/[id]`（PATCH／DELETE）｜`/api/gathering-votes`（POST）。共用 helper：`functions/api/_gatherings.ts`。
+
+### C. 關鍵行為
+- **忌辰（memorial）API 層禁止發起聚會**（回 400）—— 唔靠前端藏按鈕（rules §23 / spec §7）。忌辰提醒卡「去安排」只跳莊重分支（鮮花／拜祭，零廣告）。
+- `date`／`place` 屬唯一類別：確認一項 → 同類其他自動 `dropped`；`cake`／`gift` 可確認多項。
+- 投票 = upsert（yes／no／maybe，`choice='none'` 收回）；身份 = 登入者 `primaryMemberId`。
+- 首次加候選 → 聚會自動 `draft → voting`。
+- **確認聚會 → 自動生成家庭圈邀請卡**（`posts` 單向同步：標題／日期／地點／蛋糕取貨；封面用已確認地點商戶相片）；取消或刪除聚會會一併清走貼文。
+- 加候選時商戶必須 `is_listed = 1`（沿用 merchant 准入）。
+
+### D. 前端
+- `#/gather/:id` → `GatherDetail`：最終安排 + 四類候選（投票／確認／負責人／一鍵聯絡）+ 狀態動作（確認／重新開放／取消／刪除／分享邀請卡）。
+- `FamilyGather` 加「我的聚會」＋「發起聚會」（`GatherList`／`GatherPlanForm`／`GatherAddOption`／`GatherOptionCard`／`gatherStyles.ts`）；純邏輯 `utils/gatherPlan.ts`、client `utils/gatherApi.ts`。
+- 忌辰場景唔顯示「發起聚會」；提醒卡「去安排」帶 `?plan=1&occasion=&subject=&date=` 自動開表單。
+
+### E. 測試
+- `scripts/test-gathering-e2e.mjs` **30/30**：未登入 401、忌辰攔截、建立、候選、商戶資料、投票 upsert／收回、唯一類別落選、蛋糕取貨、確認 → 邀請卡內容、取消 → 清卡、刪除 → 404。
+- `scripts/test-gather-plan.mjs` **26/26**（純邏輯）；`test-gather-scenes.mjs` 10/10。
+- 本機跑法：`npx wrangler d1 migrations apply coeldery-family-tree-db --local` → 種測試資料（見測試檔頭註解）→ `npx wrangler pages dev dist --d1=coeldery-family-tree-db --local --port 8787` → `node scripts/test-gathering-e2e.mjs`。
+
+### F. 本地 D1 小插曲（教訓）
+- 本機 `d1 migrations apply --local` 於 0014 報 `duplicate column name: synced_post_id`（本機早前已手動加過該欄）→ 手動補一筆 `d1_migrations` 記錄後，0015 正常套用。**改 schema 後記得同步本機 migration 記錄，否則 apply 會中途停低。**
 

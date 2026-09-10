@@ -672,7 +672,13 @@ export default function FamilyFeed() {
                       blessingLabel={isSent ? t('b5.blessing_sent') : undefined}
                       blessingDisabled={!canBless}
                       onBlessing={canBless ? () => handleBlessing(r) : undefined}
-                      onArrange={undefined}
+                      /* 「去安排」：忌辰 → 莊重分支（只鮮花／拜祭，零廣告）；其餘 → 帶場合／對象／日期發起聚會 */
+                      onArrange={r.type === 'memorial'
+                        ? () => { window.location.hash = '#/family-gather?scene=memorial' }
+                        : () => {
+                            const occ = r.type === 'birthday' ? 'birthday' : r.type === 'festival' ? 'festival' : 'other'
+                            window.location.hash = `#/family-gather?plan=1&occasion=${occ}&subject=${r.member_id}&date=${r.date}`
+                          }}
                     />
                   )
                 })}

@@ -9,6 +9,7 @@ import B3AddMember from './pages/B3AddMember'
 import MemberDetail from './pages/MemberDetail'
 import FamilyFeed from './pages/FamilyFeed'
 import FamilyGather from './pages/FamilyGather'
+import GatherDetail from './pages/GatherDetail'
 import MyRecommend from './pages/MyRecommend'
 import GrowthAlbumPage from './pages/GrowthAlbumPage'
 import AccountPage from './pages/AccountPage'
@@ -242,6 +243,9 @@ function App() {
     page = <AccountPage />
   } else if (hash === '#/family-feed') {
     page = <FamilyFeed />
+  } else if (hash.startsWith('#/gather/')) {
+    const gatheringId = hash.replace('#/gather/', '')
+    page = <GatherDetail gatheringId={gatheringId} />
   } else if (hash.startsWith('#/family-gather')) {
     page = <FamilyGather />
   } else if (hash === '#/my-recommend') {

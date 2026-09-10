@@ -178,7 +178,7 @@
 |------|------------|
 | App 內金流／用戶付款／第三層真實訂購交易 | Core Document 第八節第一、三條，永久界線 |
 | 平台通用券／預售券 | 涉金流、退款、可能觸及 SVF 儲值支付牌照（Core Document 第八節第二條），入 future backlog |
-| **逐人投票揀日期／RSVP 之實際寫入與 UI** | **技術上依賴 SSO 辨識個別家人；SSO 前不實作（見第五節階段二）。schema 已預留，非永久排除。** |
+| **逐人投票揀日期／RSVP 之實際寫入與 UI** | ~~技術上依賴 SSO 辨識個別家人；SSO 前不實作~~ **→ 2026-09-10 已實作**：per-member 登入（`member_auth` + `family_session`，見 v1.3）令每位家人各自有身份，逐人投票／RSVP 已落地（見第五節、v1.3）。 |
 | 商戶評分／評論 | 沿用 merchant_platform.md §六 |
 | 商戶 vs 用戶即時通訊 | 接觸只限電話／WhatsApp／導航 |
 | 消費兌換額度機制 | Core Document 第八節第四條 |
@@ -211,6 +211,7 @@
 ---
 
 | v1.2 | 2026-09-10 | 落地 v1 核心（§1–4、§7）：家庭聚會 tab 由 placeholder 改為真頁（場合 chips → 商戶 → 一鍵致電／WhatsApp／導航；重用 `/api/merchants`，不開新 schema）；忌辰硬攔截落實（`scene=memorial` 先過濾 `ad_tier > 0`）。聚會發起／候選日期／邀請卡、投票／RSVP、coupon 列 v1 Out of Scope。 | 產品負責人 |
+| v1.3 | 2026-09-10 | **第五節完整落地（階段一 ＋ 階段二）**：①三表實作 —— `gathering`／`gathering_option`／`gathering_vote`（migration 0015），依 §5.3【待定】補上 `kind`（date／place／cake／gift）、取貨地點／時間、負責人、`sort_order`；②**逐人投票／RSVP 提前解鎖** —— per-member 登入已存在，每位家人各自投票（每人每項一票，可改／可收回）；③「確認候選 → 同類其他自動落選」（date／place 為唯一類別，cake／gift 可多項）；④「確認聚會 → 自動生成家庭圈邀請卡」（§5.2，含已確認地點／蛋糕內容；取消／刪除會一併清走）；⑤入口：提醒卡「去安排」帶入 `?plan=1&occasion=&subject=&date=`；⑥❗忌辰（memorial）於 **API 層**禁止發起聚會（非只靠 UI 隱藏）。測試：`scripts/test-gathering-e2e.mjs`（30/30）＋ `scripts/test-gather-plan.mjs`（26/26）。coupon 仍未做。 | 產品負責人 |
 
 ---
 
