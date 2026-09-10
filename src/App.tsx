@@ -242,7 +242,7 @@ function App() {
     page = <AccountPage />
   } else if (hash === '#/family-feed') {
     page = <FamilyFeed />
-  } else if (hash === '#/family-gather') {
+  } else if (hash.startsWith('#/family-gather')) {
     page = <FamilyGather />
   } else if (hash === '#/my-recommend') {
     page = <MyRecommend />

@@ -686,7 +686,7 @@ export default function FamilyFeed() {
         {posts[1] && renderPost(posts[1])}
         {!recoDismissed && (
           <RecommendationCard
-            title={t('b4_reco.title1')} onCtaClick={() => undefined}
+            title={t('b4_reco.title1')} onCtaClick={() => { window.location.hash = '#/family-gather?scene=festival' }}
             onDismiss={handleDismissReco}
           />
         )}

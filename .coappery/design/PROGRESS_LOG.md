@@ -1,12 +1,14 @@
 # CoEldery 家族樹 — 進度 LOG（source of truth）
 
-最後更新：2026-09-10（成長相簿 + 認人/登入全面修復 session）
+最後更新：2026-09-10（家庭聚會 tab v1 核心）
 
 ---
 
 ## 一、已定案設計（唔再當未決定）
 
-- **家庭樹 = 一個家庭一棵樹**（product_decisions v1.6）：一個 `family_id`，全家共用，成員以關係邊（edge）連住。
+- **家庭聚會 = 重用商戶平台**（`merchant` 表，唔開新 schema）：按**場合**（生日／結婚週年／節日／忌辰）過濾商戶 + 一鍵致電／WhatsApp／導航；**App 內不涉交易、不抽佣**（成交留喺商戶）。
+- **忌辰硬攔截**（family_gather.md §7）：忌辰場合**不得出現任何廣告／贊助位**，故先過濾 `ad_tier = 0`（自然排序），只列鮮花／拜祭相關商戶。
+- 家庭樹 = 一個家庭一棵樹（product_decisions v1.6）：一個 `family_id`，全家共用，成員以關係邊（edge）連住。
 - 關係為獨立 edge（唔塞入 node）；**記錄層（真相）／顯示層（濾鏡）分離**。
 - **「本人」＝ 登入者 `member_no` 對應嘅節點**（唔再係全家共用嘅 `is_self` flag）。
 - **成長相簿 = 每位成員（含寵物）一個**，一律放 B2 成員詳情頁；**不設動態 tab／BB 專屬相簿**（product_decisions v1.6）。
@@ -108,6 +110,21 @@
 ### E. 現行 backlog（更新）
 1. 短片支援已完成；剩：無效電話測 `check-phone` 回 502 → 應回「非會員」（小 UX）。
 2. Handoff 最終驗收（方法 B + 真人入口）。
-3. 家庭聚會 tab（placeholder）、推薦獎勵 / coupon、v2+ 願景（傳家訊息等）。
+3. **家庭聚會**：v1 核心已完成（見第七節）；未做 = 聚會發起／候選日期／邀請卡（階段一）、投票／RSVP（階段二，待 SSO）、coupon；推薦獎勵 / v2+ 願景（傳家訊息等）。
 4. 技術債：`ImportantDatesSection.tsx` 326 行（超 SOP 200），建議拆 component；`FocusTree.tsx` 亦接近上限。
+
+---
+
+## 七、家庭聚會 tab v1 核心（2026-09-10 追加）
+
+規格：`.coappery/family_gather.md` v1.1 §1–4、§7。**不涉交易、不抽佣、不開新 schema**（重用 `merchant` 平台）。
+
+- **`src/pages/FamilyGather.tsx` 128 行**（原 48 行 placeholder → 真頁）：場合 chips（全部／生日／結婚週年／節日／忌辰）→ 過濾 → 商戶卡（相／名／分類／地址）→ **一鍵 📞 致電、💬 WhatsApp（`wa.me`）、📍 導航（`map_url`）**。單次 `GET /api/merchants`，場合過濾喺前端（分類粒度細，避免多次請求）。
+- **場合 → 分類對照**（§3.2）：生日／週年／節日 = `cat-food`（餐廳、蛋糕）+ `cat-gift`（禮品、鮮花）；忌辰 = `cat-gift`。
+- **忌辰硬攔截**（§7）：`scene=memorial` 時**先**排除 `ad_tier > 0`（一切付費／贊助），只列自然排序商戶，並顯示莊重提示；無聚會發起／慶祝 CTA。
+- **贊助標示**：非忌辰模式，`ad_tier > 0` 商戶加「贊助」徽章（誠實標示，rules）。
+- **入口**：`#/family-gather?scene=…`；`App.tsx` route 改 `startsWith` 以支援 query；B4 推薦卡「了解更多」→ `#/family-gather?scene=festival`（原為 `onCtaClick={()=>undefined}`）。
+- i18n 新增 `gather.*`（13 key）；文字全 i18n、顏色全 CSS var；lint 0 error。
+
+**已知限制（下一步）**：場合→分類現靠前端 map（`cat-gift` 同時含鮮花與一般禮品，忌辰未細分）；聚會發起／候選日期／邀請卡與投票（待 SSO）未做；coupon 未做。
 

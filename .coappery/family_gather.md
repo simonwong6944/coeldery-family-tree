@@ -210,6 +210,12 @@
 
 ---
 
+| v1.2 | 2026-09-10 | 落地 v1 核心（§1–4、§7）：家庭聚會 tab 由 placeholder 改為真頁（場合 chips → 商戶 → 一鍵致電／WhatsApp／導航；重用 `/api/merchants`，不開新 schema）；忌辰硬攔截落實（`scene=memorial` 先過濾 `ad_tier > 0`）。聚會發起／候選日期／邀請卡、投票／RSVP、coupon 列 v1 Out of Scope。 | 產品負責人 |
+
+---
+
 ## ⚠️ 跨文件修訂提示（需同步）
 
 本 v1.1 推翻咗 product_decisions.md 及 Core Document v4 第八節原本將「多人 RSVP／投票」列為 Out of Scope 嘅界線。為保持三份文件一致，建議之後喺 product_decisions.md 修訂記錄追加一行，註明「多人投票／RSVP 由 family_gather.md v1.1 重新納入（分階段，待 SSO），推翻原 Out of Scope」。此提示登記於此，待產品負責人於 product_decisions.md 一併處理。
+
+> **2026-09-10 更新**：已於 `product_decisions.md` v1.8 追加記錄（新增 [決策]「家庭聚會 v1 = 重用商戶平台、App 內不涉交易、忌辰零廣告」，其 Out of Scope 一項已註明「多人投票／RSVP 由 family_gather.md v1.1 重新納入（分階段，待 SSO），推翻原 Out of Scope」）。Core Document v4 第八節之同步仍待產品負責人於該文件處理。

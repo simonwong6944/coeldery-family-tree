@@ -233,6 +233,23 @@
     "edit_caption": "修改說明",
     "edit_month": "修改年月（YYYY-MM）"
   },
+  "gather": {
+    "page_title": "家庭聚會",
+    "intro": "為家人安排聚會，找合適商戶（App 內不涉交易）",
+    "scene_all": "全部",
+    "scene_birthday": "生日",
+    "scene_anniversary": "結婚週年",
+    "scene_festival": "節日",
+    "scene_memorial": "忌辰",
+    "section_sponsored": "贊助",
+    "section_list": "商戶",
+    "call": "致電",
+    "whatsapp": "WhatsApp",
+    "map": "導航",
+    "empty": "暫無合適商戶",
+    "load_failed": "載入失敗，請稍後再試",
+    "memorial_notice": "懷念先人。以下只列出鮮花／拜祭相關商戶，以自然排序顯示，不設任何廣告或贊助位。"
+  },
   "entry_card": {
     "activity_title": "查閱動態",
     "activity_subtitle": "前往家庭圈，可 讚好／留言",
