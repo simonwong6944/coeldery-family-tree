@@ -29,7 +29,7 @@ base64url( payloadJson ) + "." + base64url( HMAC-SHA256( signingInput ) )
 | `signingInput` | **就係 `base64url(payloadJson)` 呢個字串本身**（即簽 `payloadB64`，唔係 JSON 原文） |
 | HMAC key | `FAMILY_TREE_API_KEY`（兩邊**必須一致**） |
 | base64url | 無 padding，`+`→`-`、`/`→`_` |
-| `exp` | Unix 秒；家庭樹會檢查 `exp > now`；建議 **60–120 秒**短命 |
+| `exp` | Unix 秒；家庭樹只驗 `exp > now`（不設硬上限）；建議 **≤ 300 秒** 短命 |
 
 ## 3. 家庭樹接收端行為
 

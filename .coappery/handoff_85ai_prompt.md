@@ -33,7 +33,7 @@ token = base64url( payloadJson ) + "." + base64url( HMAC_SHA256( key, base64url(
 | HMAC 演算法 | `HMAC-SHA256` |
 | HMAC key | 環境變數／Secret：`FAMILY_TREE_API_KEY` |
 | `base64url` | 標準 base64 之後：`+`→`-`、`/`→`_`、**去掉 `=` padding** |
-| `exp` | Unix 秒；建議 **120 秒**（短命） |
+| `exp` | Unix 秒；建議 **≤ 300 秒**（短命；家庭樹只驗 exp > now，不設硬上限） |
 | `member_no` | 85AI 現行會員編號，格式 `CE85-XXXXXX` |
 
 > ⚠️ 常見出錯位：**係簽 `payloadB64`（base64url 後嘅字串），唔係簽 JSON 原文**。錯咗會 401。
@@ -57,7 +57,7 @@ function b64url(buf) {
   return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
-async function signFamilyTreeHandoff(memberNo, apiKey, ttlSec = 120) {
+async function signFamilyTreeHandoff(memberNo, apiKey, ttlSec = 300) {
   // 1. payload → base64url 字串
   const payloadB64 = b64url(new TextEncoder().encode(JSON.stringify({
     member_no: memberNo,
@@ -116,7 +116,7 @@ export const onRequestGet = async (ctx) => {
 - [ ] 未登入用戶撳「家庭樹」→ 唔會取得 token（導返登入）。
 - [ ] 亂改／過期 token → 家庭樹回 401 → 自動回落去家庭樹登入頁（唔會白畫面）。
 - [ ] `FAMILY_TREE_API_KEY` 冇落前端 bundle、冇入 git、冇入 log。
-- [ ] token `exp` ≤ 120 秒。
+- [ ] token `exp` ≤ 300 秒。
 
 ## 6. 本地／手動測試方法
 
