@@ -1,5 +1,7 @@
 /* 測試：親屬稱謂引擎（node scripts/test-kinship.mjs）
- * 需先編譯：npx tsc packages/kinship-engine/index.ts --outDir .tmp-kin --module esnext --target es2022 --moduleResolution bundler */
+ * 需先編譯：npx tsc packages/kinship-engine/index.ts --outDir .tmp-kin --module esnext --target es2022 --moduleResolution bundler --ignoreConfig
+ * （TypeScript 6 起，命令行指定檔案時需加 --ignoreConfig，否則報 TS5112）
+ */
 import { resolveKinship } from '../.tmp-kin/index.js'
 
 const M = (id, gender, birth_date) => ({ id, gender, birth_date })

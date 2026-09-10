@@ -12,34 +12,14 @@ import { useTranslation } from 'react-i18next'
 import TopBar from '../../packages/top-bar'
 import BottomTabBar from '../../packages/bottom-tab-bar'
 import type { TabId } from '../../packages/bottom-tab-bar'
+import {
+  GATHER_SCENES, filterMerchants, gatherSceneFromHash,
+  type GatherScene, type GatherMerchant,
+} from '../utils/gatherScenes'
 
 const TAB_ROUTES: Record<TabId, string> = {
   family_tree: '#/', family_circle: '#/family-feed',
   family_gathering: '#/family-gather', my_recommendations: '#/my-recommend',
-}
-
-interface Merchant {
-  id: string; name: string; ad_tier: number
-  phone: string | null; whatsapp: string | null; map_url: string | null
-  photo_url: string | null; description: string | null; address: string | null
-  category_id: string | null; category_name: string | null
-}
-
-type Scene = 'all' | 'birthday' | 'anniversary' | 'festival' | 'memorial'
-const SCENES: Scene[] = ['all', 'birthday', 'anniversary', 'festival', 'memorial']
-/* 場合 → 商戶主分類（family_gather.md §3.2；現有分類粒度所限，忌辰以「禮品與花藝」代表鮮花／拜祭）*/
-const SCENE_CATS: Record<Scene, string[] | null> = {
-  all:         null,
-  birthday:    ['cat-food', 'cat-gift'],
-  anniversary: ['cat-food', 'cat-gift'],
-  festival:    ['cat-food', 'cat-gift'],
-  memorial:    ['cat-gift'],
-}
-
-function sceneFromHash(): Scene {
-  const m = /scene=([a-z]+)/.exec(window.location.hash)
-  const s = (m?.[1] ?? 'all') as Scene
-  return SCENES.includes(s) ? s : 'all'
 }
 
 const col = (v: string) => `var(${v})`
@@ -54,24 +34,22 @@ function waHref(w: string): string { return `https://wa.me/${w.replace(/\D/g, ''
 
 export default function FamilyGather() {
   const { t } = useTranslation()
-  const [scene, setScene] = useState<Scene>(() => sceneFromHash())
+  const [scene, setScene] = useState<GatherScene>(() => gatherSceneFromHash(window.location.hash))
   const [state, setState] = useState<'loading' | 'ok' | 'error'>('loading')
-  const [all, setAll]     = useState<Merchant[]>([])
+  const [all, setAll]     = useState<GatherMerchant[]>([])
 
   useEffect(() => {
     fetch('/api/merchants')
       .then(r => r.ok ? r.json() : null)
-      .then((d: { merchants?: Merchant[] } | null) => {
+      .then((d: { merchants?: GatherMerchant[] } | null) => {
         if (d?.merchants) { setAll(d.merchants); setState('ok') } else setState('error')
       })
       .catch(() => setState('error'))
   }, [])
 
   const isMemorial = scene === 'memorial'
-  const cats = SCENE_CATS[scene]
-  /* 忌辰硬攔截：先排除一切付費／贊助（ad_tier > 0），再按場合分類過濾 */
-  const list = (cats ? all.filter(m => m.category_id && cats.includes(m.category_id)) : all)
-    .filter(m => (isMemorial ? m.ad_tier === 0 : true))
+  /* 場合過濾 + 忌辰零廣告硬攔截（rules 第 23 條）一律喺純函式內（src/utils/gatherScenes.ts）*/
+  const list = filterMerchants(all, scene)
 
   return (
     <div style={page}>
@@ -81,7 +59,7 @@ export default function FamilyGather() {
 
         {/* 場合 chips */}
         <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', padding:'0 16px 12px' }}>
-          {SCENES.map(s => (
+          {GATHER_SCENES.map(s => (
             <button key={s} style={chip(scene === s)} onClick={() => setScene(s)}>{t(`gather.scene_${s}`)}</button>
           ))}
         </div>

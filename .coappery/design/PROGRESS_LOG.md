@@ -119,12 +119,14 @@
 
 規格：`.coappery/family_gather.md` v1.1 §1–4、§7。**不涉交易、不抽佣、不開新 schema**（重用 `merchant` 平台）。
 
-- **`src/pages/FamilyGather.tsx` 128 行**（原 48 行 placeholder → 真頁）：場合 chips（全部／生日／結婚週年／節日／忌辰）→ 過濾 → 商戶卡（相／名／分類／地址）→ **一鍵 📞 致電、💬 WhatsApp（`wa.me`）、📍 導航（`map_url`）**。單次 `GET /api/merchants`，場合過濾喺前端（分類粒度細，避免多次請求）。
-- **場合 → 分類對照**（§3.2）：生日／週年／節日 = `cat-food`（餐廳、蛋糕）+ `cat-gift`（禮品、鮮花）；忌辰 = `cat-gift`。
+- **`src/pages/FamilyGather.tsx` 105 行**（原 48 行 placeholder → 真頁）：場合 chips（全部／生日／結婚週年／節日／忌辰）→ 過濾 → 商戶卡（相／名／分類／地址）→ **一鍵 📞 致電、💬 WhatsApp（`wa.me`）、📍 導航（`map_url`）**。單次 `GET /api/merchants`，場合過濾喺前端（分類粒度細，避免多次請求）。
+- **過濾邏輯抽為純函式 `src/utils/gatherScenes.ts`（73 行）**：`filterMerchants()`／`matchScene()`／`gatherSceneFromHash()`，無 React 依賴，可 node 直測。
+- **場合 → 分類對照**（§3.2）：生日／週年／節日 = `cat-food`（餐廳、蛋糕）+ `cat-gift`（禮品、鮮花）；忌辰 = `cat-gift` + `cat-funeral`（拜祭相關）。**次要匹配用商戶標籤（tags）** 補足粗分類。
 - **忌辰硬攔截**（§7）：`scene=memorial` 時**先**排除 `ad_tier > 0`（一切付費／贊助），只列自然排序商戶，並顯示莊重提示；無聚會發起／慶祝 CTA。
 - **贊助標示**：非忌辰模式，`ad_tier > 0` 商戶加「贊助」徽章（誠實標示，rules）。
 - **入口**：`#/family-gather?scene=…`；`App.tsx` route 改 `startsWith` 以支援 query；B4 推薦卡「了解更多」→ `#/family-gather?scene=festival`（原為 `onCtaClick={()=>undefined}`）。
 - i18n 新增 `gather.*`（13 key）；文字全 i18n、顏色全 CSS var；lint 0 error。
+- **測試**：`scripts/test-gather-scenes.mjs`（10/10 通過，含「忌辰零廣告」硬攔截斷言 + hash 場合解析）；順帶喺 `test-kinship.mjs` 註解補 `--ignoreConfig`（TS6 起必需）。
 
-**已知限制（下一步）**：場合→分類現靠前端 map（`cat-gift` 同時含鮮花與一般禮品，忌辰未細分）；聚會發起／候選日期／邀請卡與投票（待 SSO）未做；coupon 未做。
+**已知限制（下一步）**：生產商戶種子資料暫時只有 3 個（`cat-food`／`cat-health`／`cat-funeral`），**冇 `cat-gift`（禮品與花藝）商戶**，故生日／週年／節日場景只出 1 個、忌辰場景可能空（此為資料問題，非程式問題 —— 有自然排序鮮花商戶即會顯示）。聚會發起／候選日期／邀請卡與投票（待 SSO）未做；coupon 未做。
 
