@@ -165,8 +165,16 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
       .bind(memberNo)
       .first<{ password_hash: string | null }>()
 
-    /* ── A. 冇 record 或 hash 空 → 未設密碼，行 setup ── */
-    if (!auth || !auth.password_hash) {
+    /* ── A. 未設密碼，或本人尚無節點 → 一律行 setup ──
+     *   （避免「有密碼但無節點」造成 登入 ↔ Auth Gate 死循環）*/
+    const node = await db
+      .prepare(
+        `SELECT id FROM members WHERE coeldery85_member_id = ? AND member_kind = 'person' LIMIT 1`
+      )
+      .bind(memberNo)
+      .first<{ id: string }>()
+
+    if (!auth || !auth.password_hash || !node) {
       return Response.json({ ok: true, needs_setup: true }, { status: 200 })
     }
 

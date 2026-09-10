@@ -221,20 +221,13 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
 
   /* ── 6. 查本人 node + 寫入認證（member_auth）── */
   try {
-    /* ── 6a. 已設定過？查 member_auth（member_no 為 key）── */
+    /* ── 6a. 查 member_auth（member_no 為 key）── */
     const existingAuth = await db
       .prepare(`SELECT member_no FROM member_auth WHERE member_no = ?`)
       .bind(memberNo)
       .first<{ member_no: string }>()
 
-    if (existingAuth) {
-      return Response.json(
-        { ok: false, error: '此帳號已完成設定，請使用密碼登入' },
-        { status: 409 },
-      )
-    }
-
-    /* ── 6b. 查本人 node（靠 coeldery85_member_id = memberNo，勿靠 phone 欄）── */
+    /* ── 6b. 查本人 node（靠 coeldery85_member_id = memberNo）── */
     const node = await db
       .prepare(
         `SELECT id, family_id
@@ -245,11 +238,20 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
       .bind(memberNo)
       .first<{ id: string; family_id: string }>()
 
+    /* 真正「已完成設定」＝ 已有密碼【且】已有節點 → 409（改用登入）
+     * 只有其一（有密碼無節點 / 有節點無密碼）→ 照行落去補齊，避免登入死循環 */
+    if (existingAuth && node) {
+      return Response.json(
+        { ok: false, error: '此帳號已完成設定，請使用密碼登入' },
+        { status: 409 },
+      )
+    }
+
     let memberId:  string
     let familyId:  string
     let createdNew: boolean
 
-    /* ── A. 搵到 node（已存在）→ 只補 birth_date（若空）── */
+    /* ── A. 搵到 node（已存在）→ 補 birth_date + 顯示名 ── */
     if (node) {
       if (birthDate) {
         await db
@@ -306,14 +308,16 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
       createdNew = true
     }
 
-    /* ── 6c. 寫入 member_auth（密碼 + 暱稱，per member_no）── */
-    await db
-      .prepare(
-        `INSERT INTO member_auth (member_no, password_hash, nickname, updated_at)
-         VALUES (?, ?, ?, datetime('now'))`
-      )
-      .bind(memberNo, passwordHash, nickname)
-      .run()
+    /* ── 6c. 寫入 member_auth（只在未有時；已有就保留原本密碼）── */
+    if (!existingAuth) {
+      await db
+        .prepare(
+          `INSERT INTO member_auth (member_no, password_hash, nickname, updated_at)
+           VALUES (?, ?, ?, datetime('now'))`
+        )
+        .bind(memberNo, passwordHash, nickname)
+        .run()
+    }
 
     /* ── 7. 種 family_session cookie（A / B 均執行）── */
     const sessionToken = makeToken()
