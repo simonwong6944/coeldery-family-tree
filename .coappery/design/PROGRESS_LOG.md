@@ -78,3 +78,36 @@
 - PowerShell 讀寫含中文檔案要用 `[System.IO.File]::ReadAllText/WriteAllText`（避免編碼破壞）。
 - Cloudflare Pages 嘅 `d1 execute --file` 於本機／remote 皆曾失敗；改用 `--command` 內聯 SQL，或 production 用 `d1 migrations apply`。
 
+---
+
+## 六、同日下午追加（2026-09-10）：稱謂引擎 + 可編輯性 P1–P7
+
+### A. 以「本人」為中心嘅親屬稱謂推算（原 v2+，拉前實作）
+- 新模組 `packages/kinship-engine`：由本人節點 BFS（`parent_child`／`marriage`），步驟 pattern → i18n `kin.*` 稱謂（父/母/子/女/兄/弟/姊/妹/祖父母/外祖父母/孫/外孫/伯叔姑舅姨/堂表/媳婦女婿/岳父母家翁家姑…；fallback「親屬」）。
+- 整合：`B1HomePage` 算 `kinKeys` → `FocusTree` → `LayerCarousel` → `HouseholdChip` 關係標籤。
+- 測試：`scripts/test-kinship.mjs`（15/15 通過）。commit `465aa7d`。
+
+### B. 樹跳動修正
+- `FocusTree` 焦點卡置中原本用 `scrollIntoView({block:'nearest'})` → 會連頁面垂直捲動，令切換成員時成棵樹跳動、被推去畫面中間。
+- 改為手動**只捲橫向**（`scrollLeft`）。commit `3b2f694`。
+
+### C. 可編輯性補齊 P1–P7（每批即 deploy）
+- P1 性別編輯（`4be30f9`）— 修好稱謂「父／母」。
+- P2 重要日子編輯（`c107ef2`）。
+- P3 成長相簿項目編輯（`0f24f33`）。
+- P4 我的帳號：改暱稱 + 改密碼（`06d7145`）；抽出 `_password.ts` 共用。
+- P5 關係邊編輯（relation_type／status／日期）+ 刪除（`8228ce1`）。
+- P6 家族樹改名（`e5c2c0b`）。
+- P7 出生日期編輯 + PATCH 補家族歸屬驗證（`704b0e4`）。
+- 重構：`growthAlbumActions.ts`、`MemberBasicsSection.tsx`；`MemberDetail` 225→176、`GrowthAlbumPage` 219→178 行。
+
+### D. 文件同步
+- `rules.md`：第 12／20 條移出「智能稱謂／自動稱謂推算」；新增 **第 22 條（成員資料可編輯範圍）**。
+- `product_decisions.md`：新增 [決策]「可編輯性補齊 + 自動稱謂推算拉前」+ **v1.7** 修訂記錄。
+
+### E. 現行 backlog（更新）
+1. 短片支援已完成；剩：無效電話測 `check-phone` 回 502 → 應回「非會員」（小 UX）。
+2. Handoff 最終驗收（方法 B + 真人入口）。
+3. 家庭聚會 tab（placeholder）、推薦獎勵 / coupon、v2+ 願景（傳家訊息等）。
+4. 技術債：`ImportantDatesSection.tsx` 326 行（超 SOP 200），建議拆 component；`FocusTree.tsx` 亦接近上限。
+
