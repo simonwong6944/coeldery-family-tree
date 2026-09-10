@@ -11,8 +11,8 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { uploadPhotoToCloudinary, uploadVideoToCloudinary, readVideoDuration, MAX_PHOTO_BYTES, MAX_VIDEO_BYTES, MAX_VIDEO_SECONDS } from '../utils/cloudinaryUpload'
-import { playBadge } from './growthAlbumStyles'
+import { uploadAlbumMedia, editAlbumItem } from '../utils/growthAlbumActions'
+import { playBadge, editBadge } from './growthAlbumStyles'
 
 interface AlbumItem {
   id: string; media_kind: string; url: string; poster_url: string | null
@@ -58,49 +58,25 @@ export default function GrowthAlbumSection({ memberId }: { memberId: string }) {
     const file = e.target.files?.[0] ?? null
     if (!file) return
     const clear = () => { if (fileRef.current) fileRef.current.value = '' }
-
     const [y, m] = target.split('-').map(Number)
-    if (!y || !m) { setError(t('growth_album.upload_failed')); return }
-
-    const isVideo = file.type.startsWith('video/')
-    if (!isVideo && !file.type.startsWith('image/')) { setError(t('growth_album.err_not_media')); clear(); return }
-    if (isVideo  && file.size > MAX_VIDEO_BYTES)     { setError(t('b4.compose_err_too_large')); clear(); return }
-    if (!isVideo && file.size > MAX_PHOTO_BYTES)     { setError(t('b4.compose_err_too_large')); clear(); return }
-    if (isVideo) {
-      const dur = await readVideoDuration(file)
-      if (dur != null && dur > MAX_VIDEO_SECONDS) { setError(t('growth_album.video_too_long')); clear(); return }
-    }
+    if (!y || !m) { setError(t('growth_album.upload_failed')); clear(); return }
 
     setUploading(true)
-    try {
-      const payload: Record<string, unknown> = { subject_member_id: memberId, year: y, month: m }
-      if (isVideo) {
-        const v = await uploadVideoToCloudinary(file)
-        if (v.durationSeconds > MAX_VIDEO_SECONDS) { setError(t('growth_album.video_too_long')); return }
-        payload.media_kind = 'video'
-        payload.url = v.url
-        payload.poster_url = v.posterUrl
-        payload.duration_seconds = v.durationSeconds
-      } else {
-        payload.media_kind = 'photo'
-        payload.url = await uploadPhotoToCloudinary(file)
-      }
-      const res = await fetch('/api/growth-album', {
-        method: 'POST', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      const d = await res.json() as { ok: boolean; error?: string }
-      if (!d.ok) { setError(d.error ?? t('growth_album.upload_failed')); return }
-      load()
-    } catch { setError(t('growth_album.upload_failed')) }
-    finally { setUploading(false); clear() }
+    const out = await uploadAlbumMedia(t, { memberId, file, year: y, month: m })
+    setUploading(false); clear()
+    if (!out.ok) { setError(out.error ?? t('growth_album.upload_failed')); return }
+    load()
   }
 
   async function handleDelete(id: string) {
     if (!window.confirm(t('growth_album.delete_confirm'))) return
     await fetch(`/api/growth-album/${id}`, { method: 'DELETE', credentials: 'include' })
     load()
+  }
+
+  /* 編輯項目（說明／年月）*/
+  async function handleEditItem(it: AlbumItem) {
+    if (await editAlbumItem(t, it)) load()
   }
 
   const months = data?.months ?? []
@@ -151,6 +127,7 @@ export default function GrowthAlbumSection({ memberId }: { memberId: string }) {
                     style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }}
                   />
                   {it.media_kind === 'video' && <span style={playBadge}>▶</span>}
+                  <button onClick={() => handleEditItem(it)} aria-label={t('growth_album.edit')} style={editBadge}>✏</button>
                   <button onClick={() => handleDelete(it.id)} aria-label={t('growth_album.delete_confirm')} style={delBtn}>✕</button>
                 </div>
               ))}

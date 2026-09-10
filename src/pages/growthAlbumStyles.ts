@@ -10,6 +10,8 @@ export const monthInput: React.CSSProperties = { minHeight: '44px', padding: '0 
 export const thumbBtn: React.CSSProperties = { position: 'relative', width: '104px', height: '104px', padding: 0, border: 'none', borderRadius: '8px', overflow: 'hidden', cursor: 'pointer', backgroundColor: 'var(--color-divider)' }
 /** 影片格中央 ▶ 標記 */
 export const playBadge: React.CSSProperties = { position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', width: '36px', height: '36px', borderRadius: '50%', backgroundColor: 'var(--overlay-media-badge)', color: 'var(--color-on-media)', fontSize: '16px', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }
+/** 相／片格左上角「編輯」標記 */
+export const editBadge: React.CSSProperties = { position: 'absolute', top: '4px', left: '4px', width: '28px', height: '28px', borderRadius: '50%', border: 'none', cursor: 'pointer', backgroundColor: 'var(--overlay-chip)', color: 'var(--color-text)', fontSize: '14px', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2 }
 
 export function uploadBtn(dis: boolean): React.CSSProperties {
   return { minHeight: '48px', padding: '0 20px', borderRadius: '24px', fontSize: '16px', fontWeight: 'bold', fontFamily: 'inherit', cursor: dis ? 'not-allowed' : 'pointer', border: '2px solid var(--color-primary)', backgroundColor: dis ? 'var(--color-divider)' : 'var(--color-card)', color: 'var(--color-primary)' }
