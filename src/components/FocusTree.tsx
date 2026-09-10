@@ -41,19 +41,30 @@ function LayerCarousel({ households, selectedIdx, onSelect, focusedMemberId, set
     [households]
   )
 
-  /* snap：selectedIdx 或 householdsKey 變化都重新置中 */
+  /* 卡片置中：只捲「橫向」，永不捲垂直
+   * （原本 scrollIntoView({block:'nearest'}) 會連頁面垂直都捲，令焦點卡被推去
+   *  畫面中間、切換焦點時成棵樹跳動。改為手動 scrollLeft，只影響本 carousel。）*/
+  const centerCard = useCallback((smooth: boolean) => {
+    const el = scrollRef.current
+    if (!el) return
+    const cards = Array.from(el.children).slice(1, -1) as HTMLElement[]
+    const card = cards[selectedIdxRef.current]
+    if (!card) return
+    const eRect = el.getBoundingClientRect()
+    const cRect = card.getBoundingClientRect()
+    const delta = (cRect.left + cRect.width / 2) - (eRect.left + eRect.width / 2)
+    el.scrollTo({ left: el.scrollLeft + delta, behavior: smooth ? 'smooth' : 'auto' })
+  }, [])
+
+  /* snap：selectedIdx 或 householdsKey 變化都重新置中（橫向）*/
   useEffect(() => {
-    const cards = Array.from(scrollRef.current?.children ?? []).slice(1, -1) as HTMLElement[]
-    cards[selectedIdx]?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+    centerCard(true)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedIdx, householdsKey])
 
   /* 4t: householdsKey 改變（含 mount）→ 雙幀強制 auto 置中，覆蓋「內容換但 selectedIdx 數值未變」情況 */
   useEffect(() => {
-    const r = requestAnimationFrame(() => requestAnimationFrame(() => {
-      const cards = Array.from(scrollRef.current?.children ?? []).slice(1, -1) as HTMLElement[]
-      cards[selectedIdxRef.current]?.scrollIntoView({ behavior: 'auto', inline: 'center', block: 'nearest' })
-    }))
+    const r = requestAnimationFrame(() => requestAnimationFrame(() => centerCard(false)))
     return () => cancelAnimationFrame(r)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [householdsKey])
