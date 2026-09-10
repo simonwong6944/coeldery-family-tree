@@ -20,6 +20,9 @@ dist-ssr
 # Wrangler local state (本機 D1 SQLite，不入 git)
 .wrangler/
 
+# D1 資料備份 dump（含真實資料，不入 git）
+backup-*.sql
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
