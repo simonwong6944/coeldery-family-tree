@@ -28,6 +28,8 @@ export interface ApiRel {
   to_member: string
   edge_type: string
   status: string | null
+  /** parent_child 專用：biological / adopted / step / null */
+  relation_type?: string | null
 }
 
 /** 一個 household（一對配偶或單人）+ 附屬寵物 */

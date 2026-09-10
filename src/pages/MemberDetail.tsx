@@ -64,6 +64,20 @@ export default function MemberDetail({ memberId }: { memberId: string }) {
     setStatusBusy(''); fetchTree()
   }
 
+  /** 改親子邊類型（血緣 / 領養 / 繼親 / 未指定）*/
+  async function handleRelTypeChange(relId: string, rt: string) {
+    setStatusBusy(relId)
+    await fetch(`/api/relationships/${relId}`, { method:'PATCH', credentials:'include', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ relation_type: rt === '' ? null : rt }) })
+    setStatusBusy(''); fetchTree()
+  }
+
+  /** 刪除關係邊（限修正錯誤輸入）*/
+  async function handleDeleteRel(relId: string) {
+    if (!window.confirm(t('member_detail.rel_delete_confirm'))) return
+    await fetch(`/api/relationships/${relId}`, { method:'DELETE', credentials:'include' })
+    fetchTree()
+  }
+
   async function handleRenameSelf() {
     const name = window.prompt(t('member_detail.rename_prompt'), member?.display_name ?? '')
     if (!name || !name.trim()) return
@@ -162,6 +176,15 @@ export default function MemberDetail({ memberId }: { memberId: string }) {
               {statusOpts.map(s => <option key={s} value={s}>{t(`member_detail.status_${s}`)}</option>)}
             </select>
           )}
+          {rel.edge_type === 'parent_child' && (
+            <select value={rel.relation_type ?? ''} disabled={statusBusy === rel.id} onChange={e => handleRelTypeChange(rel.id, e.target.value)} style={select}>
+              <option value="">{t('member_detail.rel_type_none')}</option>
+              <option value="biological">{t('member_detail.rel_type_biological')}</option>
+              <option value="adopted">{t('member_detail.rel_type_adopted')}</option>
+              <option value="step">{t('member_detail.rel_type_step')}</option>
+            </select>
+          )}
+          <button style={smallBtn} onClick={() => handleDeleteRel(rel.id)} aria-label={t('member_detail.rel_delete')}>🗑 {t('member_detail.rel_delete')}</button>
         </div>
       ))}
     </section>
