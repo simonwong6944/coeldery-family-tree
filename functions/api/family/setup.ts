@@ -262,6 +262,12 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
           .run()
       }
 
+      /* 本人設定時同步顯示名（本人控制自己個名；放寬紅線 4 之「本人」例外）*/
+      await db
+        .prepare('UPDATE members SET display_name = ? WHERE id = ?')
+        .bind(nickname, node.id)
+        .run()
+
       console.log(`[family/setup] 已存在 member ${node.id}（memberNo=${memberNo}）`)
 
       memberId   = node.id

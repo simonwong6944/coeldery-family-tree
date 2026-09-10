@@ -47,8 +47,9 @@ export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
   try { body = await ctx.request.json() as Record<string, unknown> }
   catch { return Response.json({ ok: false, error: '無效的 JSON 格式' }, { status: 400 }) }
 
-  // 守紅線 4：只允許改 deceased_date、is_self、gender、avatar_url，禁改姓名/生日
-  const allowedKeys = ['deceased_date', 'is_self', 'gender', 'avatar_url']
+  // 守紅線 4：只允許改 deceased_date、is_self、gender、avatar_url、display_name
+  //   ⚠️ display_name 有例外：只准「本人」改自己個名（見下方 owner 檢查）
+  const allowedKeys = ['deceased_date', 'is_self', 'gender', 'avatar_url', 'display_name']
   const bodyKeys = Object.keys(body)
   const forbidden = bodyKeys.filter(k => !allowedKeys.includes(k))
   if (forbidden.length > 0)
@@ -59,6 +60,20 @@ export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
     'SELECT id, family_id, coeldery85_member_id FROM members WHERE id = ?'
   ).bind(memberId).first<{ id: string; family_id: string; coeldery85_member_id: string | null }>()
   if (!member) return Response.json({ ok: false, error: '找不到此成員' }, { status: 404 })
+
+  // ── 處理 display_name（只准本人改自己顯示名）──
+  if ('display_name' in body) {
+    const nameVal = body.display_name
+    if (typeof nameVal !== 'string' || !nameVal.trim())
+      return Response.json({ ok: false, error: 'display_name 須為非空字串' }, { status: 400 })
+    const cur = await getCurrentMember(ctx.env.DB, ctx.request)
+    if (!cur.ok) return cur.response
+    if (!member.coeldery85_member_id || member.coeldery85_member_id !== cur.memberNo)
+      return Response.json({ ok: false, error: '只可修改本人嘅顯示名' }, { status: 403 })
+    await ctx.env.DB.prepare('UPDATE members SET display_name = ? WHERE id = ?')
+      .bind(nameVal.trim(), memberId).run()
+    return Response.json({ ok: true, member_id: memberId, display_name: nameVal.trim() })
+  }
 
   // ── 處理 avatar_url ──
   if ('avatar_url' in body) {

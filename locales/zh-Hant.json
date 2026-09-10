@@ -420,6 +420,8 @@
     "delete_cancel_btn": "取消",
     "set_self_btn": "設為本人",
     "is_self_label": "本人",
+    "rename_btn": "改名",
+    "rename_prompt": "請輸入新的顯示名稱",
     "back_to_tree": "返回家庭樹",
     "add_rel_no_type": "請選擇關係類型",
     "important_dates_title": "重要日子",

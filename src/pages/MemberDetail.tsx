@@ -72,6 +72,13 @@ export default function MemberDetail({ memberId }: { memberId: string }) {
     setSaving(false); fetchTree()
   }
 
+  async function handleRenameSelf() {
+    const name = window.prompt(t('member_detail.rename_prompt'), member?.display_name ?? '')
+    if (!name || !name.trim()) return
+    await fetch(`/api/members/${memberId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify({ display_name: name.trim() }) })
+    fetchTree()
+  }
+
   async function handleSetSelf() {
     setSelfBusy(true)
     await fetch(`/api/members/${memberId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, credentials:'include', body:JSON.stringify({ is_self:1 }) })
@@ -147,6 +154,9 @@ export default function MemberDetail({ memberId }: { memberId: string }) {
         <div>
           <span style={label}>{t('member_detail.name_label')}</span>
           <p style={{ ...val, fontSize:'20px', margin:0 }}>{member.display_name}</p>
+          {isSelf && (
+            <button style={{ ...smallBtn, marginTop:'6px' }} onClick={handleRenameSelf}>{t('member_detail.rename_btn')}</button>
+          )}
         </div>
         {isSelf && <span style={{ fontSize:'12px', fontWeight:'bold', color:'var(--color-primary)', border:'1.5px solid var(--color-primary)', borderRadius:'12px', padding:'2px 10px', whiteSpace:'nowrap', alignSelf:'flex-start' }}>{t('member_detail.is_self_label')}</span>}
       </div>
