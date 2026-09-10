@@ -126,7 +126,17 @@
     "month_label": "{{year}} 年 {{month}} 月",
     "month_pick": "上傳至",
     "delete_confirm": "確定刪除此相片？",
-    "load_failed": "載入失敗，請稍後再試"
+    "load_failed": "載入失敗，請稍後再試",
+    "album_title": "{{name}} 的成長相簿",
+    "view_calendar": "月曆",
+    "view_timeline": "時間軸",
+    "view_all": "查看全部相簿",
+    "year_label": "{{year}} 年",
+    "count_unit": "{{count}} 張",
+    "empty_month": "此月未有相片",
+    "close": "關閉",
+    "prev": "上一張",
+    "next": "下一張"
   },
   "entry_card": {
     "activity_title": "查閱動態",

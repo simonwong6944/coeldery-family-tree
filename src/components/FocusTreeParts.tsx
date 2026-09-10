@@ -125,7 +125,13 @@ export function HouseholdChip({
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastClickId = useRef<string>(hh.primary.id)
 
+  /* 雙擊 → 成長相簿 */
   const handleDblNav = useCallback((id: string) => {
+    window.location.hash = `#/album/${id}`
+  }, [])
+
+  /* 長按 → 成員詳情（profile）*/
+  const handleLongNav = useCallback((id: string) => {
     window.location.hash = `#/member/${id}`
   }, [])
 
@@ -138,8 +144,32 @@ export function HouseholdChip({
     return clientX < midX ? hh.primary.id : hh.spouse!.id
   }, [secondary, onClickSpouse, hh.primary.id, hh.spouse])
 
+  /* 長按（600ms）→ 成員詳情；移動 >10px 視為滑動，取消長按 */
+  const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pressStart = useRef<{ x: number; y: number } | null>(null)
+  const longFired  = useRef(false)
+  function clearPress() { if (pressTimer.current) { clearTimeout(pressTimer.current); pressTimer.current = null } }
+
+  function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    longFired.current = false
+    pressStart.current = { x: e.clientX, y: e.clientY }
+    clearPress()
+    pressTimer.current = setTimeout(() => {
+      pressTimer.current = null
+      longFired.current = true
+      handleLongNav(resolveClickTarget(pressStart.current?.x ?? 0))
+    }, 600)
+  }
+  function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    const s = pressStart.current
+    if (!s) return
+    if (Math.abs(e.clientX - s.x) > 10 || Math.abs(e.clientY - s.y) > 10) clearPress()
+  }
+  function onPointerUp() { clearPress() }
+
   const handleClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     e.stopPropagation()
+    if (longFired.current) { longFired.current = false; return }
     const memberId = resolveClickTarget(e.clientX)
     lastClickId.current = memberId
     if (timer.current) clearTimeout(timer.current)
@@ -153,6 +183,7 @@ export function HouseholdChip({
 
   const handleDblClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     e.stopPropagation()
+    if (longFired.current) return
     if (timer.current) { clearTimeout(timer.current); timer.current = null }
     const memberId = resolveClickTarget(e.clientX)
     handleDblNav(memberId)
@@ -164,6 +195,11 @@ export function HouseholdChip({
       style={{ position: 'relative', flexShrink: 0, cursor: 'pointer' }}
       onClick={handleClick}
       onDoubleClick={handleDblClick}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerLeave={onPointerUp}
+      onContextMenu={(e) => e.preventDefault()}
     >
       <HouseholdCard
         variant={variant}

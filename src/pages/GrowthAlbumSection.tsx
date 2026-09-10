@@ -11,6 +11,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import { uploadPhotoToCloudinary, MAX_PHOTO_BYTES } from '../utils/cloudinaryUpload'
 
 interface AlbumItem {
   id: string; media_kind: string; url: string; poster_url: string | null
@@ -19,33 +20,10 @@ interface AlbumItem {
 }
 interface AlbumMonth { year: number; month: number; items: AlbumItem[] }
 interface AlbumData { months: AlbumMonth[]; limits: { photo: number; video: number } }
-interface SignResponse {
-  ok: boolean; signature?: string; timestamp?: number
-  apiKey?: string; cloudName?: string; folder?: string; error?: string
-}
-
-const MAX_PHOTO_BYTES = 5 * 1024 * 1024
 
 function ymNow(): { year: number; month: number } {
   const d = new Date()
   return { year: d.getFullYear(), month: d.getMonth() + 1 }
-}
-
-/* Cloudinary 簽名上載（5-field；不加 preset/tags/transformation，否則簽名不符）*/
-async function uploadToCloudinary(
-  file: File,
-  sign: Required<Omit<SignResponse, 'ok' | 'error'>>,
-): Promise<string> {
-  const fd = new FormData()
-  fd.append('file', file)
-  fd.append('api_key', sign.apiKey)
-  fd.append('timestamp', String(sign.timestamp))
-  fd.append('signature', sign.signature)
-  fd.append('folder', sign.folder)
-  const res = await fetch(`https://api.cloudinary.com/v1_1/${sign.cloudName}/image/upload`, { method: 'POST', body: fd })
-  if (!res.ok) throw new Error('cloudinary_upload_failed')
-  const data = await res.json() as { secure_url: string }
-  return data.secure_url
 }
 
 export default function GrowthAlbumSection({ memberId }: { memberId: string }) {
@@ -87,15 +65,7 @@ export default function GrowthAlbumSection({ memberId }: { memberId: string }) {
 
     setUploading(true)
     try {
-      const signRes = await fetch('/api/cloudinary-sign', { method: 'POST', credentials: 'include' })
-      const sign = await signRes.json() as SignResponse
-      if (!sign.ok || !sign.signature || !sign.timestamp || !sign.apiKey || !sign.cloudName || !sign.folder) {
-        setError(t('growth_album.upload_failed')); return
-      }
-      const url = await uploadToCloudinary(file, {
-        signature: sign.signature, timestamp: sign.timestamp,
-        apiKey: sign.apiKey, cloudName: sign.cloudName, folder: sign.folder,
-      })
+      const url = await uploadPhotoToCloudinary(file)
       const res = await fetch('/api/growth-album', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -124,6 +94,13 @@ export default function GrowthAlbumSection({ memberId }: { memberId: string }) {
           {t('growth_album.quota', { photo: photoUsed, photoLimit, video: videoUsed, videoLimit })}
         </span>
       </div>
+
+      <button
+        onClick={() => { window.location.hash = `#/album/${memberId}` }}
+        style={{ width:'100%', minHeight:'48px', marginBottom:'12px', borderRadius:'12px', fontSize:'16px', fontWeight:'bold', fontFamily:'inherit', cursor:'pointer', border:'2px solid var(--color-primary)', backgroundColor:'var(--color-card)', color:'var(--color-primary)' }}
+      >
+        {t('growth_album.view_all')} ›
+      </button>
 
       <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap', marginBottom:'12px' }}>
         <label htmlFor="ga-month" style={{ fontSize:'16px', color:'var(--color-text)' }}>{t('growth_album.month_pick')}</label>

@@ -10,6 +10,7 @@ import MemberDetail from './pages/MemberDetail'
 import FamilyFeed from './pages/FamilyFeed'
 import FamilyGather from './pages/FamilyGather'
 import MyRecommend from './pages/MyRecommend'
+import GrowthAlbumPage from './pages/GrowthAlbumPage'
 import EventDetail from '../packages/event-detail'
 import Login from './pages/Login'
 
@@ -233,6 +234,9 @@ function App() {
   } else if (hash.startsWith('#/member/')) {
     const memberId = hash.replace('#/member/', '')
     page = <MemberDetail memberId={memberId} />
+  } else if (hash.startsWith('#/album/')) {
+    const memberId = hash.replace('#/album/', '')
+    page = <GrowthAlbumPage memberId={memberId} />
   } else if (hash === '#/family-feed') {
     page = <FamilyFeed />
   } else if (hash === '#/family-gather') {
