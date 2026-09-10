@@ -7,12 +7,14 @@
  *
  * PATCH — 只准改 deceased_date、is_self、gender、avatar_url（守紅線 4：禁改姓名/生日）
  *   body: { deceased_date?: string | null, is_self?: 0 | 1, gender?: 'male' | 'female' | null, avatar_url?: string | null }
+ *   is_self=1 = 「設為本人」：將登入者 member_no 認領此節點（節點已屬他人 → 409）
  *
  * Cloudflare Pages Function — edge runtime
  * binding: DB (D1)
  */
 
 import type { Env } from '../_types'
+import { getCurrentMember } from '../_currentMember'
 
 export const onRequestDelete: PagesFunction<Env> = async (ctx) => {
   const memberId = ctx.params['id'] as string
@@ -54,8 +56,8 @@ export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
 
   // 確認成員存在
   const member = await ctx.env.DB.prepare(
-    'SELECT id, family_id FROM members WHERE id = ?'
-  ).bind(memberId).first<{ id: string; family_id: string }>()
+    'SELECT id, family_id, coeldery85_member_id FROM members WHERE id = ?'
+  ).bind(memberId).first<{ id: string; family_id: string; coeldery85_member_id: string | null }>()
   if (!member) return Response.json({ ok: false, error: '找不到此成員' }, { status: 404 })
 
   // ── 處理 avatar_url ──
@@ -73,20 +75,29 @@ export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
     return Response.json({ ok: true, member_id: memberId, avatar_url: avatarUrl })
   }
 
-  // ── 處理 is_self ──
+  // ── 處理 is_self（＝「設為本人」：將登入者 member_no 認領此節點）──
   if ('is_self' in body) {
     const isSelf = body.is_self
     if (isSelf !== 0 && isSelf !== 1)
       return Response.json({ ok: false, error: 'is_self 只接受 0 或 1' }, { status: 400 })
+
     if (isSelf === 1) {
-      // 先將同 family 所有成員設回 0
+      /* 認領：需登入；節點若已屬他人 → 409 */
+      const cur = await getCurrentMember(ctx.env.DB, ctx.request)
+      if (!cur.ok) return cur.response
+      const owner = member.coeldery85_member_id
+      if (owner && owner !== cur.memberNo) {
+        return Response.json({ ok: false, error: '此節點已屬其他成員' }, { status: 409 })
+      }
+      /* 綁定 coeldery85_member_id = 我；唔再清全 family，避免蓋走其他人嘅「本人」 */
       await ctx.env.DB.prepare(
-        'UPDATE members SET is_self = 0 WHERE family_id = ?'
-      ).bind(member.family_id).run()
+        'UPDATE members SET coeldery85_member_id = ?, is_self = 1 WHERE id = ?'
+      ).bind(cur.memberNo, memberId).run()
+    } else {
+      await ctx.env.DB.prepare(
+        'UPDATE members SET is_self = 0 WHERE id = ?'
+      ).bind(memberId).run()
     }
-    await ctx.env.DB.prepare(
-      'UPDATE members SET is_self = ? WHERE id = ?'
-    ).bind(isSelf, memberId).run()
     return Response.json({ ok: true, member_id: memberId, is_self: isSelf })
   }
 

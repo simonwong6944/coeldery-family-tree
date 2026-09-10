@@ -32,6 +32,7 @@ export default function MemberDetail({ memberId }: { memberId: string }) {
   const [saving, setSaving] = useState(false)
   const [statusBusy, setStatusBusy] = useState('')
   const [selfBusy, setSelfBusy] = useState(false)
+  const [selfId, setSelfId] = useState<string | null>(null)
 
   const fetchTree = useCallback(() => {
     setLoading(true)
@@ -40,7 +41,14 @@ export default function MemberDetail({ memberId }: { memberId: string }) {
       .catch(() => { setTree({ members:[], relationships:[] }); setLoading(false) })
   }, [])
 
-  useEffect(() => { fetchTree() }, [fetchTree])
+  useEffect(() => {
+    fetchTree()
+    /* 「本人」= 登入者節點（/api/family/me 之 member_id） */
+    fetch('/api/family/me', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then((me: { member_id?: string | null } | null) => { if (me) setSelfId(me.member_id ?? null) })
+      .catch(() => {})
+  }, [fetchTree])
 
   const member = tree?.members.find(m => m.id === memberId)
   const myRels = (tree?.relationships ?? []).filter(r => r.from_member === memberId || r.to_member === memberId)
@@ -65,7 +73,10 @@ export default function MemberDetail({ memberId }: { memberId: string }) {
 
   async function handleSetSelf() {
     setSelfBusy(true)
-    await fetch(`/api/members/${memberId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ is_self:1 }) })
+    await fetch(`/api/members/${memberId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, credentials:'include', body:JSON.stringify({ is_self:1 }) })
+    /* 認領後重新攞登入者節點，更新「本人」標記 */
+    const meRes = await fetch('/api/family/me', { credentials: 'include' })
+    if (meRes.ok) { const me = await meRes.json() as { member_id?: string | null }; setSelfId(me.member_id ?? null) }
     setSelfBusy(false); fetchTree()
   }
 
@@ -118,7 +129,7 @@ export default function MemberDetail({ memberId }: { memberId: string }) {
   if (loading) return wrap(<p style={{ color:'var(--color-text-secondary)' }}>載入中⋯</p>)
   if (!member) return wrap(<p style={{ color:'var(--color-danger,#dc2626)' }}>找不到此成員</p>)
 
-  const isSelf = member.is_self === 1
+  const isSelf = member.id === selfId
   const statusOpts = ['current','divorced','separated','widowed']
 
   return wrap(<>

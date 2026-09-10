@@ -88,8 +88,8 @@ const selfBadgeStyle: React.CSSProperties = {
   backgroundColor: 'var(--color-card)', border: '1.5px solid var(--color-primary)',
   borderRadius: '10px', padding: '1px 8px', pointerEvents: 'none', whiteSpace: 'nowrap', zIndex: 3,
 }
-function SelfBadge({ t }: { t: (key: string) => string }) {
-  return <span style={selfBadgeStyle}>{t('gen.self_badge')}</span>
+function SelfBadge({ t, left = '50%' }: { t: (key: string) => string; left?: string }) {
+  return <span style={{ ...selfBadgeStyle, left }}>{t('gen.self_badge')}</span>
 }
 
 /* ── HouseholdChip ──
@@ -98,7 +98,7 @@ function SelfBadge({ t }: { t: (key: string) => string }) {
  */
 export function HouseholdChip({
   hh, size, isFocus, focusedMemberId: _fid, onClickPrimary, onClickSpouse,
-  leftCount = 0, rightCount = 0,
+  leftCount = 0, rightCount = 0, selfId = null,
 }: {
   hh: Household
   size: number
@@ -108,6 +108,7 @@ export function HouseholdChip({
   onClickSpouse?: (id: string) => void
   leftCount?: number
   rightCount?: number
+  selfId?: string | null
 }) {
   const { t } = useTranslation()
   const rel = t('gen.member_relation_person')
@@ -115,7 +116,10 @@ export function HouseholdChip({
   const secondary = hh.spouse ? toInfo(hh.spouse, rel) : undefined
   const pet = hh.pets[0] ? toPet(hh.pets[0], primary.name) : undefined
   const variant = secondary ? (pet ? 'couple_with_pet' : 'couple') : 'single'
-  const isSelf = hh.primary.is_self === 1
+  /* 「本人」= 登入者節點（selfId）；selfId 未定時 fallback 舊 is_self */
+  const selfIsPrimary = selfId ? hh.primary.id === selfId : hh.primary.is_self === 1
+  const selfIsSpouse  = !!selfId && !!hh.spouse && hh.spouse.id === selfId
+  const isSelf        = selfIsPrimary || selfIsSpouse
 
   const wrapRef = useRef<HTMLDivElement>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -170,7 +174,7 @@ export function HouseholdChip({
         isFocused={isFocus}
         width="auto"
       />
-      {isSelf && <SelfBadge t={t} />}
+      {isSelf && <SelfBadge t={t} left={!secondary ? '50%' : (selfIsSpouse ? '76%' : '24%')} />}
       <SwipeDots count={leftCount}  side="left"  />
       <SwipeDots count={rightCount} side="right" />
     </div>

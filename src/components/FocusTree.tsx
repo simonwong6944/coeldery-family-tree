@@ -22,9 +22,9 @@ import { HouseholdChip, VerticalConnector } from './FocusTreeParts'
 const SWIPE_THRESHOLD = 40
 
 /* ── LayerCarousel：所有代共用 ── */
-function LayerCarousel({ households, selectedIdx, onSelect, focusedMemberId, setFocusId, chipSize = 80 }: {
+function LayerCarousel({ households, selectedIdx, onSelect, focusedMemberId, setFocusId, chipSize = 80, selfId = null }: {
   households: Household[]; selectedIdx: number; onSelect?: (idx: number) => void
-  focusedMemberId?: string; setFocusId: (id: string) => void; chipSize?: number
+  focusedMemberId?: string; setFocusId: (id: string) => void; chipSize?: number; selfId?: string | null
 }) {
   const scrollRef      = useRef<HTMLDivElement | null>(null)
   const selectedIdxRef = useRef(selectedIdx)
@@ -135,6 +135,7 @@ function LayerCarousel({ households, selectedIdx, onSelect, focusedMemberId, set
               onClickSpouse={setFocusId}
               leftCount={i}
               rightCount={households.length - 1 - i}
+              selfId={selfId}
             />
           </div>
         ))}
@@ -355,6 +356,7 @@ export default function FocusTree({ focusView, selectedIdx: _selectedIdx, selfId
               focusedMemberId={focusId}
               setFocusId={setFocusId}
               chipSize={gen === 0 ? 80 : 64}
+              selfId={selfId}
             />
           </div>
         )

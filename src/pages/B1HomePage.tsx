@@ -95,6 +95,7 @@ export default function B1HomePage() {
   const [tree, setTree] = useState<TreeData | null>(null)
   const [loading, setLoading] = useState(true)
   const [focusId, setFocusId] = useState<string | null>(null)
+  const [selfId, setSelfId] = useState<string | null>(null)
   const [selectedIdx, setSelectedIdx] = useState(0)
 
   useEffect(() => {
@@ -119,6 +120,7 @@ export default function B1HomePage() {
             meId = me.member_id ?? null
           }
         } catch { /* 靜默：落返下面 fallback */ }
+        setSelfId(meId)
 
         const focus =
           (meId && d.members.some((m: ApiMember) => m.id === meId) ? meId : null)
@@ -159,7 +161,7 @@ export default function B1HomePage() {
           <button
             onClick={() => { window.location.hash='#/b3-add' }}
             style={{ marginTop:'8px', padding:'0 28px', minHeight:'56px', borderRadius:'28px', fontSize:'18px', fontWeight:'bold', fontFamily:'inherit', cursor:'pointer', border:'none', backgroundColor:'var(--color-primary)', color:'var(--color-card)' }}
-          >{t('empty_state.cta_btn')}</button>
+          >{t('empty_state.cta')}</button>
         </div>
       </Shell>
     )
@@ -169,6 +171,7 @@ export default function B1HomePage() {
     members={members}
     relationships={relationships}
     focusId={focusId}
+    selfId={selfId}
     selectedIdx={selectedIdx}
     setFocusId={handleSetFocusId}
     setSelectedIdx={setSelectedIdx}
@@ -177,19 +180,22 @@ export default function B1HomePage() {
 
 /* ── FocusContent ── */
 function FocusContent({
-  members, relationships, focusId, selectedIdx, setFocusId, setSelectedIdx,
+  members, relationships, focusId, selfId, selectedIdx, setFocusId, setSelectedIdx,
 }: {
   members: ApiMember[]
   relationships: ApiRel[]
   focusId: string | null
+  selfId: string | null
   selectedIdx: number
   setFocusId: (id: string) => void
   setSelectedIdx: (idx: number) => void
 }) {
-  const selfMember = members.find(m => m.is_self === 1 && m.member_kind === 'person')
-    ?? members.find(m => m.member_kind === 'person')
+  /* 本人 = 登入者 member_id（/api/family/me）；冇就 fallback 第一個 person */
+  const resolvedSelfId = (selfId && members.some(m => m.id === selfId))
+    ? selfId
+    : (members.find(m => m.member_kind === 'person')?.id ?? null)
 
-  const currentFocusId = focusId ?? selfMember?.id ?? ''
+  const currentFocusId = focusId ?? resolvedSelfId ?? ''
 
   const focusView = useMemo(
     () => buildFocusView(members, relationships, currentFocusId),
@@ -201,7 +207,7 @@ function FocusContent({
       <FocusTree
         focusView={focusView}
         selectedIdx={selectedIdx}
-        selfId={selfMember?.id ?? null}
+        selfId={resolvedSelfId}
         setFocusId={setFocusId}
         setSelectedIdx={setSelectedIdx}
       />
