@@ -1,117 +1,177 @@
 /**
- * FamilyGather — 家庭聚會（#/family-gather）
- * 依 .coappery/family_gather.md §1–4、§7：
- *   - 重用商戶平台（merchant 表 / is_listed / ad_tier / 贊助標示）
- *   - 場合過濾（生日／結婚週年／節日／忌辰）
- *   - 一鍵聯絡：致電 / WhatsApp / 導航（App 內不涉交易、不抽佣）
- *   - 忌辰硬攔截：先排除一切付費／贊助（ad_tier > 0），只列自然排序之鮮花／拜祭商戶
- * 顏色只用 CSS var；文字全 i18n。
+ * FamilyGather — 家庭聚會（#/family-gather）＝**行動中心**
+ *
+ * 定位（product_decisions v1.8/v1.9）：
+ *   家庭圈＝畀祝福（情感）；家庭聚會＝採取行動（有目的 → 商戶才有推廣機會）。
+ *   故此頁**唔會列出商戶目錄**：只有用戶撳「訂餐廳／訂蛋糕／買禮物／送花」嗰刻，
+ *   商戶才以可篩選清單（類型／地區／排序）出現（見 MerchantPicker）。
+ *
+ * 版面：① 即將到來（生日／節日／重要日子提醒 → 一鍵去安排）
+ *       ② 需要安排什麼？（快速安排 tiles）
+ *       ③ 我的聚會
+ * 忌辰：唔可以發起聚會；「去安排」只走莊重分支（獻上思念／送上鮮花，零廣告）—— rules §23 / spec §7
  */
-import { useState, useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import TopBar from '../../packages/top-bar'
 import BottomTabBar from '../../packages/bottom-tab-bar'
 import type { TabId } from '../../packages/bottom-tab-bar'
-import {
-  GATHER_SCENES, filterMerchants, gatherSceneFromHash,
-  type GatherScene, type GatherMerchant,
-} from '../utils/gatherScenes'
-import { planEntryFromHash } from '../utils/gatherPlan'
 import GatherList from './GatherList'
+import GatherPlanForm from './GatherPlanForm'
+import GatherQuickStart from './GatherQuickStart'
+import type { OptionKind } from '../utils/gatherPlan'
+import { gsPage, gsMain, gsCard, gsMuted, gsSectionTitle, gsRow, gsBtnPrimary, gsBtnGhost } from './gatherStyles'
 
 const TAB_ROUTES: Record<TabId, string> = {
   family_tree: '#/', family_circle: '#/family-feed',
   family_gathering: '#/family-gather', my_recommendations: '#/my-recommend',
 }
 
-const col = (v: string) => `var(${v})`
-const page: React.CSSProperties = { minHeight:'100svh', backgroundColor:col('--color-bg'), display:'flex', flexDirection:'column' }
-const main: React.CSSProperties = { flex:1, overflowY:'auto', paddingTop:'56px', paddingBottom:'96px' }
-const card: React.CSSProperties = { backgroundColor:col('--color-card'), borderRadius:'16px', padding:'14px', margin:'0 16px 12px', boxShadow:col('--shadow-soft') }
-const chip = (active: boolean): React.CSSProperties => ({ minHeight:'44px', padding:'0 18px', borderRadius:'22px', fontSize:'16px', fontWeight:'bold', fontFamily:'inherit', cursor:'pointer', border:`2px solid ${col('--color-primary')}`, backgroundColor: active ? col('--color-primary') : col('--color-card'), color: active ? col('--color-card') : col('--color-primary') })
-const actionBtn: React.CSSProperties = { minHeight:'44px', padding:'0 16px', borderRadius:'22px', fontSize:'15px', fontWeight:'bold', fontFamily:'inherit', cursor:'pointer', border:`2px solid ${col('--color-primary')}`, backgroundColor:col('--color-card'), color:col('--color-primary'), textDecoration:'none', display:'inline-flex', alignItems:'center' }
-const centered: React.CSSProperties = { padding:'24px 16px', textAlign:'center', fontSize:'16px', color:col('--color-text-secondary') }
+interface Reminder {
+  member_id: string; display_name: string
+  type: 'birthday' | 'memorial' | 'custom' | 'festival'
+  date: string; days_until: number; age: number | null; label?: string
+}
 
-function waHref(w: string): string { return `https://wa.me/${w.replace(/\D/g, '')}` }
+const TILES: { kind: OptionKind; icon: string; labelKey: string }[] = [
+  { kind: 'place', icon: '🍽', labelKey: 'gather.need_place' },
+  { kind: 'cake',  icon: '🎂', labelKey: 'gather.need_cake' },
+  { kind: 'gift',  icon: '🎁', labelKey: 'gather.need_gift' },
+  { kind: 'date',  icon: '📅', labelKey: 'gather.need_date' },
+]
+
+const tileStyle: React.CSSProperties = {
+  flex: '1 1 44%', minHeight: '88px', borderRadius: '16px', cursor: 'pointer',
+  border: '2px solid var(--color-primary)', backgroundColor: 'var(--color-card)',
+  color: 'var(--color-primary)', fontFamily: 'inherit', fontSize: '17px', fontWeight: 'bold',
+  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '6px',
+}
 
 export default function FamilyGather() {
   const { t } = useTranslation()
-  const [scene, setScene] = useState<GatherScene>(() => gatherSceneFromHash(window.location.hash))
-  const [state, setState] = useState<'loading' | 'ok' | 'error'>('loading')
-  const [all, setAll]     = useState<GatherMerchant[]>([])
 
-  useEffect(() => {
-    fetch('/api/merchants')
-      .then(r => r.ok ? r.json() : null)
-      .then((d: { merchants?: GatherMerchant[] } | null) => {
-        if (d?.merchants) { setAll(d.merchants); setState('ok') } else setState('error')
-      })
-      .catch(() => setState('error'))
+  /* 入口參數（mount 時讀一次）：#/family-gather?plan=1&occasion=&subject=&date= ／ ?scene=memorial */
+  const entry = useMemo(() => {
+    const p = new URLSearchParams(window.location.hash.split('?')[1] ?? '')
+    return {
+      solemn:  p.get('scene') === 'memorial',
+      plan:    p.get('plan') === '1',
+      occasion: p.get('occasion') ?? undefined,
+      subject:  p.get('subject') ?? undefined,
+      date:     p.get('date') ?? undefined,
+    }
   }, [])
 
-  const isMemorial = scene === 'memorial'
-  /* 「去安排」入口：#/family-gather?plan=1&occasion=birthday&subject=<id>&date=YYYY-MM-DD */
-  const entry = planEntryFromHash(window.location.hash)
-  /* 場合過濾 + 忌辰零廣告硬攔截（rules 第 23 條）一律喺純函式內（src/utils/gatherScenes.ts）*/
-  const list = filterMerchants(all, scene)
+  const [reminders, setReminders] = useState<Reminder[]>([])
+  const [loaded, setLoaded] = useState(false)
+  const [quick, setQuick] = useState<{ kind: OptionKind; solemn: boolean } | null>(
+    entry.solemn ? { kind: 'gift', solemn: true } : null,
+  )
+  const [planOpen, setPlanOpen] = useState(entry.plan)
+  const [planInitial, setPlanInitial] = useState<{ occasion?: string; subject?: string; date?: string } | undefined>(
+    entry.plan ? { occasion: entry.occasion, subject: entry.subject, date: entry.date } : undefined,
+  )
+
+  useEffect(() => {
+    fetch('/api/reminders', { credentials: 'include' })
+      .then(r => r.json())
+      .then((d: { reminders?: Reminder[] }) => { setReminders(d.reminders ?? []); setLoaded(true) })
+      .catch(() => setLoaded(true))
+  }, [])
+
+  const titleOf = (r: Reminder) =>
+    r.type === 'birthday' ? t('gather.remind_birthday', { name: r.display_name })
+    : r.type === 'memorial' ? t('gather.remind_memorial', { name: r.display_name })
+    : r.label ? `${r.label}（${r.display_name}）`
+    : r.display_name
+
+  const iconOf = (r: Reminder) => (r.type === 'memorial' ? '🕯️' : r.type === 'custom' ? '📅' : '🎂')
+
+  const occasionOf = (r: Reminder) =>
+    r.type === 'birthday' ? 'birthday' : r.type === 'festival' ? 'festival' : 'other'
 
   return (
-    <div style={page}>
+    <div style={gsPage}>
       <TopBar titleKey="gather.page_title" onBack={() => { window.location.hash = '#/' }} />
-      <main style={main}>
-        <p style={{ margin:'16px 16px 12px', fontSize:'16px', color:col('--color-text-secondary') }}>{t('gather.intro')}</p>
+      <main style={gsMain}>
+        <p style={{ margin: '16px 16px 4px', fontSize: '16px', color: 'var(--color-text-secondary)' }}>{t('gather.intro')}</p>
 
-        {/* 我的聚會 + 發起聚會（忌辰唔顯示：rules §23 / spec §7）*/}
-        {!isMemorial && (
-          <GatherList
-            initial={{ occasion: entry.occasion, subject: entry.subject, date: entry.date }}
-            autoOpenPlan={entry.plan}
-          />
+        {/* ① 即將到來：提醒 → 一鍵去安排 */}
+        <h3 style={gsSectionTitle}>{t('gather.upcoming_title')}</h3>
+        {loaded && reminders.length === 0 && (
+          <p style={{ ...gsMuted, margin: '0 16px 12px' }}>{t('gather.upcoming_empty')}</p>
         )}
+        {reminders.map(r => {
+          const solemn = r.type === 'memorial'
+          return (
+            <article key={`${r.member_id}-${r.type}-${r.date}`} style={gsCard}>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <span aria-hidden="true" style={{ fontSize: '26px' }}>{iconOf(r)}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '17px', fontWeight: 'bold', color: 'var(--color-text)' }}>{titleOf(r)}</div>
+                  <div style={{ ...gsMuted, marginTop: '2px' }}>
+                    {r.date}
+                    {r.age != null ? `・${t(r.type === 'memorial' ? 'gather.remind_years' : 'gather.remind_age', { n: r.age })}` : ''}
+                    {'・'}
+                    {r.days_until === 0 ? t('gather.remind_today') : t('gather.remind_days', { n: r.days_until })}
+                  </div>
+                </div>
+              </div>
+              <div style={gsRow}>
+                {solemn ? (
+                  <button style={gsBtnGhost} onClick={() => setQuick({ kind: 'gift', solemn: true })}>
+                    💐 {t('gather.action_solemn')}
+                  </button>
+                ) : (
+                  <button
+                    style={gsBtnPrimary}
+                    onClick={() => {
+                      setPlanInitial({ occasion: occasionOf(r), subject: r.member_id, date: r.date })
+                      setPlanOpen(true)
+                    }}
+                  >
+                    {t('gather.action_arrange')}
+                  </button>
+                )}
+              </div>
+            </article>
+          )
+        })}
 
-        {/* 場合 chips */}
-        <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', padding:'0 16px 12px' }}>
-          {GATHER_SCENES.map(s => (
-            <button key={s} style={chip(scene === s)} onClick={() => setScene(s)}>{t(`gather.scene_${s}`)}</button>
+        {/* ② 快速安排：需要服務嗰刻才出商戶 */}
+        <h3 style={gsSectionTitle}>{t('gather.tiles_title')}</h3>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', margin: '0 16px 12px' }}>
+          <button style={tileStyle} onClick={() => { setPlanInitial(undefined); setPlanOpen(true) }}>
+            <span aria-hidden="true" style={{ fontSize: '26px' }}>🗓</span>{t('gather.plan_title')}
+          </button>
+          {TILES.map(x => (
+            <button key={x.kind} style={tileStyle} onClick={() => setQuick({ kind: x.kind, solemn: false })}>
+              <span aria-hidden="true" style={{ fontSize: '26px' }}>{x.icon}</span>{t(x.labelKey)}
+            </button>
           ))}
         </div>
 
-        {isMemorial && (
-          <p style={{ ...card, fontSize:'15px', color:col('--color-text'), lineHeight:1.6 }}>{t('gather.memorial_notice')}</p>
-        )}
-
-        {state === 'loading' && <p style={centered}>{t('common.loading')}</p>}
-        {state === 'error'   && <p style={{ ...centered, color:col('--color-accent') }}>{t('gather.load_failed')}</p>}
-        {state === 'ok' && list.length === 0 && <p style={centered}>{t('gather.empty')}</p>}
-
-        {state === 'ok' && list.map(m => (
-          <article key={m.id} style={card}>
-            <div style={{ display:'flex', gap:'12px', alignItems:'flex-start' }}>
-              {m.photo_url && (
-                <img src={m.photo_url} alt="" style={{ width:'72px', height:'72px', borderRadius:'12px', objectFit:'cover', backgroundColor:col('--color-divider'), flexShrink:0 }} />
-              )}
-              <div style={{ flex:1, minWidth:0 }}>
-                <h3 style={{ margin:'0 0 4px', fontSize:'18px', fontWeight:'bold', color:col('--color-text') }}>{m.name}</h3>
-                {m.category_name && <span style={{ fontSize:'14px', color:col('--color-text-secondary') }}>{m.category_name}</span>}
-                {m.address && <p style={{ margin:'4px 0 0', fontSize:'14px', color:col('--color-text-secondary') }}>{m.address}</p>}
-                {/* 贊助標示（忌辰模式不會出現，因已過濾 ad_tier > 0）*/}
-                {!isMemorial && m.ad_tier > 0 && (
-                  <span style={{ display:'inline-block', marginTop:'6px', fontSize:'12px', fontWeight:'bold', color:col('--color-accent'), border:`1px solid ${col('--color-accent')}`, borderRadius:'10px', padding:'1px 8px' }}>
-                    {t('gather.section_sponsored')}
-                  </span>
-                )}
-              </div>
-            </div>
-            <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', marginTop:'12px' }}>
-              {m.phone && <a style={actionBtn} href={`tel:${m.phone}`}>📞 {t('gather.call')}</a>}
-              {m.whatsapp && <a style={actionBtn} href={waHref(m.whatsapp)} target="_blank" rel="noreferrer">💬 {t('gather.whatsapp')}</a>}
-              {m.map_url && <a style={actionBtn} href={m.map_url} target="_blank" rel="noreferrer">📍 {t('gather.map')}</a>}
-            </div>
-          </article>
-        ))}
+        {/* ③ 我的聚會 */}
+        <GatherList />
       </main>
+
       <BottomTabBar current="family_gathering" onTabChange={(tab: TabId) => { window.location.hash = TAB_ROUTES[tab] }} />
+
+      {quick && (
+        <GatherQuickStart
+          kind={quick.kind}
+          solemn={quick.solemn}
+          initial={planInitial}
+          onClose={() => setQuick(null)}
+        />
+      )}
+      {planOpen && (
+        <GatherPlanForm
+          initial={planInitial}
+          onClose={() => setPlanOpen(false)}
+          onCreated={id => { setPlanOpen(false); window.location.hash = `#/gather/${id}` }}
+        />
+      )}
     </div>
   )
 }
-

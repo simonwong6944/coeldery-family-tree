@@ -12,20 +12,22 @@ import {
 
 interface Props {
   initial?: { occasion?: string; subject?: string; date?: string }
+  /** 由「快速安排」tiles 帶入嘅預設名稱（例：訂蛋糕） */
+  initialTitle?: string
   onClose: () => void
   onCreated: (id: string) => void
 }
 
 interface MemberOpt { id: string; display_name: string; member_kind: string }
 
-export default function GatherPlanForm({ initial, onClose, onCreated }: Props) {
+export default function GatherPlanForm({ initial, initialTitle, onClose, onCreated }: Props) {
   const { t } = useTranslation()
   const [members, setMembers] = useState<MemberOpt[]>([])
   const [occasion, setOccasion] = useState<PlanOccasion>(
     (PLAN_OCCASIONS as readonly string[]).includes(initial?.occasion ?? '') ? (initial?.occasion as PlanOccasion) : 'birthday',
   )
   const [subject, setSubject] = useState(initial?.subject ?? '')
-  const [title, setTitle] = useState('')
+  const [title, setTitle] = useState(initialTitle ?? '')
   const [date, setDate] = useState(initial?.date ?? '')
   const [note, setNote] = useState('')
   const [err, setErr] = useState('')

@@ -3,6 +3,7 @@
  * 對應 functions/api/gatherings*、gathering-options*、gathering-votes
  */
 import type { Gathering, GatheringOption, OptionKind, VoteChoice } from './gatherPlan'
+import type { QueryMerchant } from './merchantQuery'
 
 export interface GatheringListItem extends Gathering {
   subject_name: string | null
@@ -85,8 +86,20 @@ export function voteOption(optionId: string, choice: VoteChoice | 'none') {
   )
 }
 
-/** 讀商戶清單（供加入候選時揀商戶；重用現有 merchant 平台） */
-export async function listMerchants(): Promise<Array<Record<string, unknown>>> {
-  const r = await call<{ merchants: Array<Record<string, unknown>> }>('/api/merchants')
+/** 讀商戶清單（全部已上架；實際篩選喺前端 merchantQuery 做，避免多次請求） */
+export async function listMerchants(): Promise<QueryMerchant[]> {
+  const r = await call<{ merchants: QueryMerchant[] }>('/api/merchants')
   return r.ok && r.data ? r.data.merchants : []
+}
+
+export interface MerchantMeta {
+  categories: { id: string; name: string; sort_order: number }[]
+  regions: { id: string; name: string; districts: { id: string; name: string }[] }[]
+  tags: { id: string; name: string; category_id: string | null }[]
+}
+
+/** 讀篩選選項（地區／類型／標籤；只含真正有上架商戶嘅選項） */
+export async function listMerchantMeta(): Promise<MerchantMeta> {
+  const r = await call<MerchantMeta>('/api/merchants-meta')
+  return r.ok && r.data ? r.data : { categories: [], regions: [], tags: [] }
 }

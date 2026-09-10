@@ -25,7 +25,13 @@ export default function GatherDetail({ gatheringId }: Props) {
   const [d, setD] = useState<Detail | null>(null)
   const [state, setState] = useState<'loading' | 'ok' | 'error'>('loading')
   const [busy, setBusy] = useState(false)
-  const [addKind, setAddKind] = useState<OptionKind | null>(null)
+  /* 「快速安排」由 #/gather/:id?add=cake&solemn=1 帶入，自動開加入候選面板 */
+  const hashParams = new URLSearchParams(window.location.hash.split('?')[1] ?? '')
+  const addParam = hashParams.get('add')
+  const solemn = hashParams.get('solemn') === '1'
+  const [addKind, setAddKind] = useState<OptionKind | null>(
+    (OPTION_KINDS as readonly string[]).includes(addParam ?? '') ? (addParam as OptionKind) : null,
+  )
   const [err, setErr] = useState('')
 
   const reload = useCallback(async () => {
@@ -152,7 +158,7 @@ export default function GatherDetail({ gatheringId }: Props) {
 
       {addKind && (
         <GatherAddOption
-          gatheringId={gatheringId} kind={addKind} members={d.members}
+          gatheringId={gatheringId} kind={addKind} members={d.members} solemn={solemn}
           onClose={() => setAddKind(null)}
           onDone={() => { setAddKind(null); reload() }}
         />

@@ -1,44 +1,36 @@
 /**
- * GatherList — 「我的聚會」清單 + 發起聚會入口（嵌於家庭聚會 tab）
+ * GatherList — 「我的聚會」清單（嵌於家庭聚會 tab）
+ * 只負責列出＋跳去詳情；「發起聚會」由家庭聚會頁嘅快速安排 tiles 負責。
  * 規格：.coappery/family_gather.md §5
  */
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import GatherPlanForm from './GatherPlanForm'
 import { listGatherings, type GatheringListItem } from '../utils/gatherApi'
-import { gsCard, gsMuted, gsRow, gsBtnPrimary, gsBadge, gsSectionTitle } from './gatherStyles'
+import { gsCard, gsMuted, gsBadge, gsSectionTitle } from './gatherStyles'
 
-interface Props {
-  initial?: { occasion?: string; subject?: string; date?: string }
-  autoOpenPlan?: boolean
-}
-
-export default function GatherList({ initial, autoOpenPlan }: Props) {
+export default function GatherList() {
   const { t } = useTranslation()
   const [list, setList] = useState<GatheringListItem[]>([])
   const [loaded, setLoaded] = useState(false)
-  const [planOpen, setPlanOpen] = useState(Boolean(autoOpenPlan))
 
   useEffect(() => {
-    listGatherings().then(l => { setList(l); setLoaded(true) }).catch(() => setLoaded(true))
+    listGatherings()
+      .then(l => { setList(l); setLoaded(true) })
+      .catch(() => setLoaded(true))
   }, [])
 
-  const refresh = () => { listGatherings().then(setList).catch(() => undefined) }
+  const active = list.filter(g => g.status !== 'cancelled')
 
   return (
     <section>
       <h3 style={gsSectionTitle}>{t('gather.my_gatherings')}</h3>
 
-      <div style={{ margin: '0 16px 12px' }}>
-        <button style={gsBtnPrimary} onClick={() => setPlanOpen(true)}>＋ {t('gather.plan_title')}</button>
-      </div>
-
-      {loaded && list.length === 0 && (
+      {loaded && active.length === 0 && (
         <p style={{ ...gsMuted, margin: '0 16px 12px' }}>{t('gather.no_gathering')}</p>
       )}
 
-      {list.map(g => {
-        const tone = g.status === 'confirmed' ? 'ok' : g.status === 'cancelled' ? 'off' : 'wait'
+      {active.map(g => {
+        const tone = g.status === 'confirmed' ? 'ok' : 'wait'
         return (
           <article key={g.id} style={gsCard}>
             <button
@@ -61,16 +53,6 @@ export default function GatherList({ initial, autoOpenPlan }: Props) {
           </article>
         )
       })}
-
-      {planOpen && (
-        <GatherPlanForm
-          initial={initial}
-          onClose={() => setPlanOpen(false)}
-          onCreated={id => { setPlanOpen(false); refresh(); window.location.hash = `#/gather/${id}` }}
-        />
-      )}
-
-      <div style={{ ...gsRow, margin: '0 16px' }} />
     </section>
   )
 }

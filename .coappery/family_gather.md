@@ -212,6 +212,7 @@
 
 | v1.2 | 2026-09-10 | 落地 v1 核心（§1–4、§7）：家庭聚會 tab 由 placeholder 改為真頁（場合 chips → 商戶 → 一鍵致電／WhatsApp／導航；重用 `/api/merchants`，不開新 schema）；忌辰硬攔截落實（`scene=memorial` 先過濾 `ad_tier > 0`）。聚會發起／候選日期／邀請卡、投票／RSVP、coupon 列 v1 Out of Scope。 | 產品負責人 |
 | v1.3 | 2026-09-10 | **第五節完整落地（階段一 ＋ 階段二）**：①三表實作 —— `gathering`／`gathering_option`／`gathering_vote`（migration 0015），依 §5.3【待定】補上 `kind`（date／place／cake／gift）、取貨地點／時間、負責人、`sort_order`；②**逐人投票／RSVP 提前解鎖** —— per-member 登入已存在，每位家人各自投票（每人每項一票，可改／可收回）；③「確認候選 → 同類其他自動落選」（date／place 為唯一類別，cake／gift 可多項）；④「確認聚會 → 自動生成家庭圈邀請卡」（§5.2，含已確認地點／蛋糕內容；取消／刪除會一併清走）；⑤入口：提醒卡「去安排」帶入 `?plan=1&occasion=&subject=&date=`；⑥❗忌辰（memorial）於 **API 層**禁止發起聚會（非只靠 UI 隱藏）。測試：`scripts/test-gathering-e2e.mjs`（30/30）＋ `scripts/test-gather-plan.mjs`（26/26）。coupon 仍未做。 | 產品負責人 |
+| v1.4 | 2026-09-10 | **用戶端呈現方式修訂（配合 product_decisions v1.10）**：①家庭聚會首頁改為「**行動中心**」—— (a) 即將到來提醒 (b) 快速安排（發起聚會／訂餐廳／訂蛋糕／買禮物／定日子）(c) 我的聚會；**取消把「場合 chips ＋ 商戶列表」直接放喺首頁**（避免與「我的推薦」重疊，令商戶曝光失去目的性）；②商戶只在**需要嗰刻**以 `MerchantPicker` 出現，提供搜尋／類型／標籤／區域地區／排序（推薦／按地區／按名稱）＋贊助標示；③§3.2 之「場景 → 商戶分類」改為「**需要（kind）→ 商戶標籤優先、主分類後備**」；④新增 `GET /api/merchants-meta`（地區／類型／標籤篩選選項，只含有上架商戶者）。 | 產品負責人 |
 
 ---
 

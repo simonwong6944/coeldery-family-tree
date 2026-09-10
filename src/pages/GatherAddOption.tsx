@@ -1,38 +1,37 @@
 /**
  * GatherAddOption — 加入聚會候選（日期／地點／蛋糕／禮物）
- * 規格：.coappery/family_gather.md §5；商戶一律來自 merchant 平台（is_listed）
+ *
+ * 流程（配合「有目的才見商戶」定位）：
+ *   1. 地點／蛋糕／禮物 → 先開 MerchantPicker 揀商戶（可篩類型／地區／排序）或自行輸入
+ *   2. 填寫細節（日期／時間／取貨地點／負責人）
+ * 忌辰（solemn）＝零廣告：MerchantPicker 會先剔除付費商戶（rules §23）。
  */
-import { useEffect, useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import MerchantPicker from '../components/MerchantPicker'
+import { addOption } from '../utils/gatherApi'
 import type { OptionKind } from '../utils/gatherPlan'
-import { addOption, listMerchants } from '../utils/gatherApi'
+import type { QueryMerchant } from '../utils/merchantQuery'
 import {
-  gsOverlay, gsSheet, gsInput, gsLabel, gsRow, gsBtnPrimary, gsBtnGhost, gsChip,
+  gsOverlay, gsSheet, gsInput, gsLabel, gsRow, gsBtnPrimary, gsBtnGhost, gsMuted,
 } from './gatherStyles'
 
 interface Props {
   gatheringId: string
   kind: OptionKind
   members: { id: string; display_name: string }[]
+  solemn?: boolean
   onClose: () => void
   onDone: () => void
 }
 
-interface Mc { id: string; name: string; category_id: string | null; address: string | null; tags?: { name: string }[] }
-
-/* 各 kind 對應嘅商戶分類／關鍵字（family_gather.md §3.2）*/
-const KIND_MATCH: Record<OptionKind, { cats: string[]; tags: string[] }> = {
-  date:  { cats: [], tags: [] },
-  place: { cats: ['cat-food'], tags: ['餐廳', '茶餐廳', '酒樓', '到會'] },
-  cake:  { cats: ['cat-food', 'cat-gift'], tags: ['蛋糕', '糕點', '西餅'] },
-  gift:  { cats: ['cat-gift'], tags: ['禮品', '鮮花', '花店', '禮盒'] },
-}
-
-export default function GatherAddOption({ gatheringId, kind, members, onClose, onDone }: Props) {
+export default function GatherAddOption({ gatheringId, kind, members, solemn = false, onClose, onDone }: Props) {
   const { t } = useTranslation()
-  const [all, setAll] = useState<Mc[]>([])
-  const [q, setQ] = useState('')
-  const [merchantId, setMerchantId] = useState('')
+  const needPick = kind !== 'date'
+
+  const [picking, setPicking] = useState(needPick)
+  const [merchant, setMerchant] = useState<QueryMerchant | null>(null)
+  const [custom, setCustom] = useState(false)
   const [label, setLabel] = useState('')
   const [date, setDate] = useState('')
   const [time, setTime] = useState('')
@@ -41,35 +40,17 @@ export default function GatherAddOption({ gatheringId, kind, members, onClose, o
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
 
-  useEffect(() => {
-    if (kind === 'date') return
-    listMerchants().then(list => setAll(list as unknown as Mc[])).catch(() => undefined)
-  }, [kind])
-
-  const matches = useMemo(() => {
-    if (kind === 'date') return []
-    const { cats, tags } = KIND_MATCH[kind]
-    const kw = q.trim()
-    return all.filter(m => {
-      const tagOk = (m.tags ?? []).some(x => tags.some(k => x.name.includes(k)))
-      const catOk = m.category_id !== null && cats.includes(m.category_id)
-      if (!catOk && !tagOk) return false
-      return kw === '' || m.name.includes(kw)
-    })
-  }, [all, kind, q])
-
   const needDate = kind === 'date' || kind === 'cake'
   const needPickup = kind === 'cake' || kind === 'gift'
 
   async function submit() {
     setErr('')
-    const picked = all.find(m => m.id === merchantId)
-    const finalLabel = picked ? picked.name : label.trim()
+    const finalLabel = merchant ? merchant.name : label.trim()
     if (!finalLabel) { setErr(t('gather.err_need_name')); return }
     setBusy(true)
     const r = await addOption({
       gathering_id: gatheringId, kind, label: finalLabel,
-      merchant_id: picked ? picked.id : null,
+      merchant_id: merchant ? merchant.id : null,
       option_date: needDate && date ? date : null,
       option_time: needDate && time ? time : null,
       pickup_place: needPickup && pickup.trim() ? pickup.trim() : null,
@@ -80,6 +61,18 @@ export default function GatherAddOption({ gatheringId, kind, members, onClose, o
     onDone()
   }
 
+  /* 需要商戶嗰刻才出商戶清單（唔會喺首頁列出）*/
+  if (picking) {
+    return (
+      <MerchantPicker
+        kind={kind === 'date' ? 'place' : kind}
+        solemn={solemn}
+        onClose={onClose}
+        onPick={m => { setMerchant(m); setPicking(false) }}
+      />
+    )
+  }
+
   return (
     <div style={gsOverlay} onClick={onClose}>
       <div style={gsSheet} onClick={e => e.stopPropagation()}>
@@ -87,30 +80,21 @@ export default function GatherAddOption({ gatheringId, kind, members, onClose, o
           {t(`gather.kind_${kind}`)}・{t('gather.add_option_title')}
         </h3>
 
-        {kind !== 'date' && (
-          <>
-            <div>
-              <label style={gsLabel} htmlFor="ga-q">{t('gather.search_merchant')}</label>
-              <input id="ga-q" style={gsInput} value={q} onChange={e => setQ(e.target.value)} placeholder={t('gather.search_placeholder')} />
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '34vh', overflowY: 'auto' }}>
-              <button style={gsChip(merchantId === '')} onClick={() => setMerchantId('')}>{t('gather.custom_option')}</button>
-              {matches.map(m => (
-                <button key={m.id} style={gsChip(merchantId === m.id)} onClick={() => setMerchantId(m.id)}>
-                  {m.name}{m.address ? ` ・${m.address}` : ''}
-                </button>
-              ))}
-              {matches.length === 0 && (
-                <p style={{ margin: 0, fontSize: '15px', color: 'var(--color-text-secondary)' }}>{t('gather.no_merchant')}</p>
-              )}
-            </div>
-            {merchantId === '' && (
-              <div>
-                <label style={gsLabel} htmlFor="ga-label">{t('gather.custom_name')}</label>
-                <input id="ga-label" style={gsInput} value={label} onChange={e => setLabel(e.target.value)} placeholder={t('gather.custom_name_ph')} />
-              </div>
-            )}
-          </>
+        {needPick && (
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '17px', fontWeight: 'bold', color: 'var(--color-text)' }}>
+              {merchant ? merchant.name : t('gather.custom_option')}
+            </span>
+            <button style={gsBtnGhost} onClick={() => { setPicking(true); setCustom(false) }}>{t('gather.repick')}</button>
+            {!merchant && <button style={gsBtnGhost} onClick={() => setCustom(true)}>{t('gather.custom_option')}</button>}
+          </div>
+        )}
+
+        {needPick && !merchant && (custom || !needPick) && (
+          <div>
+            <label style={gsLabel} htmlFor="ga-label">{t('gather.custom_name')}</label>
+            <input id="ga-label" style={gsInput} value={label} onChange={e => setLabel(e.target.value)} placeholder={t('gather.custom_name_ph')} />
+          </div>
         )}
 
         {needDate && (
@@ -143,6 +127,7 @@ export default function GatherAddOption({ gatheringId, kind, members, onClose, o
         </div>
 
         {err && <p style={{ margin: 0, fontSize: '15px', color: 'var(--color-accent)' }}>{err}</p>}
+        {solemn && <p style={{ ...gsMuted, margin: 0 }}>{t('gather.memorial_notice')}</p>}
 
         <div style={gsRow}>
           <button style={gsBtnPrimary} disabled={busy} onClick={submit}>{busy ? t('gather.saving') : t('gather.add_option_btn')}</button>
