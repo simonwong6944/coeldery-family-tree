@@ -106,7 +106,7 @@ export default function B3AddMember() {
   const phoneNorm = (() => { let n = phone.replace(/\D/g, ''); if (n.startsWith('852')) n = n.slice(3); if (n.length > 8) n = n.slice(-8); return n })()
   const phoneValid = /^\d{8}$/.test(phoneNorm)
 
-  const step2PersonValid = !!personName.trim() && phoneValid && (isFirstMember || !!targetId)
+  const step2PersonValid = !!personName.trim() && phoneValid && (isFirstMember || (!!targetId && !!relationUi))
 
   /* ─── Step 1 ─── */
   if (step === 1) return <Shell onBack={()=>{ window.location.hash='#/' }} totalDots={totalDots} dotStep={dotStep}>

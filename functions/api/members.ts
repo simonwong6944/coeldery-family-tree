@@ -119,6 +119,24 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
   }
 
   // ════════════════════════════════════════════════════════
+  // 加人必須連結（person）：樹入面已有 person 時，必須提供關係對象
+  //   → 避免產生沒有任何關係邊嘅漂浮節點
+  //   樹入面第一位 person（開山）唔需關係
+  // ════════════════════════════════════════════════════════
+  if (member_kind === 'person') {
+    const cnt = await ctx.env.DB
+      .prepare("SELECT COUNT(*) AS n FROM members WHERE family_id = ? AND member_kind = 'person'")
+      .bind(familyId)
+      .first<{ n: number }>()
+    if ((cnt?.n ?? 0) > 0) {
+      if (!relation_key)
+        return Response.json({ ok: false, error: '請選擇新成員與家人的關係' }, { status: 400 })
+      if (!target_member_id)
+        return Response.json({ ok: false, error: '請選擇關係對象' }, { status: 400 })
+    }
+  }
+
+  // ════════════════════════════════════════════════════════
   // person 專屬流程（pet 跳過此整個區塊）
   // ════════════════════════════════════════════════════════
   let phoneNorm: string | null = null
