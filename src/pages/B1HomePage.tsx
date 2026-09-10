@@ -104,13 +104,28 @@ export default function B1HomePage() {
         if (res.ok) return res.json()
         return { members: [], relationships: [] }
       })
-      .then((d: TreeData | null) => {
+      .then(async (d: TreeData | null) => {
         if (d === null) return   /* 已導向登入，唔 setTree，避免空樹一閃 */
         setTree(d)
         setLoading(false)
-        const selfMember = d.members.find((m: ApiMember) => m.is_self === 1 && m.member_kind === 'person')
-          ?? d.members.find((m: ApiMember) => m.member_kind === 'person')
-        if (selfMember) setFocusId(selfMember.id)
+
+        /* ── 焦點 = 登入者本人（/api/family/me 之 member_id），
+         *    唔再用 is_self / 最早建立者，避免以他人為中心 ── */
+        let meId: string | null = null
+        try {
+          const meRes = await fetch('/api/family/me', { credentials: 'include' })
+          if (meRes.ok) {
+            const me = await meRes.json() as { member_id?: string | null }
+            meId = me.member_id ?? null
+          }
+        } catch { /* 靜默：落返下面 fallback */ }
+
+        const focus =
+          (meId && d.members.some((m: ApiMember) => m.id === meId) ? meId : null)
+          ?? d.members.find((m: ApiMember) => m.is_self === 1 && m.member_kind === 'person')?.id
+          ?? d.members.find((m: ApiMember) => m.member_kind === 'person')?.id
+          ?? null
+        if (focus) setFocusId(focus)
       })
       .catch(() => { setTree({ members: [], relationships: [] }); setLoading(false) })
   }, [])
@@ -124,7 +139,7 @@ export default function B1HomePage() {
     return (
       <Shell>
         <p style={{ padding:'40px 16px', fontSize:'18px', color:'var(--color-text-secondary)', textAlign:'center' }}>
-          載入中⋯
+          {t('common.loading')}
         </p>
       </Shell>
     )
@@ -139,8 +154,8 @@ export default function B1HomePage() {
       <Shell>
         <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'16px', padding:'48px 24px', textAlign:'center' }}>
           <span style={{ fontSize:'64px' }}>🌱</span>
-          <h2 style={{ fontSize:'20px', fontWeight:'bold', color:'var(--color-text)', margin:0 }}>家庭樹尚無成員</h2>
-          <p style={{ fontSize:'18px', color:'var(--color-text-secondary)', margin:0 }}>點擊右上角 ＋ 開始建立您的家庭樹</p>
+          <h2 style={{ fontSize:'20px', fontWeight:'bold', color:'var(--color-text)', margin:0 }}>{t('empty_state.heading')}</h2>
+          <p style={{ fontSize:'18px', color:'var(--color-text-secondary)', margin:0 }}>{t('empty_state.subtext')}</p>
           <button
             onClick={() => { window.location.hash='#/b3-add' }}
             style={{ marginTop:'8px', padding:'0 28px', minHeight:'56px', borderRadius:'28px', fontSize:'18px', fontWeight:'bold', fontFamily:'inherit', cursor:'pointer', border:'none', backgroundColor:'var(--color-primary)', color:'var(--color-card)' }}
