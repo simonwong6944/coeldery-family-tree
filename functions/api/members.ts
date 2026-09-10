@@ -44,6 +44,7 @@
  */
 
 import type { Env } from './_types'
+import { getCurrentMember } from './_currentMember'
 import { lookup85AiByPhone } from './family/_lookup85ai'
 import { createNode85ai } from './family/_createNode85ai'
 
@@ -54,22 +55,6 @@ import { createNode85ai } from './family/_createNode85ai'
 function genId(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(16))
   return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')
-}
-
-/**
- * 從 Cookie header string parse 出指定 cookie 值
- * （複製 me.ts / invite.ts 同款 helper，避免 cross-import）
- */
-function parseCookieValue(cookieHeader: string | null, name: string): string | undefined {
-  if (!cookieHeader) return undefined
-  const prefix = `${name}=`
-  for (const part of cookieHeader.split(';')) {
-    const trimmed = part.trim()
-    if (trimmed.startsWith(prefix)) {
-      return trimmed.slice(prefix.length)
-    }
-  }
-  return undefined
 }
 
 /* ════════════════════════════════════════════════════════════
@@ -107,16 +92,24 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
   if (!display_name || display_name.trim().length === 0)
     return Response.json({ ok: false, error: 'display_name 不可為空' }, { status: 400 })
 
-  // ── 取得 / 建立 family ──
+  // ════════════════════════════════════════════════════════
+  // 認證 + 決定 family（以登入者主樹為準）
+  //   舊版：ORDER BY created_at LIMIT 1（全庫最早樹）+ 硬編碼「陳家」
+  //         → 任何用戶加人都塞入同一棵樹（掛錯樹 bug）
+  //   新版：getCurrentMember → primaryFamilyId；傳入 family_id 須屬登入者
+  // ════════════════════════════════════════════════════════
+  const cur = await getCurrentMember(ctx.env.DB, ctx.request)
+  if (!cur.ok) return cur.response   // 401「請先登入」
+
   let familyId = (body.family_id as string | undefined)?.trim()
-  if (!familyId) {
-    const first = await ctx.env.DB.prepare('SELECT id FROM families ORDER BY created_at ASC LIMIT 1').first<{ id: string }>()
-    if (first) {
-      familyId = first.id
-    } else {
-      familyId = genId()
-      await ctx.env.DB.prepare('INSERT INTO families (id, name) VALUES (?, ?)').bind(familyId, '陳家').run()
+  if (familyId) {
+    /* 傳咗 family_id：必須屬於登入者，否則 403 */
+    if (!cur.familyIds.includes(familyId)) {
+      return Response.json({ ok: false, error: '無權在此家族樹加入成員' }, { status: 403 })
     }
+  } else {
+    /* 冇傳 → 用登入者主樹 */
+    familyId = cur.primaryFamilyId
   }
 
   // ════════════════════════════════════════════════════════
@@ -127,20 +120,9 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
 
   if (member_kind === 'person') {
 
-    // ── ① cookie 認證：確保加人者已登入 ──
-    const cookieHeader  = ctx.request.headers.get('cookie')
-    const sessionToken  = parseCookieValue(cookieHeader, 'family_session')
-    if (!sessionToken) {
-      return Response.json({ ok: false, error: '請先登入' }, { status: 401 })
-    }
-    const sessionRow = await ctx.env.DB.prepare(
-      "SELECT member_no FROM family_sessions WHERE token = ? AND expires_at > datetime('now')"
-    ).bind(sessionToken).first<{ member_no: string }>()
-    if (!sessionRow) {
-      return Response.json({ ok: false, error: '請先登入' }, { status: 401 })
-    }
+    // ── ① 加人者身份：已由上方 getCurrentMember 驗證 ──
     // actorMemberNo：加人者 member_no，用作 NODE_ONLY 建立時的 managed_by
-    const actorMemberNo = sessionRow.member_no
+    const actorMemberNo = cur.memberNo
 
     // ── ② phone normalize ──
     const rawPhone = typeof phone === 'string' ? phone : ''

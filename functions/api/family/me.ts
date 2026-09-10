@@ -104,22 +104,32 @@ export const onRequestGet: PagesFunction<Env> = async (ctx) => {
       })
     }
 
-    /* ── B branch：有主樹，查 nickname / display_name ── */
+    /* ── B branch：有主樹，查 display_name（members）+ nickname（member_auth）── */
     const nodeDetail = await db
       .prepare(
-        `SELECT nickname, display_name
+        `SELECT display_name
          FROM members
          WHERE id = ?`
       )
       .bind(pt.primaryMemberId)
-      .first<{ nickname: string | null; display_name: string }>()
+      .first<{ display_name: string }>()
+
+    /* nickname 存於 member_auth（per member_no），非 members node */
+    const authDetail = await db
+      .prepare(
+        `SELECT nickname
+         FROM member_auth
+         WHERE member_no = ?`
+      )
+      .bind(memberNo)
+      .first<{ nickname: string | null }>()
 
     return Response.json({
       ok:           true,
       member_no:    memberNo,
       member_id:    pt.primaryMemberId,
       family_id:    pt.primaryFamilyId,
-      nickname:     nodeDetail?.nickname     ?? null,
+      nickname:     authDetail?.nickname     ?? null,
       display_name: nodeDetail?.display_name ?? null,
     })
 

@@ -19,11 +19,13 @@
  *   1. 驗欄位（phone normalize / password / nickname / birth_date）
  *   2. 讀 FAMILY_TREE_API_KEY（讀唔到 → 503）
  *   3. lookup85AiByPhone → 非會員 → 403；lookup 失敗 → 透傳 upstream 狀態
- *   4. 靠 phone 查本人 node：
- *      A. 搵到 → UPDATE password_hash, nickname, birth_date；
- *                若 coeldery85_member_id 為 NULL 順帶寫入 memberNo
- *      B. 搵唔到 → 建新 family + INSERT 自己 node（phone 帶入，撞 unique → 409）
- *   5. 無論 A / B 成功後種 family_session cookie（30 日）
+ *   4. 查 member_auth（member_no 為 key）：已存在 → 409（已完成設定，改用登入）
+ *   5. 靠 coeldery85_member_id = member_no 查本人 node：
+ *      A. 搵到 → 只補 birth_date（若空）
+ *      B. 搵唔到 → 建新 family + INSERT 自己 node
+ *                 （不帶 phone / password_hash / nickname，認證改存 member_auth）
+ *   6. INSERT member_auth（password_hash + nickname，per member_no）
+ *   7. 無論 A / B 成功後種 family_session cookie（30 日）
  *
  * 回應（200）：
  *   { ok: true, member_id, family_id, created_new: boolean }
@@ -32,7 +34,7 @@
  * 錯誤：
  *   400  欄位不合格（phone / password / nickname / birth_date）
  *   403  非 85AI 會員
- *   409  電話已有節點（partial unique index）
+ *   409  member_no 已完成設定（member_auth 已存在，請改用登入）
  *   503  FAMILY_TREE_API_KEY 未設定
  *   upstream 非 200  原樣透傳
  *   500  DB 錯（記 log）
@@ -217,43 +219,50 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
     return Response.json({ ok: false, error: '伺服器錯誤，請稍後再試' }, { status: 500 })
   }
 
-  /* ── 6. 查本人 node（靠 normalize 後 phone）── */
+  /* ── 6. 查本人 node + 寫入認證（member_auth）── */
   try {
+    /* ── 6a. 已設定過？查 member_auth（member_no 為 key）── */
+    const existingAuth = await db
+      .prepare(`SELECT member_no FROM member_auth WHERE member_no = ?`)
+      .bind(memberNo)
+      .first<{ member_no: string }>()
+
+    if (existingAuth) {
+      return Response.json(
+        { ok: false, error: '此帳號已完成設定，請使用密碼登入' },
+        { status: 409 },
+      )
+    }
+
+    /* ── 6b. 查本人 node（靠 coeldery85_member_id = memberNo，勿靠 phone 欄）── */
     const node = await db
       .prepare(
-        `SELECT id, family_id, coeldery85_member_id
+        `SELECT id, family_id
          FROM members
-         WHERE phone = ? AND member_kind = 'person'
+         WHERE coeldery85_member_id = ? AND member_kind = 'person'
          LIMIT 1`
       )
-      .bind(phone)
-      .first<{ id: string; family_id: string; coeldery85_member_id: string | null }>()
+      .bind(memberNo)
+      .first<{ id: string; family_id: string }>()
 
     let memberId:  string
     let familyId:  string
     let createdNew: boolean
 
-    /* ── A. 搵到 node（被人加過）→ UPDATE ── */
+    /* ── A. 搵到 node（已存在）→ 只補 birth_date（若空）── */
     if (node) {
-      /* 更新 password_hash, nickname, birth_date */
-      await db
-        .prepare(
-          `UPDATE members
-           SET password_hash = ?, nickname = ?, birth_date = ?
-           WHERE id = ?`
-        )
-        .bind(passwordHash, nickname, birthDate, node.id)
-        .run()
-
-      /* 若 coeldery85_member_id 為 NULL，順帶寫入 memberNo */
-      if (node.coeldery85_member_id === null) {
+      if (birthDate) {
         await db
-          .prepare(`UPDATE members SET coeldery85_member_id = ? WHERE id = ?`)
-          .bind(memberNo, node.id)
+          .prepare(
+            `UPDATE members
+             SET birth_date = ?
+             WHERE id = ? AND (birth_date IS NULL OR birth_date = '')`
+          )
+          .bind(birthDate, node.id)
           .run()
       }
 
-      console.log(`[family/setup] 已更新 member ${node.id}（memberNo=${memberNo}，phone=${phone}）`)
+      console.log(`[family/setup] 已存在 member ${node.id}（memberNo=${memberNo}）`)
 
       memberId   = node.id
       familyId   = node.family_id
@@ -271,40 +280,34 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
         .bind(newFamilyId, familyName)
         .run()
 
-      /* B-2. INSERT members（phone 帶入，partial unique index 防重複）*/
-      try {
-        await db
-          .prepare(
-            `INSERT INTO members
-               (id, family_id, member_kind, display_name, birth_date,
-                coeldery85_member_id, nickname, password_hash, phone)
-             VALUES (?, ?, 'person', ?, ?, ?, ?, ?, ?)`
-          )
-          .bind(newMemberId, newFamilyId, nickname, birthDate,
-                memberNo, nickname, passwordHash, phone)
-          .run()
-      } catch (insertErr) {
-        /* 電話重複觸發 partial unique index → 409 */
-        const msg = insertErr instanceof Error ? insertErr.message : String(insertErr)
-        if (msg.toLowerCase().includes('unique')) {
-          console.warn(`[family/setup] phone ${phone} 撞 unique index（memberNo=${memberNo}）`)
-          return Response.json(
-            { ok: false, error: '此電話已有節點，請改用登入' },
-            { status: 409 },
-          )
-        }
-        throw insertErr  // 其他 DB 錯 → 交由外層 catch 處理
-      }
+      /* B-2. INSERT members（不帶 phone / password_hash / nickname）*/
+      await db
+        .prepare(
+          `INSERT INTO members
+             (id, family_id, member_kind, display_name, birth_date, coeldery85_member_id)
+           VALUES (?, ?, 'person', ?, ?, ?)`
+        )
+        .bind(newMemberId, newFamilyId, nickname, birthDate || null, memberNo)
+        .run()
 
       console.log(
         `[family/setup] 新建 family ${newFamilyId}、member ${newMemberId}` +
-        `（memberNo=${memberNo}，phone=${phone}）`
+        `（memberNo=${memberNo}）`
       )
 
       memberId   = newMemberId
       familyId   = newFamilyId
       createdNew = true
     }
+
+    /* ── 6c. 寫入 member_auth（密碼 + 暱稱，per member_no）── */
+    await db
+      .prepare(
+        `INSERT INTO member_auth (member_no, password_hash, nickname, updated_at)
+         VALUES (?, ?, ?, datetime('now'))`
+      )
+      .bind(memberNo, passwordHash, nickname)
+      .run()
 
     /* ── 7. 種 family_session cookie（A / B 均執行）── */
     const sessionToken = makeToken()
