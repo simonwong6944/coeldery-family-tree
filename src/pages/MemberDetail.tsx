@@ -72,6 +72,12 @@ export default function MemberDetail({ memberId }: { memberId: string }) {
     setSaving(false); fetchTree()
   }
 
+  /** 設定性別（影響親屬稱謂：父／母、子／女）*/
+  async function handleSetGender(g: 'male' | 'female' | null) {
+    await fetch(`/api/members/${memberId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify({ gender: g }) })
+    fetchTree()
+  }
+
   async function handleRenameSelf() {
     const name = window.prompt(t('member_detail.rename_prompt'), member?.display_name ?? '')
     if (!name || !name.trim()) return
@@ -159,6 +165,16 @@ export default function MemberDetail({ memberId }: { memberId: string }) {
           )}
         </div>
         {isSelf && <span style={{ fontSize:'12px', fontWeight:'bold', color:'var(--color-primary)', border:'1.5px solid var(--color-primary)', borderRadius:'12px', padding:'2px 10px', whiteSpace:'nowrap', alignSelf:'flex-start' }}>{t('member_detail.is_self_label')}</span>}
+      </div>
+      <span style={label}>{t('member_detail.gender_label')}</span>
+      <div style={{ display:'flex', gap:'8px', margin:'0 0 12px', flexWrap:'wrap' }}>
+        {([['male', 'gender_male'], ['female', 'gender_female'], [null, 'gender_unset']] as const).map(([g, k]) => (
+          <button
+            key={String(g)}
+            style={{ ...smallBtn, ...(member.gender === g ? { backgroundColor:'var(--color-primary)', color:'var(--color-card)', borderColor:'var(--color-primary)' } : {}) }}
+            onClick={() => handleSetGender(g)}
+          >{t(`member_detail.${k}`)}</button>
+        ))}
       </div>
       <span style={label}>{t('member_detail.birth_label')}</span>
       <p style={{ ...val, margin:'0 0 12px' }}>{member.birth_date ?? '—'}</p>
