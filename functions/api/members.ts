@@ -21,7 +21,13 @@
  *   owner_member_ids?: string[]   // 主人的 member.id 陣列（從現有成員選擇）
  * }
  *
- * Response: { ok: true, member_id: string, relationship_ids: string[] }
+ * Response: { ok: true, member_id: string, relationship_ids: string[], merged: boolean }
+ *
+ * person 去重（v1「一個家庭一棵樹」）：
+ *   若該 member_no 已有節點 →
+ *     同樹 → 重用該節點，唔開重複
+ *     跨樹 → 合併：來源樹整個搬入目標樹（members / relationships / posts 改 family_id，
+ *            並刪除空嘅來源 family），再重用該節點
  *
  * person 加人流程（額外步驟）：
  *   1. 讀 family_session cookie → SELECT family_sessions → 攞 actorMemberNo（加人者）
@@ -185,28 +191,64 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
     }
   }
 
-  // ── 建立成員節點 ──
-  // ⚠️ node 表冇 phone 欄；phoneNorm 只用作上面 85AI lookup，唔寫入 DB
-  const memberId = genId()
-  try {
-    await ctx.env.DB.prepare(
-      'INSERT INTO members (id, family_id, member_kind, display_name, birth_date, gender, coeldery85_member_id) VALUES (?, ?, ?, ?, ?, ?, ?)'
-    ).bind(
-      memberId,
-      familyId,
-      member_kind,
-      display_name.trim(),
-      birth_date ?? null,
-      gender ?? null,
-      linkedMemberNo,     // person 會員 → lookup member_no；非會員 → NODE_ONLY member_no；pet → null
-    ).run()
-  } catch (e: unknown) {
-    // 保留 try/catch 骨架：id 撞 / 將來加約束都用得着
-    // 新 schema 已無 phone UNIQUE index，中性訊息避免誤導
-    const msg = e instanceof Error ? e.message : String(e)
-    if (msg.toLowerCase().includes('unique'))
-      return Response.json({ ok: false, error: '建立成員失敗，請稍後再試' }, { status: 409 })
-    throw e
+  // ════════════════════════════════════════════════════════
+  // 建立 / 重用成員節點（person 去重）
+  //   person 若該 member_no 已有節點：
+  //     - 同樹 → 重用（唔開重複節點）
+  //     - 跨樹 → 合併：來源樹整個搬入目標樹，再重用該節點
+  //   其餘（pet / 全新 person）→ INSERT 新節點
+  // ════════════════════════════════════════════════════════
+  let memberId: string
+  let merged = false
+
+  const existingNode = (member_kind === 'person' && linkedMemberNo)
+    ? await ctx.env.DB
+        .prepare(
+          "SELECT id, family_id FROM members WHERE coeldery85_member_id = ? AND member_kind = 'person' LIMIT 1"
+        )
+        .bind(linkedMemberNo)
+        .first<{ id: string; family_id: string }>()
+    : null
+
+  if (existingNode) {
+    memberId = existingNode.id
+
+    if (existingNode.family_id !== familyId) {
+      /* ── 合併：來源樹 → 目標樹（members / relationships / posts 搬 family_id）── */
+      const src = existingNode.family_id
+      // is_self 保持「每棵樹最多一個」：搬入者一律清 0，目標樹原有 is_self 保留
+      await ctx.env.DB.prepare('UPDATE members SET family_id = ?, is_self = 0 WHERE family_id = ?')
+        .bind(familyId, src).run()
+      await ctx.env.DB.prepare('UPDATE relationships SET family_id = ? WHERE family_id = ?')
+        .bind(familyId, src).run()
+      await ctx.env.DB.prepare('UPDATE posts SET family_id = ? WHERE family_id = ?')
+        .bind(familyId, src).run()
+      await ctx.env.DB.prepare('DELETE FROM families WHERE id = ?')
+        .bind(src).run()
+      merged = true
+      console.log(`[members] 合併 family ${src} → ${familyId}（member ${memberId}）`)
+    }
+  } else {
+    memberId = genId()
+    try {
+      await ctx.env.DB.prepare(
+        'INSERT INTO members (id, family_id, member_kind, display_name, birth_date, gender, coeldery85_member_id) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      ).bind(
+        memberId,
+        familyId,
+        member_kind,
+        display_name.trim(),
+        birth_date ?? null,
+        gender ?? null,
+        linkedMemberNo,     // person 會員 → lookup member_no；非會員 → NODE_ONLY member_no；pet → null
+      ).run()
+    } catch (e: unknown) {
+      // 保留 try/catch 骨架：id 撞 / 將來加約束都用得着
+      const msg = e instanceof Error ? e.message : String(e)
+      if (msg.toLowerCase().includes('unique'))
+        return Response.json({ ok: false, error: '建立成員失敗，請稍後再試' }, { status: 409 })
+      throw e
+    }
   }
 
   // ── 建立關係邊 ──
@@ -279,5 +321,5 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
     }
   }
 
-  return Response.json({ ok: true, member_id: memberId, relationship_ids: relationshipIds })
+  return Response.json({ ok: true, member_id: memberId, relationship_ids: relationshipIds, merged })
 }
