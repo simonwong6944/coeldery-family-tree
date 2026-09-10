@@ -115,6 +115,19 @@
     "grid_label": "相片縮圖列表",
     "empty_text": "尚未上傳相片或短片。"
   },
+  "growth_album": {
+    "title": "成長相簿",
+    "quota": "本月 相 {{photo}}/{{photoLimit}} · 片 {{video}}/{{videoLimit}}",
+    "upload_btn": "＋ 上傳相片",
+    "uploading": "上傳中…",
+    "upload_failed": "上傳失敗，請稍後再試",
+    "quota_full": "本月相片已達配額上限",
+    "empty": "尚未有相片，加入第一張記下成長點滴",
+    "month_label": "{{year}} 年 {{month}} 月",
+    "month_pick": "上傳至",
+    "delete_confirm": "確定刪除此相片？",
+    "load_failed": "載入失敗，請稍後再試"
+  },
   "entry_card": {
     "activity_title": "查閱動態",
     "activity_subtitle": "前往家庭圈，可 讚好／留言",

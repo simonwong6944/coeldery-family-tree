@@ -13,6 +13,7 @@ import type { ApiMember, ApiRel } from '../../packages/family-tree-engine'
 import MemberAddRelPanel from './MemberAddRelPanel'
 import ImportantDatesSection from './ImportantDatesSection'
 import AvatarSection from './AvatarSection'
+import GrowthAlbumSection from './GrowthAlbumSection'
 
 interface TreeData { members: ApiMember[]; relationships: ApiRel[] }
 
@@ -162,6 +163,8 @@ export default function MemberDetail({ memberId }: { memberId: string }) {
         <button style={primaryBtn} disabled={selfBusy} onClick={handleSetSelf}>{selfBusy ? t('b3.btn_submitting') : t('member_detail.set_self_btn')}</button>
       )}
     </section>
+
+    <GrowthAlbumSection memberId={memberId} />
 
     <section style={card}>
       <h3 style={{ margin:'0 0 12px', fontSize:'16px', fontWeight:'bold', color:'var(--color-text)' }}>{t('member_detail.rels_title')}</h3>
