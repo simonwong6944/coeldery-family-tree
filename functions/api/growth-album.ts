@@ -150,6 +150,23 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
     )
     .run()
 
+  /* ── 單向同步家庭圈（product_decisions §二）：加入相簿 → 自動出一篇動態 ──
+   *    只同步相片（短片待支援）；貼文作者 = 上傳者；刪除相簿項目會一併刪文 */
+  if (media_kind === 'photo') {
+    const postId = genId()
+    await ctx.env.DB
+      .prepare(
+        `INSERT INTO posts (id, family_id, author_member_id, body_text, photo_url)
+         VALUES (?, ?, ?, ?, ?)`
+      )
+      .bind(postId, subject.family_id, cur.primaryMemberId, caption ?? null, mediaUrl)
+      .run()
+    await ctx.env.DB
+      .prepare('UPDATE growth_album_items SET synced_post_id = ? WHERE id = ?')
+      .bind(postId, id)
+      .run()
+  }
+
   return Response.json({ ok: true, item_id: id })
 }
 
