@@ -108,6 +108,20 @@ export default function ImportantDatesSection({ memberId }: Props) {
   const [addBusy,        setAddBusy]        = useState(false)
   const [deleteBusy,     setDeleteBusy]     = useState<string | null>(null)  // date.id currently deleting
 
+  /* ── 編輯現有重要日子（名稱／日期）── */
+  async function handleEdit(d: ImportantDate) {
+    const label = window.prompt(t('member_detail.important_date_edit_label'), d.label)
+    if (label === null) return
+    const date = window.prompt(t('member_detail.important_date_edit_date'), d.date)
+    if (date === null) return
+    await fetch(`/api/members/${memberId}/important-dates`, {
+      method: 'PATCH', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date_id: d.id, label: (label.trim() || d.label), date: (date.trim() || d.date) }),
+    })
+    fetchDates()
+  }
+
   /* ── fetch 重要日子 ── */
   const fetchDates = useCallback(async () => {
     setDatesLoad('loading')
@@ -175,7 +189,7 @@ export default function ImportantDatesSection({ memberId }: Props) {
       {/* 載入中 */}
       {datesLoad === 'loading' && (
         <p style={{ fontSize: '15px', color: 'var(--color-text-secondary)', margin: '0 0 12px' }}>
-          載入中⋯
+          {t('common.loading')}
         </p>
       )}
 
@@ -204,6 +218,13 @@ export default function ImportantDatesSection({ memberId }: Props) {
           <span style={{ fontSize: '15px', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>
             {formatMonthDay(d.date)}
           </span>
+          <button
+            style={{ ...primaryBtn, fontSize: '14px', minHeight: '44px' }}
+            onClick={() => handleEdit(d)}
+            aria-label={`${t('member_detail.important_date_edit')} ${d.label}`}
+          >
+            ✏ {t('member_detail.important_date_edit')}
+          </button>
           <button
             style={{
               ...dangerSmallBtn,

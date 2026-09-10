@@ -508,6 +508,9 @@
     "important_date_recurring": "每年提醒",
     "important_date_add": "新增",
     "important_date_delete": "刪除",
+    "important_date_edit": "編輯",
+    "important_date_edit_label": "修改名稱",
+    "important_date_edit_date": "修改日期（YYYY-MM-DD）",
     "avatar_upload": "上載頭像",
     "avatar_uploading": "上載中⋯",
     "avatar_error": "頭像上載失敗，請再試"
