@@ -71,7 +71,7 @@ export const onRequestDelete: PagesFunction<Env> = async (ctx) => {
   const cur = await getCurrentMember(ctx.env.DB, ctx.request)
   if (!cur.ok) return cur.response
 
-  const { familyId, memberId } = cur
+  const { primaryFamilyId: familyId, primaryMemberId: memberId } = cur
 
   // 2. 權限檢查（存在 + 同 family + 作者本人）
   const authErr = await checkAuth(ctx.env.DB, postId, familyId, memberId)
@@ -95,7 +95,7 @@ export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
   const cur = await getCurrentMember(ctx.env.DB, ctx.request)
   if (!cur.ok) return cur.response
 
-  const { familyId, memberId } = cur
+  const { primaryFamilyId: familyId, primaryMemberId: memberId } = cur
 
   // 2. 權限檢查（存在 + 同 family + 作者本人）
   const authErr = await checkAuth(ctx.env.DB, postId, familyId, memberId)

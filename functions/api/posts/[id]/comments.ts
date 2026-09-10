@@ -39,7 +39,7 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
   const cur = await getCurrentMember(ctx.env.DB, ctx.request)
   if (!cur.ok) return cur.response
 
-  const { memberId: authorId } = cur
+  const { primaryMemberId: authorId } = cur
 
   // 2. Parse body
   let body: Record<string, unknown>
@@ -90,7 +90,7 @@ export const onRequestDelete: PagesFunction<Env> = async (ctx) => {
   const cur = await getCurrentMember(ctx.env.DB, ctx.request)
   if (!cur.ok) return cur.response
 
-  const { memberId } = cur
+  const { primaryMemberId: memberId } = cur
 
   // 2. 取得 comment_id（支援 body 或 query string）
   let commentId: string | null = null
@@ -142,7 +142,7 @@ export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
   const cur = await getCurrentMember(ctx.env.DB, ctx.request)
   if (!cur.ok) return cur.response
 
-  const { memberId } = cur
+  const { primaryMemberId: memberId } = cur
 
   // 2. 一次過 parse body（同時取 comment_id 與新 body 文字）
   //    query string 優先取 comment_id（與 DELETE 一致）；body 文字只從 JSON body 取

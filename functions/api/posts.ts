@@ -53,7 +53,7 @@ export const onRequestGet: PagesFunction<Env> = async (ctx) => {
   const cur = await getCurrentMember(ctx.env.DB, ctx.request)
   if (!cur.ok) return cur.response
 
-  const { familyId, memberId: selfMemberId } = cur
+  const { primaryFamilyId: familyId, primaryMemberId: selfMemberId } = cur
 
   // 1. 所有貼文（JOIN 作者名）
   const postsRes = await ctx.env.DB.prepare(`
@@ -149,7 +149,7 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
   const cur = await getCurrentMember(ctx.env.DB, ctx.request)
   if (!cur.ok) return cur.response
 
-  const { familyId, memberId: authorId } = cur
+  const { primaryFamilyId: familyId, primaryMemberId: authorId } = cur
 
   // 2. Parse body
   let body: Record<string, unknown>

@@ -58,7 +58,7 @@ export const onRequestGet: PagesFunction<Env> = async (ctx) => {
   const cur = await getCurrentMember(ctx.env.DB, ctx.request)
   if (!cur.ok) return cur.response
 
-  const { familyId } = cur
+  const { primaryFamilyId: familyId } = cur
 
   // 2. 確認 target member 屬同一 family（防越權）
   const targetMember = await ctx.env.DB
@@ -87,7 +87,7 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
   const cur = await getCurrentMember(ctx.env.DB, ctx.request)
   if (!cur.ok) return cur.response
 
-  const { familyId } = cur
+  const { primaryFamilyId: familyId } = cur
 
   // 2. 確認 target member 屬同一 family
   const targetMember = await ctx.env.DB
@@ -141,7 +141,7 @@ export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
   const cur = await getCurrentMember(ctx.env.DB, ctx.request)
   if (!cur.ok) return cur.response
 
-  const { familyId } = cur
+  const { primaryFamilyId: familyId } = cur
 
   // 2. 確認 target member 屬同一 family（防越權）
   const targetMember = await ctx.env.DB
@@ -233,7 +233,7 @@ export const onRequestDelete: PagesFunction<Env> = async (ctx) => {
   const cur = await getCurrentMember(ctx.env.DB, ctx.request)
   if (!cur.ok) return cur.response
 
-  const { familyId } = cur
+  const { primaryFamilyId: familyId } = cur
 
   // 2. 確認 target member 屬同一 family（防越權）
   const targetMember = await ctx.env.DB

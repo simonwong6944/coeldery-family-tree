@@ -112,7 +112,7 @@ export const onRequestGet: PagesFunction<Env> = async (ctx) => {
   const cur = await getCurrentMember(ctx.env.DB, ctx.request)
   if (!cur.ok) return cur.response
 
-  const { familyId } = cur
+  const { primaryFamilyId: familyId } = cur
 
   // 2. 攞全部 person 成員（只撈需要的欄，全部 .bind() 綁參數）
   const membersRes = await ctx.env.DB

@@ -51,7 +51,7 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
   const cur = await getCurrentMember(ctx.env.DB, ctx.request)
   if (!cur.ok) return cur.response
 
-  const { memberId } = cur
+  const { primaryMemberId: memberId } = cur
 
   // 2. 確認貼文存在
   if (!(await assertPostExists(ctx.env.DB, postId)))
@@ -77,7 +77,7 @@ export const onRequestDelete: PagesFunction<Env> = async (ctx) => {
   const cur = await getCurrentMember(ctx.env.DB, ctx.request)
   if (!cur.ok) return cur.response
 
-  const { memberId } = cur
+  const { primaryMemberId: memberId } = cur
 
   // 2. 確認貼文存在
   if (!(await assertPostExists(ctx.env.DB, postId)))
