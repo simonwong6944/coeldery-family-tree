@@ -519,6 +519,7 @@
     "gender_male": "男",
     "gender_female": "女",
     "gender_unset": "未設定",
+    "set_birth_btn": "儲存生日",
     "back_to_tree": "返回家庭樹",
     "add_rel_no_type": "請選擇關係類型",
     "important_dates_title": "重要日子",

@@ -47,9 +47,9 @@ export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
   try { body = await ctx.request.json() as Record<string, unknown> }
   catch { return Response.json({ ok: false, error: '無效的 JSON 格式' }, { status: 400 }) }
 
-  // 守紅線 4：只允許改 deceased_date、is_self、gender、avatar_url、display_name
-  //   ⚠️ display_name 有例外：只准「本人」改自己個名（見下方 owner 檢查）
-  const allowedKeys = ['deceased_date', 'is_self', 'gender', 'avatar_url', 'display_name']
+  // 可改欄位（放寬紅線 4：本人改名 + 家人可改出生日期，因首次輸入常有錯）
+  //   display_name → 只准「本人」改自己個名（見下方 owner 檢查）
+  const allowedKeys = ['deceased_date', 'is_self', 'gender', 'avatar_url', 'display_name', 'birth_date']
   const bodyKeys = Object.keys(body)
   const forbidden = bodyKeys.filter(k => !allowedKeys.includes(k))
   if (forbidden.length > 0)
@@ -61,13 +61,27 @@ export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
   ).bind(memberId).first<{ id: string; family_id: string; coeldery85_member_id: string | null }>()
   if (!member) return Response.json({ ok: false, error: '找不到此成員' }, { status: 404 })
 
+  /* 必須登入 + 成員屬同一家族（防越權）*/
+  const cur = await getCurrentMember(ctx.env.DB, ctx.request)
+  if (!cur.ok) return cur.response
+  if (!cur.familyIds.includes(member.family_id))
+    return Response.json({ ok: false, error: '無權修改此成員' }, { status: 403 })
+
+  // ── 處理 birth_date（家人可改；YYYY-MM-DD 或 null）──
+  if ('birth_date' in body) {
+    const bd = body.birth_date
+    if (bd !== null && (typeof bd !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(bd)))
+      return Response.json({ ok: false, error: 'birth_date 格式須為 YYYY-MM-DD 或 null' }, { status: 400 })
+    await ctx.env.DB.prepare('UPDATE members SET birth_date = ? WHERE id = ?')
+      .bind(bd, memberId).run()
+    return Response.json({ ok: true, member_id: memberId, birth_date: bd })
+  }
+
   // ── 處理 display_name（只准本人改自己顯示名）──
   if ('display_name' in body) {
     const nameVal = body.display_name
     if (typeof nameVal !== 'string' || !nameVal.trim())
       return Response.json({ ok: false, error: 'display_name 須為非空字串' }, { status: 400 })
-    const cur = await getCurrentMember(ctx.env.DB, ctx.request)
-    if (!cur.ok) return cur.response
     if (!member.coeldery85_member_id || member.coeldery85_member_id !== cur.memberNo)
       return Response.json({ ok: false, error: '只可修改本人嘅顯示名' }, { status: 403 })
     await ctx.env.DB.prepare('UPDATE members SET display_name = ? WHERE id = ?')
@@ -97,9 +111,7 @@ export const onRequestPatch: PagesFunction<Env> = async (ctx) => {
       return Response.json({ ok: false, error: 'is_self 只接受 0 或 1' }, { status: 400 })
 
     if (isSelf === 1) {
-      /* 認領：需登入；節點若已屬他人 → 409 */
-      const cur = await getCurrentMember(ctx.env.DB, ctx.request)
-      if (!cur.ok) return cur.response
+      /* 認領：節點若已屬他人 → 409（登入／家族驗證已於上方完成）*/
       const owner = member.coeldery85_member_id
       if (owner && owner !== cur.memberNo) {
         return Response.json({ ok: false, error: '此節點已屬其他成員' }, { status: 409 })

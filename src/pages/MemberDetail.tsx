@@ -14,6 +14,7 @@ import MemberAddRelPanel from './MemberAddRelPanel'
 import ImportantDatesSection from './ImportantDatesSection'
 import AvatarSection from './AvatarSection'
 import GrowthAlbumSection from './GrowthAlbumSection'
+import MemberBasicsSection from './MemberBasicsSection'
 
 interface TreeData { members: ApiMember[]; relationships: ApiRel[] }
 
@@ -29,10 +30,7 @@ export default function MemberDetail({ memberId }: { memberId: string }) {
   const [tree, setTree] = useState<TreeData | null>(null)
   const [loading, setLoading] = useState(true)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [deceasedInput, setDeceasedInput] = useState('')
-  const [saving, setSaving] = useState(false)
   const [statusBusy, setStatusBusy] = useState('')
-  const [selfBusy, setSelfBusy] = useState(false)
   const [selfId, setSelfId] = useState<string | null>(null)
 
   const fetchTree = useCallback(() => {
@@ -42,14 +40,15 @@ export default function MemberDetail({ memberId }: { memberId: string }) {
       .catch(() => { setTree({ members:[], relationships:[] }); setLoading(false) })
   }, [])
 
-  useEffect(() => {
-    fetchTree()
-    /* 「本人」= 登入者節點（/api/family/me 之 member_id） */
+  /* 「本人」= 登入者節點（/api/family/me 之 member_id）*/
+  const refreshMe = useCallback(() => {
     fetch('/api/family/me', { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
       .then((me: { member_id?: string | null } | null) => { if (me) setSelfId(me.member_id ?? null) })
       .catch(() => {})
-  }, [fetchTree])
+  }, [])
+
+  useEffect(() => { fetchTree(); refreshMe() }, [fetchTree, refreshMe])
 
   const member = tree?.members.find(m => m.id === memberId)
   const myRels = (tree?.relationships ?? []).filter(r => r.from_member === memberId || r.to_member === memberId)
@@ -65,33 +64,11 @@ export default function MemberDetail({ memberId }: { memberId: string }) {
     setStatusBusy(''); fetchTree()
   }
 
-  async function handleSetDeceased() {
-    if (!deceasedInput) return
-    setSaving(true)
-    await fetch(`/api/members/${memberId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ deceased_date:deceasedInput }) })
-    setSaving(false); fetchTree()
-  }
-
-  /** 設定性別（影響親屬稱謂：父／母、子／女）*/
-  async function handleSetGender(g: 'male' | 'female' | null) {
-    await fetch(`/api/members/${memberId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify({ gender: g }) })
-    fetchTree()
-  }
-
   async function handleRenameSelf() {
     const name = window.prompt(t('member_detail.rename_prompt'), member?.display_name ?? '')
     if (!name || !name.trim()) return
     await fetch(`/api/members/${memberId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify({ display_name: name.trim() }) })
     fetchTree()
-  }
-
-  async function handleSetSelf() {
-    setSelfBusy(true)
-    await fetch(`/api/members/${memberId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, credentials:'include', body:JSON.stringify({ is_self:1 }) })
-    /* 認領後重新攞登入者節點，更新「本人」標記 */
-    const meRes = await fetch('/api/family/me', { credentials: 'include' })
-    if (meRes.ok) { const me = await meRes.json() as { member_id?: string | null }; setSelfId(me.member_id ?? null) }
-    setSelfBusy(false); fetchTree()
   }
 
   async function handleDelete() {
@@ -107,7 +84,6 @@ export default function MemberDetail({ memberId }: { memberId: string }) {
   const val: React.CSSProperties = { fontSize:'16px', color:'var(--color-text)', fontWeight:'500' }
   const dangerBtn: React.CSSProperties = { minHeight:'44px', padding:'0 20px', borderRadius:'22px', fontSize:'15px', fontWeight:'bold', fontFamily:'inherit', cursor:'pointer', border:'none', backgroundColor:'#ef4444', color:'#fff' }
   const smallBtn: React.CSSProperties = { minHeight:'36px', padding:'0 14px', borderRadius:'18px', fontSize:'14px', fontFamily:'inherit', cursor:'pointer', border:'1.5px solid var(--color-primary)', backgroundColor:'transparent', color:'var(--color-primary)' }
-  const primaryBtn: React.CSSProperties = { minHeight:'44px', padding:'0 20px', borderRadius:'22px', fontSize:'15px', fontWeight:'bold', fontFamily:'inherit', cursor:'pointer', border:'none', backgroundColor:'var(--color-primary)', color:'var(--color-card)' }
   const select: React.CSSProperties = { minHeight:'36px', padding:'0 8px', borderRadius:'8px', border:'1.5px solid var(--color-border)', fontSize:'14px', fontFamily:'inherit', color:'var(--color-text)', backgroundColor:'var(--color-card)' }
 
   // ── 4r Task 4：刪除警告 modal dialog ──
@@ -169,28 +145,7 @@ export default function MemberDetail({ memberId }: { memberId: string }) {
         </div>
         {isSelf && <span style={{ fontSize:'12px', fontWeight:'bold', color:'var(--color-primary)', border:'1.5px solid var(--color-primary)', borderRadius:'12px', padding:'2px 10px', whiteSpace:'nowrap', alignSelf:'flex-start' }}>{t('member_detail.is_self_label')}</span>}
       </div>
-      <span style={label}>{t('member_detail.gender_label')}</span>
-      <div style={{ display:'flex', gap:'8px', margin:'0 0 12px', flexWrap:'wrap' }}>
-        {([['male', 'gender_male'], ['female', 'gender_female'], [null, 'gender_unset']] as const).map(([g, k]) => (
-          <button
-            key={String(g)}
-            style={{ ...smallBtn, ...(member.gender === g ? { backgroundColor:'var(--color-primary)', color:'var(--color-card)', borderColor:'var(--color-primary)' } : {}) }}
-            onClick={() => handleSetGender(g)}
-          >{t(`member_detail.${k}`)}</button>
-        ))}
-      </div>
-      <span style={label}>{t('member_detail.birth_label')}</span>
-      <p style={{ ...val, margin:'0 0 12px' }}>{member.birth_date ?? '—'}</p>
-      <span style={label}>{t('member_detail.deceased_label')}</span>
-      <p style={{ ...val, margin:'0 0 8px' }}>{member.deceased_date ?? '—'}</p>
-      <div style={{ display:'flex', gap:'8px', alignItems:'center', flexWrap:'wrap', marginBottom:'12px' }}>
-        <input type="date" value={deceasedInput} onChange={e => setDeceasedInput(e.target.value)}
-          style={{ minHeight:'36px', padding:'0 8px', borderRadius:'8px', border:'1.5px solid var(--color-border)', fontSize:'14px', fontFamily:'inherit', color:'var(--color-text)' }}/>
-        <button style={smallBtn} disabled={saving || !deceasedInput} onClick={handleSetDeceased}>{saving ? t('b3.btn_submitting') : t('member_detail.set_deceased_btn')}</button>
-      </div>
-      {member.member_kind === 'person' && !isSelf && (
-        <button style={primaryBtn} disabled={selfBusy} onClick={handleSetSelf}>{selfBusy ? t('b3.btn_submitting') : t('member_detail.set_self_btn')}</button>
-      )}
+      <MemberBasicsSection member={member} memberId={memberId} isSelf={isSelf} onChanged={() => { fetchTree(); refreshMe() }} />
     </section>
 
     <GrowthAlbumSection memberId={memberId} />
